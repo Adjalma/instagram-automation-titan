@@ -21,15 +21,20 @@ import {
 } from "@/components/ui/sidebar";
 import { getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
-import { LayoutDashboard, LogOut, PanelLeft, Users } from "lucide-react";
+import { LayoutDashboard, LogOut, PanelLeft, PenSquare, CheckCircle, Calendar, BookOpen, Image, History, Settings } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
 import { Button } from "./ui/button";
 
 const menuItems = [
-  { icon: LayoutDashboard, label: "Page 1", path: "/" },
-  { icon: Users, label: "Page 2", path: "/some-path" },
+  { icon: LayoutDashboard, label: "Dashboard", path: "/" },
+  { icon: PenSquare, label: "Criar Post", path: "/create" },
+  { icon: CheckCircle, label: "Aprovação", path: "/approval" },
+  { icon: Calendar, label: "Calendário", path: "/calendar" },
+  { icon: BookOpen, label: "Cronograma", path: "/themes" },
+  { icon: History, label: "Histórico", path: "/history" },
+  { icon: Image, label: "Assets", path: "/assets" },
 ];
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";
@@ -170,8 +175,8 @@ function DashboardLayoutContent({
               </button>
               {!isCollapsed ? (
                 <div className="flex items-center gap-2 min-w-0">
-                  <span className="font-semibold tracking-tight truncate">
-                    Navigation
+                  <span className="font-extrabold tracking-tight truncate text-lg">
+                    Titan<span className="text-primary">SM</span>
                   </span>
                 </div>
               ) : null}

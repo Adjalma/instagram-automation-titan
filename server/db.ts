@@ -1,11 +1,11 @@
-import { eq } from "drizzle-orm";
+import { eq, desc, and, sql, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users } from "../drizzle/schema";
+import { InsertUser, users, instagramAccounts, posts, postMedia, assets, contentThemes } from "../drizzle/schema";
+import type { InsertPost } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
-// Lazily create the drizzle instance so local tooling can run without a DB.
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
@@ -18,26 +18,16 @@ export async function getDb() {
   return _db;
 }
 
+// ─── Users ───────────────────────────────────────────────────────
 export async function upsertUser(user: InsertUser): Promise<void> {
-  if (!user.openId) {
-    throw new Error("User openId is required for upsert");
-  }
-
+  if (!user.openId) throw new Error("User openId is required for upsert");
   const db = await getDb();
-  if (!db) {
-    console.warn("[Database] Cannot upsert user: database not available");
-    return;
-  }
-
+  if (!db) { console.warn("[Database] Cannot upsert user: database not available"); return; }
   try {
-    const values: InsertUser = {
-      openId: user.openId,
-    };
+    const values: InsertUser = { openId: user.openId };
     const updateSet: Record<string, unknown> = {};
-
     const textFields = ["name", "email", "loginMethod"] as const;
     type TextField = (typeof textFields)[number];
-
     const assignNullable = (field: TextField) => {
       const value = user[field];
       if (value === undefined) return;
@@ -45,48 +35,154 @@ export async function upsertUser(user: InsertUser): Promise<void> {
       values[field] = normalized;
       updateSet[field] = normalized;
     };
-
     textFields.forEach(assignNullable);
-
-    if (user.lastSignedIn !== undefined) {
-      values.lastSignedIn = user.lastSignedIn;
-      updateSet.lastSignedIn = user.lastSignedIn;
-    }
-    if (user.role !== undefined) {
-      values.role = user.role;
-      updateSet.role = user.role;
-    } else if (user.openId === ENV.ownerOpenId) {
-      values.role = 'admin';
-      updateSet.role = 'admin';
-    }
-
-    if (!values.lastSignedIn) {
-      values.lastSignedIn = new Date();
-    }
-
-    if (Object.keys(updateSet).length === 0) {
-      updateSet.lastSignedIn = new Date();
-    }
-
-    await db.insert(users).values(values).onDuplicateKeyUpdate({
-      set: updateSet,
-    });
-  } catch (error) {
-    console.error("[Database] Failed to upsert user:", error);
-    throw error;
-  }
+    if (user.lastSignedIn !== undefined) { values.lastSignedIn = user.lastSignedIn; updateSet.lastSignedIn = user.lastSignedIn; }
+    if (user.role !== undefined) { values.role = user.role; updateSet.role = user.role; }
+    else if (user.openId === ENV.ownerOpenId) { values.role = 'admin'; updateSet.role = 'admin'; }
+    if (!values.lastSignedIn) values.lastSignedIn = new Date();
+    if (Object.keys(updateSet).length === 0) updateSet.lastSignedIn = new Date();
+    await db.insert(users).values(values).onDuplicateKeyUpdate({ set: updateSet });
+  } catch (error) { console.error("[Database] Failed to upsert user:", error); throw error; }
 }
 
 export async function getUserByOpenId(openId: string) {
   const db = await getDb();
-  if (!db) {
-    console.warn("[Database] Cannot get user: database not available");
-    return undefined;
-  }
-
+  if (!db) return undefined;
   const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
-
   return result.length > 0 ? result[0] : undefined;
 }
 
-// TODO: add feature queries here as your schema grows.
+// ─── Instagram Accounts ─────────────────────────────────────────
+export async function getAllAccounts() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(instagramAccounts);
+}
+
+export async function getAccountById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(instagramAccounts).where(eq(instagramAccounts.id, id)).limit(1);
+  return result[0];
+}
+
+export async function getAccountStats(accountId: number) {
+  const db = await getDb();
+  if (!db) return { draft: 0, pending: 0, approved: 0, scheduled: 0, published: 0, rejected: 0 };
+  const result = await db.select({
+    status: posts.status,
+    count: sql<number>`COUNT(*)`,
+  }).from(posts).where(eq(posts.accountId, accountId)).groupBy(posts.status);
+  const stats: Record<string, number> = { draft: 0, pending: 0, approved: 0, scheduled: 0, published: 0, rejected: 0 };
+  for (const row of result) { stats[row.status] = Number(row.count); }
+  return stats;
+}
+
+// ─── Posts ───────────────────────────────────────────────────────
+export async function createPost(data: { userId: number; accountId: number; caption?: string; theme?: string; scheduledAt?: Date; status?: string }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(posts).values({
+    userId: data.userId,
+    accountId: data.accountId,
+    caption: data.caption ?? null,
+    theme: data.theme ?? null,
+    scheduledAt: data.scheduledAt ?? null,
+    status: (data.status as any) ?? "draft",
+  });
+  return { id: result[0].insertId };
+}
+
+export async function getPostById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(posts).where(eq(posts.id, id)).limit(1);
+  return result[0];
+}
+
+export async function getPostsByAccount(accountId: number, status?: string) {
+  const db = await getDb();
+  if (!db) return [];
+  const conditions = [eq(posts.accountId, accountId)];
+  if (status) conditions.push(eq(posts.status, status as any));
+  return db.select().from(posts).where(and(...conditions)).orderBy(desc(posts.createdAt));
+}
+
+export async function getPostsByStatus(status: string) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(posts).where(eq(posts.status, status as any)).orderBy(desc(posts.createdAt));
+}
+
+export async function getAllPosts() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(posts).orderBy(desc(posts.createdAt));
+}
+
+export async function updatePost(id: number, data: Partial<{ caption: string; status: string; theme: string; scheduledAt: Date | null; publishedAt: Date | null; instagramPostId: string; instagramPermalink: string; likes: number; comments: number }>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(posts).set(data as any).where(eq(posts.id, id));
+}
+
+export async function deletePost(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(postMedia).where(eq(postMedia.postId, id));
+  await db.delete(posts).where(eq(posts.id, id));
+}
+
+// ─── Post Media ──────────────────────────────────────────────────
+export async function addPostMedia(postId: number, mediaUrl: string, mediaType: "image" | "video" = "image", sortOrder: number = 0) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(postMedia).values({ postId, mediaUrl, mediaType, sortOrder });
+  return { id: result[0].insertId };
+}
+
+export async function getPostMedia(postId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(postMedia).where(eq(postMedia.postId, postId)).orderBy(postMedia.sortOrder);
+}
+
+export async function deletePostMedia(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(postMedia).where(eq(postMedia.id, id));
+}
+
+// ─── Assets ──────────────────────────────────────────────────────
+export async function createAsset(data: { userId: number; name: string; url: string; fileKey: string; mimeType?: string }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(assets).values(data);
+  return { id: result[0].insertId };
+}
+
+export async function getAssetsByUser(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(assets).where(eq(assets.userId, userId)).orderBy(desc(assets.createdAt));
+}
+
+export async function deleteAsset(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(assets).where(eq(assets.id, id));
+}
+
+// ─── Content Themes ──────────────────────────────────────────────
+export async function getAllThemes() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(contentThemes);
+}
+
+export async function getThemeBySlug(slug: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(contentThemes).where(eq(contentThemes.slug, slug)).limit(1);
+  return result[0];
+}
