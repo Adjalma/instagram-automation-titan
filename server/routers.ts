@@ -15,7 +15,7 @@ import { generateImage } from "./_core/imageGeneration";
 import { notifyOwner } from "./_core/notification";
 import { storagePut } from "./storage";
 
-const TITAN_CONTEXT = `O Titan App é um aplicativo PWA de escalada desenvolvido pela Triarc Solutions. Link oficial: titan.triarcsolutions.com.br. Slogan: "Iron Grip. Endless Ascend." Funcionalidades: registro de vias, modo offline, comunidade de escaladores, dicas de segurança, tracking de progresso.`;
+const APP_CONTEXT = `O Titan App é um aplicativo PWA de escalada desenvolvido pela Triarc Solutions. Link oficial: titan.triarcsolutions.com.br. Slogan: "Iron Grip. Endless Ascend." Funcionalidades: registro de vias, modo offline, comunidade de escaladores, dicas de segurança, tracking de progresso. O sistema de gerenciamento é o Triarc Social Manager, plataforma de automação de conteúdo para Instagram da Triarc Solutions.`;
 
 export const appRouter = router({
   system: systemRouter,
@@ -191,7 +191,7 @@ export const appRouter = router({
         messages: [
           {
             role: "system",
-            content: `Você é um especialista em marketing de conteúdo para Instagram. ${TITAN_CONTEXT}\n\n${toneInstruction}\n\nA legenda deve incluir:\n- Texto envolvente e relevante para o tema\n- Hashtags estratégicas (8-15 hashtags)\n- CTA (Call to Action) claro\n- Menção ao link titan.triarcsolutions.com.br quando relevante\n- Emojis moderados para engajamento\n\nResponda APENAS com a legenda pronta, sem explicações adicionais.`,
+            content: `Você é um especialista em marketing de conteúdo para Instagram. ${APP_CONTEXT}\n\n${toneInstruction}\n\nA legenda deve incluir:\n- Texto envolvente e relevante para o tema\n- Hashtags estratégicas (8-15 hashtags)\n- CTA (Call to Action) claro\n- Menção ao link titan.triarcsolutions.com.br quando relevante\n- Emojis moderados para engajamento\n\nResponda APENAS com a legenda pronta, sem explicações adicionais.`,
           },
           {
             role: "user",
@@ -213,7 +213,7 @@ export const appRouter = router({
       const style = account.tone === "personal"
         ? "Estilo fotográfico natural de escalada ao ar livre, cores vibrantes, atmosfera aventureira"
         : "Design moderno e limpo com elementos tech, cores azul ciano e cinza metálico, estilo corporativo premium";
-      const prompt = `Instagram post image for climbing app Titan. Theme: ${input.theme}. ${style}. ${input.description ?? ""}. Include the Titan App branding with the text "TITAN" and tagline "Iron Grip. Endless Ascend." in a metallic shield emblem. Professional social media design, 1080x1080 square format.`;
+      const prompt = `Instagram post image for climbing/tech brand. Theme: ${input.theme}. ${style}. ${input.description ?? ""}. Include branding elements with the text "TITAN" and tagline "Iron Grip. Endless Ascend." in a metallic shield emblem. Professional social media design, 1080x1080 square format.`;
       const { url } = await generateImage({ prompt });
       return { url };
     }),

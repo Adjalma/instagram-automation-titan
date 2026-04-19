@@ -79,7 +79,7 @@ export default function Home() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-extrabold tracking-tight">Dashboard</h1>
-        <p className="label-mono mt-1">Titan Social Manager // Visão Geral</p>
+        <p className="label-mono mt-1">Triarc Social Manager // Visão Geral</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

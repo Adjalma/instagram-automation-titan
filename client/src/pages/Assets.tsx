@@ -67,7 +67,7 @@ export default function Assets() {
           <CardContent className="py-12 text-center">
             <FileImage className="h-12 w-12 mx-auto mb-3 text-muted-foreground opacity-30" />
             <p className="text-lg font-semibold text-muted-foreground">Nenhum asset</p>
-            <p className="label-mono mt-1">Faça upload do logo, prints e imagens do Titan App</p>
+            <p className="label-mono mt-1">Faça upload do logo, prints e imagens dos seus projetos</p>
           </CardContent>
         </Card>
       ) : (

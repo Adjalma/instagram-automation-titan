@@ -1,4 +1,4 @@
-# Titan Social Manager - TODO
+# Triarc Social Manager - TODO
 
 ## Database & Schema
 - [x] Tabela instagram_accounts (id, userId, accountHandle, accountName, accountType, tone, createdAt)
@@ -35,3 +35,10 @@
 
 ## Testes
 - [x] Testes unitários para routers principais
+
+## Rebranding - Triarc Social Manager
+- [x] Renomear de "Titan Social Manager" para "Triarc Social Manager" em todo o sistema
+- [x] Incorporar logo oficial do Triarc Social Manager na sidebar e login
+- [x] Atualizar título do app (VITE_APP_TITLE)
+- [x] Atualizar logo do app (VITE_APP_LOGO)
+- [x] Atualizar favicon com o logo oficial

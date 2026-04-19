@@ -175,11 +175,14 @@ function DashboardLayoutContent({
               </button>
               {!isCollapsed ? (
                 <div className="flex items-center gap-2 min-w-0">
+                  <img src="/manus-storage/triarc-social-manager-logo_c7cd4d9c.jpeg" alt="Triarc" className="h-8 w-8 rounded-full object-cover" />
                   <span className="font-extrabold tracking-tight truncate text-lg">
-                    Titan<span className="text-primary">SM</span>
+                    Triarc<span className="text-primary">SM</span>
                   </span>
                 </div>
-              ) : null}
+              ) : (
+                <img src="/manus-storage/triarc-social-manager-logo_c7cd4d9c.jpeg" alt="Triarc" className="h-7 w-7 rounded-full object-cover" />
+              )}
             </div>
           </SidebarHeader>
 
