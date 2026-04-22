@@ -12,6 +12,7 @@ import CalendarView from "./pages/CalendarView";
 import Themes from "./pages/Themes";
 import HistoryView from "./pages/HistoryView";
 import Assets from "./pages/Assets";
+import Automation from "./pages/Automation";
 
 function Router() {
   return (
@@ -23,6 +24,7 @@ function Router() {
         <Route path={"/calendar"} component={CalendarView} />
         <Route path={"/themes"} component={Themes} />
         <Route path={"/history"} component={HistoryView} />
+        <Route path={"/automation"} component={Automation} />
         <Route path={"/assets"} component={Assets} />
         <Route path={"/404"} component={NotFound} />
         <Route component={NotFound} />

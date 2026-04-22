@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/sidebar";
 import { getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
-import { LayoutDashboard, LogOut, PanelLeft, PenSquare, CheckCircle, Calendar, BookOpen, Image, History, Settings } from "lucide-react";
+import { LayoutDashboard, LogOut, PanelLeft, PenSquare, CheckCircle, Calendar, BookOpen, Image, History, Settings, Zap } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
@@ -34,6 +34,7 @@ const menuItems = [
   { icon: Calendar, label: "Calendário", path: "/calendar" },
   { icon: BookOpen, label: "Cronograma", path: "/themes" },
   { icon: History, label: "Histórico", path: "/history" },
+  { icon: Zap, label: "Automação", path: "/automation" },
   { icon: Image, label: "Assets", path: "/assets" },
 ];
 

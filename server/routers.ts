@@ -14,6 +14,7 @@ import { invokeLLM } from "./_core/llm";
 import { generateImage } from "./_core/imageGeneration";
 import { notifyOwner } from "./_core/notification";
 import { storagePut } from "./storage";
+import { publishToInstagram, processScheduledPosts, fetchPostInsights } from "./instagram";
 
 const APP_CONTEXT = `O Titan App é um aplicativo PWA de escalada desenvolvido pela Triarc Solutions. Link oficial: titan.triarcsolutions.com.br. Slogan: "Iron Grip. Endless Ascend." Funcionalidades: registro de vias, modo offline, comunidade de escaladores, dicas de segurança, tracking de progresso. O sistema de gerenciamento é o Triarc Social Manager, plataforma de automação de conteúdo para Instagram da Triarc Solutions.`;
 
@@ -102,9 +103,30 @@ export const appRouter = router({
     approve: protectedProcedure.input(z.object({ id: z.number() })).mutation(async ({ input }) => {
       const post = await getPostById(input.id);
       if (!post) throw new Error("Post not found");
-      const newStatus = post.scheduledAt ? "scheduled" : "approved";
-      await updatePost(input.id, { status: newStatus });
-      return { success: true, status: newStatus };
+
+      // If no scheduledAt, publish immediately to Instagram
+      if (!post.scheduledAt) {
+        const result = await publishToInstagram(input.id);
+        if (result.success) {
+          return { success: true, status: "published", instagramPostId: result.instagramPostId };
+        } else {
+          // If publish fails, mark as approved and let user retry
+          await updatePost(input.id, { status: "approved" });
+          return { success: true, status: "approved", publishError: result.error };
+        }
+      }
+
+      // If scheduledAt is in the past, publish immediately
+      if (new Date(post.scheduledAt) <= new Date()) {
+        const result = await publishToInstagram(input.id);
+        if (result.success) {
+          return { success: true, status: "published", instagramPostId: result.instagramPostId };
+        }
+      }
+
+      // Future scheduled post - mark as scheduled
+      await updatePost(input.id, { status: "scheduled" });
+      return { success: true, status: "scheduled" };
     }),
     reject: protectedProcedure.input(z.object({ id: z.number() })).mutation(async ({ input }) => {
       await updatePost(input.id, { status: "rejected" });
@@ -173,6 +195,229 @@ export const appRouter = router({
   themes: router({
     list: protectedProcedure.query(async () => {
       return getAllThemes();
+    }),
+  }),
+
+  automation: router({
+    generateWeek: protectedProcedure.input(z.object({
+      accountIds: z.array(z.number()).optional(),
+    })).mutation(async ({ ctx, input }) => {
+      const accounts = await getAllAccounts();
+      const themes = await getAllThemes();
+      const targetAccounts = input.accountIds
+        ? accounts.filter(a => input.accountIds!.includes(a.id))
+        : accounts;
+      if (targetAccounts.length === 0) throw new Error("Nenhuma conta encontrada");
+      if (themes.length === 0) throw new Error("Nenhum tema encontrado");
+
+      // Best posting times (Brazilian timezone UTC-3)
+      const bestTimes = [
+        { hour: 8, minute: 0 },   // Manhã cedo
+        { hour: 12, minute: 30 }, // Almoço
+        { hour: 18, minute: 0 },  // Fim do expediente
+        { hour: 20, minute: 0 },  // Noite
+      ];
+
+      const createdPosts: { id: number; account: string; theme: string; day: number }[] = [];
+      const now = new Date();
+
+      for (let day = 1; day <= 7; day++) {
+        for (const account of targetAccounts) {
+          const theme = themes[(day + account.id) % themes.length];
+          const scheduleDate = new Date(now);
+          scheduleDate.setDate(now.getDate() + day);
+          const timeSlot = bestTimes[(day + account.id) % bestTimes.length];
+          scheduleDate.setHours(timeSlot.hour, timeSlot.minute, 0, 0);
+
+          const toneInstruction = account.tone === "personal"
+            ? "Use um tom pessoal, autêntico e apaixonado. Fale como um escalador compartilhando sua jornada. Use primeira pessoa."
+            : "Use um tom corporativo profissional mas acessível. Destaque expertise técnica e valor do produto.";
+
+          // Generate caption with AI
+          let caption = "";
+          try {
+            const response = await invokeLLM({
+              messages: [
+                {
+                  role: "system",
+                  content: `Você é um especialista em marketing de conteúdo para Instagram. ${APP_CONTEXT}\n\n${toneInstruction}\n\nA legenda deve incluir:\n- Texto envolvente e relevante para o tema\n- Hashtags estratégicas (8-15 hashtags)\n- CTA (Call to Action) claro\n- Menção ao link titan.triarcsolutions.com.br quando relevante\n- Emojis moderados para engajamento\n\nResponda APENAS com a legenda pronta.`,
+                },
+                {
+                  role: "user",
+                  content: `Crie uma legenda para @${account.handle}. Tema: ${theme.name}. Dia ${day} da semana de conteúdo.`,
+                },
+              ],
+            });
+            const rawContent = response.choices?.[0]?.message?.content;
+            caption = typeof rawContent === "string" ? rawContent : "";
+          } catch (e) {
+            caption = `[Erro na geração] Tema: ${theme.name} para @${account.handle}`;
+          }
+
+          // Generate art with AI
+          let mediaUrl = "";
+          try {
+            const style = account.tone === "personal"
+              ? "Estilo fotográfico natural de escalada, cores vibrantes, atmosfera aventureira"
+              : "Design moderno e limpo com elementos tech, cores azul ciano e cinza metálico, estilo corporativo";
+            const artResult = await generateImage({
+              prompt: `Instagram post for climbing/tech brand. Theme: ${theme.name}. ${style}. Include branding with text TITAN and tagline Iron Grip Endless Ascend in metallic shield. 1080x1080 square.`,
+            });
+            mediaUrl = artResult.url ?? "";
+          } catch (e) {
+            // Art generation failed, post without media
+          }
+
+          const { id } = await createPost({
+            userId: ctx.user.id,
+            accountId: account.id,
+            caption,
+            theme: theme.name,
+            scheduledAt: scheduleDate,
+            status: "pending",
+          });
+
+          if (mediaUrl) {
+            await addPostMedia(id, mediaUrl, "image", 0);
+          }
+
+          createdPosts.push({ id, account: account.handle, theme: theme.name, day });
+        }
+      }
+
+      // Notify owner
+      await notifyOwner({
+        title: `${createdPosts.length} posts gerados automaticamente`,
+        content: `A automação criou ${createdPosts.length} posts para a semana. Eles estão aguardando sua aprovação no painel.`,
+      });
+
+      return { created: createdPosts.length, posts: createdPosts };
+    }),
+
+    generateBatch: protectedProcedure.input(z.object({
+      accountId: z.number(),
+      themes: z.array(z.string()),
+      startDate: z.string(),
+      intervalHours: z.number().default(24),
+    })).mutation(async ({ ctx, input }) => {
+      const account = await getAccountById(input.accountId);
+      if (!account) throw new Error("Conta não encontrada");
+
+      const createdPosts: { id: number; theme: string; scheduledAt: string }[] = [];
+      const startDate = new Date(input.startDate);
+
+      for (let i = 0; i < input.themes.length; i++) {
+        const theme = input.themes[i];
+        const scheduleDate = new Date(startDate);
+        scheduleDate.setHours(scheduleDate.getHours() + (i * input.intervalHours));
+
+        const toneInstruction = account.tone === "personal"
+          ? "Use um tom pessoal, autêntico e apaixonado. Fale como um escalador compartilhando sua jornada."
+          : "Use um tom corporativo profissional mas acessível. Destaque expertise técnica.";
+
+        let caption = "";
+        try {
+          const response = await invokeLLM({
+            messages: [
+              {
+                role: "system",
+                content: `Você é um especialista em marketing para Instagram. ${APP_CONTEXT}\n\n${toneInstruction}\n\nInclua hashtags estratégicas, CTA claro e menção a titan.triarcsolutions.com.br quando relevante. Responda APENAS com a legenda.`,
+              },
+              { role: "user", content: `Legenda para @${account.handle}. Tema: ${theme}.` },
+            ],
+          });
+          const rawBatch = response.choices?.[0]?.message?.content;
+          caption = typeof rawBatch === "string" ? rawBatch : "";
+        } catch (e) {
+          caption = `[Erro] Tema: ${theme}`;
+        }
+
+        let mediaUrl = "";
+        try {
+          const style = account.tone === "personal"
+            ? "Estilo fotográfico natural de escalada, cores vibrantes"
+            : "Design moderno tech, cores azul ciano e cinza metálico";
+          const artResult = await generateImage({
+            prompt: `Instagram post for climbing/tech brand. Theme: ${theme}. ${style}. Include TITAN branding. 1080x1080 square.`,
+          });
+          mediaUrl = artResult.url ?? "";
+        } catch (e) { /* continue without media */ }
+
+        const { id } = await createPost({
+          userId: ctx.user.id,
+          accountId: account.id,
+          caption,
+          theme,
+          scheduledAt: scheduleDate,
+          status: "pending",
+        });
+
+        if (mediaUrl) await addPostMedia(id, mediaUrl, "image", 0);
+        createdPosts.push({ id, theme, scheduledAt: scheduleDate.toISOString() });
+      }
+
+      await notifyOwner({
+        title: `Lote de ${createdPosts.length} posts gerados`,
+        content: `${createdPosts.length} posts para @${account.handle} aguardam aprovação.`,
+      });
+
+      return { created: createdPosts.length, posts: createdPosts };
+    }),
+
+    getQueue: protectedProcedure.input(z.object({
+      accountId: z.number().optional(),
+    }).optional()).query(async ({ input }) => {
+      const statuses = ["pending", "approved", "scheduled"];
+      const allPosts = input?.accountId
+        ? await getPostsByAccount(input.accountId)
+        : await getAllPosts();
+      return allPosts
+        .filter((p: any) => statuses.includes(p.status))
+        .sort((a: any, b: any) => {
+          const dateA = a.scheduledAt ? new Date(a.scheduledAt).getTime() : 0;
+          const dateB = b.scheduledAt ? new Date(b.scheduledAt).getTime() : 0;
+          return dateA - dateB;
+        });
+    }),
+
+    approveAll: protectedProcedure.mutation(async () => {
+      const pendingPosts = await getPostsByStatus("pending");
+      let approved = 0;
+      let published = 0;
+      let scheduled = 0;
+      for (const post of pendingPosts) {
+        const p = post as any;
+        if (!p.scheduledAt || new Date(p.scheduledAt) <= new Date()) {
+          // Publish immediately
+          const result = await publishToInstagram(p.id);
+          if (result.success) {
+            published++;
+          } else {
+            await updatePost(p.id, { status: "approved" });
+            approved++;
+          }
+        } else {
+          // Schedule for future
+          await updatePost(p.id, { status: "scheduled" });
+          scheduled++;
+        }
+      }
+      return { approved, published, scheduled, total: pendingPosts.length };
+    }),
+
+    processScheduled: protectedProcedure.mutation(async () => {
+      return processScheduledPosts();
+    }),
+
+    syncInsights: protectedProcedure.input(z.object({ postId: z.number() })).mutation(async ({ input }) => {
+      const post = await getPostById(input.postId);
+      if (!post || !(post as any).instagramPostId) throw new Error("Post not published or no Instagram ID");
+      const insights = await fetchPostInsights((post as any).instagramPostId);
+      await updatePost(input.postId, {
+        likes: insights.likes ?? 0,
+        comments: insights.comments ?? 0,
+      });
+      return { success: true, insights };
     }),
   }),
 

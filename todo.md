@@ -42,3 +42,21 @@
 - [x] Atualizar título do app (VITE_APP_TITLE)
 - [x] Atualizar logo do app (VITE_APP_LOGO)
 - [x] Atualizar favicon com o logo oficial
+
+## Correções
+- [x] Corrigir título na aba do navegador de "Titan" para "Triarc Social Manager"
+
+## Automação Completa de Posts
+- [x] Botão "Gerar Semana" que cria automaticamente posts para 7 dias (legenda IA + arte IA) para ambas as contas
+- [x] Fila de posts: sistema de enfileiramento visual ordenado por data
+- [x] Auto-agendamento: distribui posts automaticamente nos melhores horários (8h, 12h30, 18h, 20h)
+- [x] Geração em lote: gerar múltiplos posts de uma vez baseado nos 5 temas do cronograma
+- [x] Página de Automação dedicada com controles de geração automática + botão Aprovar Todos + rota /automation no menu
+
+## Bugs
+- [x] Posts aprovados não estavam sendo publicados no Instagram - CORRIGIDO: publishToInstagram() integrado no approve/approveAll, processScheduled para posts agendados, syncInsights para métricas reais
+
+## Refinamentos de Publicação
+- [ ] Implementar estado "aguardando confirmação MCP" na UI (post enviado ao Instagram, aguardando card de confirmação)
+- [ ] Adicionar agendador periódico (cron/worker) para processScheduledPosts() no servidor
+- [ ] Adicionar testes para fluxo approve/approveAll/processScheduled

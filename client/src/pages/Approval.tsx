@@ -3,19 +3,63 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Loader2, CheckCircle, XCircle, Clock, Instagram } from "lucide-react";
+import { Loader2, CheckCircle, XCircle, Clock, Instagram, Send, Zap, CalendarCheck } from "lucide-react";
 
 export default function Approval() {
   const utils = trpc.useUtils();
   const { data: pendingPosts, isLoading } = trpc.posts.list.useQuery({ status: "pending" });
   const { data: accounts } = trpc.accounts.list.useQuery();
+
   const approve = trpc.posts.approve.useMutation({
-    onSuccess: () => { utils.posts.list.invalidate(); toast.success("Post aprovado!"); },
-    onError: () => toast.error("Erro ao aprovar"),
+    onSuccess: (data) => {
+      utils.posts.list.invalidate();
+      utils.automation.getQueue.invalidate();
+      if (data.status === "published") {
+        toast.success("✅ Post publicado no Instagram!", {
+          description: data.instagramPostId ? `ID: ${data.instagramPostId}` : "Publicado com sucesso.",
+        });
+      } else if (data.status === "scheduled") {
+        toast.success("📅 Post agendado!", {
+          description: "Será publicado automaticamente no horário configurado.",
+        });
+      } else if (data.status === "approved") {
+        toast.info("✔ Post aprovado", {
+          description: (data as any).publishError
+            ? `Nota: ${(data as any).publishError}. Será publicado em breve.`
+            : "Post marcado para publicação.",
+        });
+      }
+    },
+    onError: (err) => toast.error("Erro ao aprovar", { description: err.message }),
   });
+
   const reject = trpc.posts.reject.useMutation({
-    onSuccess: () => { utils.posts.list.invalidate(); toast.success("Post rejeitado"); },
+    onSuccess: () => {
+      utils.posts.list.invalidate();
+      toast.success("Post rejeitado");
+    },
     onError: () => toast.error("Erro ao rejeitar"),
+  });
+
+  const approveAll = trpc.automation.approveAll.useMutation({
+    onSuccess: (data) => {
+      utils.posts.list.invalidate();
+      utils.automation.getQueue.invalidate();
+      toast.success(`Processamento concluído!`, {
+        description: `${data.published} publicados, ${data.scheduled} agendados, ${data.approved} aguardando.`,
+      });
+    },
+    onError: (err) => toast.error("Erro ao aprovar todos", { description: err.message }),
+  });
+
+  const processScheduled = trpc.automation.processScheduled.useMutation({
+    onSuccess: (data) => {
+      utils.posts.list.invalidate();
+      toast.success(`Posts agendados processados`, {
+        description: `${data.published} publicados de ${data.processed} verificados.`,
+      });
+    },
+    onError: (err) => toast.error("Erro ao processar agendados", { description: err.message }),
   });
 
   const getAccount = (accountId: number) => accounts?.find(a => a.id === accountId);
@@ -30,10 +74,48 @@ export default function Approval() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-extrabold tracking-tight">Aprovação</h1>
-        <p className="label-mono mt-1">Fluxo de revisão // {pendingPosts?.length ?? 0} pendente(s)</p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-3xl font-extrabold tracking-tight">Aprovação</h1>
+          <p className="label-mono mt-1">Fluxo de revisão // {pendingPosts?.length ?? 0} pendente(s)</p>
+        </div>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => processScheduled.mutate()}
+            disabled={processScheduled.isPending}
+            className="gap-1.5"
+          >
+            {processScheduled.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CalendarCheck className="h-3.5 w-3.5" />}
+            Processar Agendados
+          </Button>
+          {pendingPosts && pendingPosts.length > 0 && (
+            <Button
+              size="sm"
+              onClick={() => approveAll.mutate()}
+              disabled={approveAll.isPending}
+              className="gap-1.5"
+            >
+              {approveAll.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
+              Aprovar e Publicar Todos ({pendingPosts.length})
+            </Button>
+          )}
+        </div>
       </div>
+
+      {/* Info banner about how publishing works */}
+      <Card className="card-blueprint border-cyan-pastel/40 bg-cyan-pastel/5">
+        <CardContent className="py-3 px-4">
+          <div className="flex items-start gap-3">
+            <Send className="h-4 w-4 text-cyan-600 mt-0.5 shrink-0" />
+            <div className="text-sm">
+              <span className="font-semibold">Como funciona a publicação:</span>
+              <span className="text-muted-foreground ml-1">Posts sem agendamento são publicados imediatamente ao aprovar. Posts com data futura ficam na fila e são publicados automaticamente no horário configurado. Use "Processar Agendados" para forçar a verificação da fila.</span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {!pendingPosts || pendingPosts.length === 0 ? (
         <Card className="card-blueprint">
@@ -48,6 +130,9 @@ export default function Approval() {
           {pendingPosts.map(post => {
             const account = getAccount(post.accountId);
             const isPersonal = account?.tone === "personal";
+            const isScheduled = !!post.scheduledAt;
+            const isFuture = isScheduled && new Date(post.scheduledAt!) > new Date();
+
             return (
               <Card key={post.id} className="card-blueprint">
                 <CardHeader className="pb-3">
@@ -59,26 +144,55 @@ export default function Approval() {
                       <CardTitle className="text-sm font-bold">@{account?.handle ?? "?"}</CardTitle>
                       <p className="label-mono">{post.theme ?? "Sem tema"}</p>
                     </div>
-                    {post.scheduledAt && (
-                      <div className="ml-auto flex items-center gap-1 text-xs text-muted-foreground">
-                        <Clock className="h-3 w-3" />
-                        {new Date(post.scheduledAt).toLocaleString("pt-BR")}
-                      </div>
-                    )}
+                    <div className="ml-auto flex items-center gap-2">
+                      {isFuture ? (
+                        <Badge variant="outline" className="gap-1 text-xs border-amber-300 text-amber-600">
+                          <Clock className="h-3 w-3" />
+                          Agendado: {new Date(post.scheduledAt!).toLocaleString("pt-BR")}
+                        </Badge>
+                      ) : isScheduled ? (
+                        <Badge variant="outline" className="gap-1 text-xs border-emerald-300 text-emerald-600">
+                          <Send className="h-3 w-3" />
+                          Publicar agora
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="gap-1 text-xs border-cyan-300 text-cyan-600">
+                          <Send className="h-3 w-3" />
+                          Publicar imediatamente
+                        </Badge>
+                      )}
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  <div className="bg-muted/30 rounded-lg p-4">
+                  <div className="bg-muted/30 rounded-lg p-4 max-h-40 overflow-y-auto">
                     <p className="text-sm whitespace-pre-wrap leading-relaxed">{post.caption ?? "Sem legenda"}</p>
                   </div>
                   <div className="flex gap-2 justify-end">
-                    <Button variant="outline" size="sm" onClick={() => reject.mutate({ id: post.id })} disabled={reject.isPending} className="gap-1.5 text-destructive hover:text-destructive">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => reject.mutate({ id: post.id })}
+                      disabled={reject.isPending || approve.isPending}
+                      className="gap-1.5 text-destructive hover:text-destructive"
+                    >
                       <XCircle className="h-3.5 w-3.5" />
                       Rejeitar
                     </Button>
-                    <Button size="sm" onClick={() => approve.mutate({ id: post.id })} disabled={approve.isPending} className="gap-1.5">
-                      {approve.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle className="h-3.5 w-3.5" />}
-                      Aprovar
+                    <Button
+                      size="sm"
+                      onClick={() => approve.mutate({ id: post.id })}
+                      disabled={approve.isPending || reject.isPending}
+                      className="gap-1.5"
+                    >
+                      {approve.isPending ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : isFuture ? (
+                        <CalendarCheck className="h-3.5 w-3.5" />
+                      ) : (
+                        <Send className="h-3.5 w-3.5" />
+                      )}
+                      {isFuture ? "Aprovar e Agendar" : "Aprovar e Publicar"}
                     </Button>
                   </div>
                 </CardContent>
