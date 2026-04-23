@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Loader2, CheckCircle, XCircle, Clock, Instagram, Send, Zap, CalendarCheck } from "lucide-react";
+import { Loader2, CheckCircle, XCircle, Clock, Instagram, Send, Zap, CalendarCheck, Radio } from "lucide-react";
 
 export default function Approval() {
   const utils = trpc.useUtils();
@@ -23,10 +23,10 @@ export default function Approval() {
           description: "Será publicado automaticamente no horário configurado.",
         });
       } else if (data.status === "approved") {
-        toast.info("✔ Post aprovado", {
+        toast.info("📤 Enviado ao Instagram", {
           description: (data as any).publishError
             ? `Nota: ${(data as any).publishError}. Será publicado em breve.`
-            : "Post marcado para publicação.",
+            : "Aguardando confirmação no card do Manus para publicar.",
         });
       }
     },
@@ -111,7 +111,20 @@ export default function Approval() {
             <Send className="h-4 w-4 text-cyan-600 mt-0.5 shrink-0" />
             <div className="text-sm">
               <span className="font-semibold">Como funciona a publicação:</span>
-              <span className="text-muted-foreground ml-1">Posts sem agendamento são publicados imediatamente ao aprovar. Posts com data futura ficam na fila e são publicados automaticamente no horário configurado. Use "Processar Agendados" para forçar a verificação da fila.</span>
+              <span className="text-muted-foreground ml-1">Posts sem agendamento são enviados ao Instagram imediatamente ao aprovar. O MCP do Manus exibe um card de confirmação — após confirmar, o post vai ao ar. Posts com data futura ficam na fila e são publicados automaticamente no horário configurado pelo agendador do servidor (a cada 5 min).</span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* MCP Pending explanation banner */}
+      <Card className="card-blueprint border-violet-200 bg-violet-50/50">
+        <CardContent className="py-3 px-4">
+          <div className="flex items-start gap-3">
+            <Radio className="h-4 w-4 text-violet-600 mt-0.5 shrink-0" />
+            <div className="text-sm">
+              <span className="font-semibold text-violet-700">Aguardando confirmação MCP:</span>
+              <span className="text-muted-foreground ml-1">Quando um post é aprovado e o comando MCP é enviado ao Instagram, ele fica com status <strong>"Aguardando MCP"</strong> (badge roxo) até que você confirme o card que aparece no chat do Manus. Após confirmar, o post é publicado e o status muda para <strong>Publicado</strong>.</span>
             </div>
           </div>
         </CardContent>

@@ -120,7 +120,7 @@ export async function getAllPosts() {
   return db.select().from(posts).orderBy(desc(posts.createdAt));
 }
 
-export async function updatePost(id: number, data: Partial<{ caption: string; status: string; theme: string; scheduledAt: Date | null; publishedAt: Date | null; instagramPostId: string; instagramPermalink: string; likes: number; comments: number }>) {
+export async function updatePost(id: number, data: Partial<{ caption: string; status: string; theme: string; scheduledAt: Date | null; publishedAt: Date | null; instagramPostId: string; instagramPermalink: string; mcpPending: number; likes: number; comments: number }>) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   await db.update(posts).set(data as any).where(eq(posts.id, id));

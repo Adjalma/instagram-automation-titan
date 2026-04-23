@@ -39,6 +39,7 @@ export const posts = mysqlTable("posts", {
   publishedAt: timestamp("publishedAt"),
   instagramPostId: varchar("instagramPostId", { length: 256 }),
   instagramPermalink: text("instagramPermalink"),
+  mcpPending: int("mcpPending").default(0).notNull(), // 1 = MCP command sent, awaiting manual confirmation
   likes: int("likes").default(0),
   comments: int("comments").default(0),
   createdAt: timestamp("createdAt").defaultNow().notNull(),

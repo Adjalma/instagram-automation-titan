@@ -118,20 +118,24 @@ export default function Automation() {
     return accounts?.find(a => a.id === accountId)?.handle ?? "?";
   };
 
-  const statusColor = (status: string) => {
+  const statusColor = (status: string, hasMcpPending?: boolean) => {
+    if (status === "approved" && hasMcpPending) return "bg-violet-100 text-violet-700 border-violet-300";
     switch (status) {
       case "pending": return "bg-amber-100 text-amber-700 border-amber-300";
       case "approved": return "bg-green-100 text-green-700 border-green-300";
       case "scheduled": return "bg-blue-100 text-blue-700 border-blue-300";
+      case "published": return "bg-emerald-100 text-emerald-700 border-emerald-300";
       default: return "bg-gray-100 text-gray-700 border-gray-300";
     }
   };
 
-  const statusLabel = (status: string) => {
+  const statusLabel = (status: string, hasMcpPending?: boolean) => {
+    if (status === "approved" && hasMcpPending) return "Aguardando MCP";
     switch (status) {
       case "pending": return "Pendente";
       case "approved": return "Aprovado";
       case "scheduled": return "Agendado";
+      case "published": return "Publicado";
       default: return status;
     }
   };
@@ -354,8 +358,8 @@ export default function Automation() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
                         <span className="font-bold text-sm">@{getAccountHandle(post.accountId)}</span>
-                        <Badge variant="outline" className={`text-[10px] ${statusColor(post.status)}`}>
-                          {statusLabel(post.status)}
+                        <Badge variant="outline" className={`text-[10px] ${statusColor(post.status, post.mcpPending)}`}>
+                          {statusLabel(post.status, post.mcpPending)}
                         </Badge>
                         {post.theme && (
                           <Badge variant="outline" className="text-[10px]">{post.theme}</Badge>

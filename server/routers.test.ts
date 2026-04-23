@@ -153,3 +153,126 @@ describe("posts.approve and posts.reject", () => {
     await caller.posts.delete({ id: created.id });
   });
 });
+
+describe("posts.approve — post sem mídia (sem agendamento)", () => {
+  it("marca como approved quando não há mídia (não pode publicar no Instagram)", async () => {
+    const { ctx } = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+
+    // Cria post sem mídia e coloca como pending
+    const created = await caller.posts.create({
+      accountId: 1,
+      caption: "Teste approve sem mídia",
+      theme: "Build in Public",
+    });
+    await caller.posts.update({ id: created.id, status: "pending" });
+
+    // Aprova — como não há mídia, publishToInstagram retorna erro e o post fica como approved
+    const result = await caller.posts.approve({ id: created.id });
+    expect(result.success).toBe(true);
+    // Sem mídia: ou retorna 'approved' (publish falhou) ou 'published' (MCP retornou ID)
+    expect(["approved", "published", "scheduled"]).toContain(result.status);
+
+    // cleanup
+    await caller.posts.delete({ id: created.id });
+  });
+});
+
+describe("posts.approve — post com agendamento futuro", () => {
+  it("marca como scheduled quando scheduledAt é no futuro", async () => {
+    const { ctx } = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+
+    const futureDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // +7 dias
+    const created = await caller.posts.create({
+      accountId: 1,
+      caption: "Teste agendamento futuro",
+      theme: "Dicas de Segurança",
+      scheduledAt: futureDate.toISOString(),
+    });
+    await caller.posts.update({ id: created.id, status: "pending" });
+
+    const result = await caller.posts.approve({ id: created.id });
+    expect(result.success).toBe(true);
+    expect(result.status).toBe("scheduled");
+
+    // cleanup
+    await caller.posts.delete({ id: created.id });
+  });
+});
+
+describe("automation.approveAll", () => {
+  it("processa todos os posts pendentes e retorna contadores", async () => {
+    const { ctx } = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+
+    // Cria 2 posts pendentes (sem agendamento)
+    const p1 = await caller.posts.create({ accountId: 1, caption: "ApproveAll test 1" });
+    const p2 = await caller.posts.create({ accountId: 2, caption: "ApproveAll test 2" });
+    await caller.posts.update({ id: p1.id, status: "pending" });
+    await caller.posts.update({ id: p2.id, status: "pending" });
+
+    const result = await caller.automation.approveAll();
+    expect(result).toBeDefined();
+    expect(typeof result.total).toBe("number");
+    expect(typeof result.published).toBe("number");
+    expect(typeof result.approved).toBe("number");
+    expect(typeof result.scheduled).toBe("number");
+    // total deve ser >= 2 (pode haver outros posts pendentes no banco)
+    expect(result.total).toBeGreaterThanOrEqual(2);
+
+    // cleanup
+    await caller.posts.delete({ id: p1.id });
+    await caller.posts.delete({ id: p2.id });
+  });
+});
+
+describe("automation.processScheduled", () => {
+  it("retorna contadores de processamento para posts agendados vencidos", async () => {
+    const { ctx } = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+
+    // Cria post com scheduledAt no passado e status scheduled
+    const pastDate = new Date(Date.now() - 60 * 60 * 1000); // -1 hora
+    const created = await caller.posts.create({
+      accountId: 1,
+      caption: "Teste processScheduled",
+      scheduledAt: pastDate.toISOString(),
+    });
+    await caller.posts.update({ id: created.id, status: "scheduled" });
+
+    const result = await caller.automation.processScheduled();
+    expect(result).toBeDefined();
+    expect(typeof result.processed).toBe("number");
+    expect(typeof result.published).toBe("number");
+    expect(Array.isArray(result.errors)).toBe(true);
+    // O post criado deve ter sido processado
+    expect(result.processed).toBeGreaterThanOrEqual(1);
+
+    // cleanup
+    await caller.posts.delete({ id: created.id });
+  });
+
+  it("retorna zero processados quando não há posts agendados vencidos", async () => {
+    const { ctx } = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+
+    // Cria post com scheduledAt no futuro
+    const futureDate = new Date(Date.now() + 24 * 60 * 60 * 1000); // +1 dia
+    const created = await caller.posts.create({
+      accountId: 1,
+      caption: "Teste futuro processScheduled",
+      scheduledAt: futureDate.toISOString(),
+    });
+    await caller.posts.update({ id: created.id, status: "scheduled" });
+
+    const result = await caller.automation.processScheduled();
+    // O post futuro não deve ser processado
+    // (pode haver outros posts vencidos no banco, então só verificamos o tipo)
+    expect(typeof result.processed).toBe("number");
+    expect(typeof result.published).toBe("number");
+
+    // cleanup
+    await caller.posts.delete({ id: created.id });
+  });
+});

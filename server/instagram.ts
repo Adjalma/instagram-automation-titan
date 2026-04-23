@@ -60,20 +60,20 @@ export async function publishToInstagram(postId: number): Promise<{
     }
 
     // The MCP tool shows a UI confirmation card before publishing.
-    // We mark the post as 'approved' (awaiting MCP confirmation) rather than 'published'.
-    // Once the user confirms the MCP card, the post goes live on Instagram.
-    // If the MCP returned an ID (meaning it was already confirmed), mark as published.
+    // If the MCP returned an ID (post was confirmed and published), mark as published.
+    // Otherwise, mark mcpPending=1 so the UI shows "Aguardando confirmação MCP".
     const instagramId = result?.id || result?.permalink || null;
     if (instagramId) {
       await updatePost(postId, {
         status: "published",
         publishedAt: new Date(),
         instagramPostId: instagramId,
+        mcpPending: 0,
       });
       return { success: true, instagramPostId: instagramId };
     } else {
-      // MCP command sent successfully - awaiting user confirmation in Manus UI
-      await updatePost(postId, { status: "approved" });
+      // MCP command sent successfully - awaiting user confirmation in Manus UI card
+      await updatePost(postId, { status: "approved", mcpPending: 1 });
       return { success: true, instagramPostId: undefined };
     }
   } catch (error: any) {

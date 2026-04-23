@@ -57,6 +57,6 @@
 - [x] Posts aprovados não estavam sendo publicados no Instagram - CORRIGIDO: publishToInstagram() integrado no approve/approveAll, processScheduled para posts agendados, syncInsights para métricas reais
 
 ## Refinamentos de Publicação
-- [ ] Implementar estado "aguardando confirmação MCP" na UI (post enviado ao Instagram, aguardando card de confirmação)
-- [ ] Adicionar agendador periódico (cron/worker) para processScheduledPosts() no servidor
-- [ ] Adicionar testes para fluxo approve/approveAll/processScheduled
+- [x] Implementar estado "aguardando confirmação MCP" na UI (post enviado ao Instagram, aguardando card de confirmação)
+- [x] Adicionar agendador periódico (cron/worker) para processScheduledPosts() no servidor
+- [x] Adicionar testes para fluxo approve/approveAll/processScheduled
