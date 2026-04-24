@@ -60,3 +60,6 @@
 - [x] Implementar estado "aguardando confirmação MCP" na UI (post enviado ao Instagram, aguardando card de confirmação)
 - [x] Adicionar agendador periódico (cron/worker) para processScheduledPosts() no servidor
 - [x] Adicionar testes para fluxo approve/approveAll/processScheduled
+
+## Bugs v1.2
+- [x] Corrigir erro de query SQL no agendador: conexão única expirava após horas de uptime — CORRIGIDO: substituído por pool de conexões com keepAlive (mysql2 createPool)
