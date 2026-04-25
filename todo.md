@@ -63,3 +63,8 @@
 
 ## Bugs v1.2
 - [x] Corrigir erro de query SQL no agendador: conexão única expirava após horas de uptime — CORRIGIDO: substituído por pool de conexões com keepAlive (mysql2 createPool)
+
+## Bug crítico — Publicação não funciona
+- [x] Diagnosticar por que posts aprovados não são publicados: manus-mcp-cli não pode ser chamado pelo servidor web
+- [x] Corrigir fluxo: agente Manus agendado a cada 10min busca posts aprovados via /api/scheduled/pending-posts e publica via MCP
+- [x] Garantir feedback visual: banners atualizados no Approval.tsx explicando o novo fluxo automático

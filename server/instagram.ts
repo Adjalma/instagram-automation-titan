@@ -1,6 +1,7 @@
 import { exec } from "child_process";
 import { promisify } from "util";
 import { getPostById, getPostMedia, getAccountById, updatePost } from "./db";
+import { storageGetSignedUrl } from "./storage";
 
 const execAsync = promisify(exec);
 
@@ -27,10 +28,17 @@ export async function publishToInstagram(postId: number): Promise<{
     }
 
     // Build the media array for the MCP tool
-    const mediaItems = media.map((m: any) => ({
-      type: m.mediaType || "image",
-      media_url: m.mediaUrl,
-    }));
+    // Convert relative /manus-storage/ URLs to public absolute URLs for Instagram
+    const mediaItems = await Promise.all(
+      media.map(async (m: any) => {
+        let mediaUrl: string = m.mediaUrl;
+        if (mediaUrl.startsWith("/manus-storage/")) {
+          const key = mediaUrl.replace("/manus-storage/", "");
+          mediaUrl = await storageGetSignedUrl(key);
+        }
+        return { type: m.mediaType || "image", media_url: mediaUrl };
+      })
+    );
 
     // Build the MCP command input
     const mcpInput = JSON.stringify({
@@ -45,36 +53,40 @@ export async function publishToInstagram(postId: number): Promise<{
       { timeout: 60000 }
     );
 
-    // Parse result
+    // Parse result — MCP saves JSON to a temp file, path is in stdout
     let result: any = {};
     try {
-      // The MCP tool saves results to a file, check stdout for the path
       const fileMatch = stdout.match(/saved to: (.+\.json)/);
       if (fileMatch) {
         const { readFileSync } = await import("fs");
-        const fileContent = readFileSync(fileMatch[1], "utf-8");
+        const fileContent = readFileSync(fileMatch[1].trim(), "utf-8");
         result = JSON.parse(fileContent);
       }
     } catch (e) {
-      // If we can't parse, that's okay - the MCP might show a UI card
+      console.warn(`[Instagram] Could not parse MCP result file:`, e);
     }
 
-    // The MCP tool shows a UI confirmation card before publishing.
-    // If the MCP returned an ID (post was confirmed and published), mark as published.
-    // Otherwise, mark mcpPending=1 so the UI shows "Aguardando confirmação MCP".
-    const instagramId = result?.id || result?.permalink || null;
-    if (instagramId) {
+    // MCP result structure: { success: true, result: { media: { id, permalink, status } } }
+    const mcpMedia = (result as any)?.result?.media as any;
+    const instagramId: string | null = mcpMedia?.id || mcpMedia?.permalink || null;
+    const isPublished: boolean = mcpMedia?.status === "published" || !!instagramId;
+
+    if (isPublished && instagramId) {
       await updatePost(postId, {
         status: "published",
         publishedAt: new Date(),
         instagramPostId: instagramId,
+        instagramPermalink: mcpMedia?.permalink || null,
         mcpPending: 0,
       });
       return { success: true, instagramPostId: instagramId };
-    } else {
-      // MCP command sent successfully - awaiting user confirmation in Manus UI card
+    } else if ((result as any)?.success) {
+      // MCP accepted the command but awaiting UI card confirmation
       await updatePost(postId, { status: "approved", mcpPending: 1 });
       return { success: true, instagramPostId: undefined };
+    } else {
+      const errMsg = (result as any)?.error || stderr || "MCP returned no result";
+      return { success: false, error: errMsg };
     }
   } catch (error: any) {
     console.error(`[Instagram] Failed to publish post ${postId}:`, error.message);

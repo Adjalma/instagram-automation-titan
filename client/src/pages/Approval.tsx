@@ -111,7 +111,7 @@ export default function Approval() {
             <Send className="h-4 w-4 text-cyan-600 mt-0.5 shrink-0" />
             <div className="text-sm">
               <span className="font-semibold">Como funciona a publicação:</span>
-              <span className="text-muted-foreground ml-1">Posts sem agendamento são enviados ao Instagram imediatamente ao aprovar. O MCP do Manus exibe um card de confirmação — após confirmar, o post vai ao ar. Posts com data futura ficam na fila e são publicados automaticamente no horário configurado pelo agendador do servidor (a cada 5 min).</span>
+              <span className="text-muted-foreground ml-1">Ao aprovar um post, ele entra na fila de publicação. O agente Manus verifica a fila a cada 10 minutos, publica no Instagram via MCP e atualiza o status automaticamente. Posts com data futura aguardam o horário configurado. Você verá um card de confirmação no chat do Manus quando cada post for publicado.</span>
             </div>
           </div>
         </CardContent>
@@ -123,8 +123,8 @@ export default function Approval() {
           <div className="flex items-start gap-3">
             <Radio className="h-4 w-4 text-violet-600 mt-0.5 shrink-0" />
             <div className="text-sm">
-              <span className="font-semibold text-violet-700">Aguardando confirmação MCP:</span>
-              <span className="text-muted-foreground ml-1">Quando um post é aprovado e o comando MCP é enviado ao Instagram, ele fica com status <strong>"Aguardando MCP"</strong> (badge roxo) até que você confirme o card que aparece no chat do Manus. Após confirmar, o post é publicado e o status muda para <strong>Publicado</strong>.</span>
+              <span className="font-semibold text-violet-700">Fluxo automático:</span>
+              <span className="text-muted-foreground ml-1">Após aprovar, o post fica com status <strong>"Aprovado"</strong>. O agente Manus roda a cada 10 minutos, detecta posts aprovados, publica no Instagram e marca como <strong>"Publicado"</strong> automaticamente. Não é necessário nenhuma ação adicional.</span>
             </div>
           </div>
         </CardContent>
