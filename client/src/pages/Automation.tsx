@@ -92,7 +92,7 @@ export default function Automation() {
     try {
       const result = await approveAll.mutateAsync();
       toast.success(`Processamento concluído!`, {
-        description: `${result.published} publicados, ${result.scheduled} agendados, ${result.approved} aguardando.`,
+        description: `${result.approved} na fila de publicação, ${result.scheduled} agendados.`,
       });
       refetchQueue();
     } catch (e) {
@@ -106,7 +106,7 @@ export default function Automation() {
       if (result.processed === 0) {
         toast.info("Nenhum post agendado vencido no momento.");
       } else {
-        toast.success(`${result.published} posts publicados de ${result.processed} verificados!`);
+        toast.success(`${result.promoted} posts movidos para fila de publicação de ${result.processed} verificados!`);
       }
       refetchQueue();
     } catch (e) {

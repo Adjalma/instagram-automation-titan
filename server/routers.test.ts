@@ -244,7 +244,7 @@ describe("automation.processScheduled", () => {
     const result = await caller.automation.processScheduled();
     expect(result).toBeDefined();
     expect(typeof result.processed).toBe("number");
-    expect(typeof result.published).toBe("number");
+    expect(typeof result.promoted).toBe("number");
     expect(Array.isArray(result.errors)).toBe(true);
     // O post criado deve ter sido processado
     expect(result.processed).toBeGreaterThanOrEqual(1);
@@ -270,7 +270,7 @@ describe("automation.processScheduled", () => {
     // O post futuro não deve ser processado
     // (pode haver outros posts vencidos no banco, então só verificamos o tipo)
     expect(typeof result.processed).toBe("number");
-    expect(typeof result.published).toBe("number");
+    expect(typeof result.promoted).toBe("number");
 
     // cleanup
     await caller.posts.delete({ id: created.id });

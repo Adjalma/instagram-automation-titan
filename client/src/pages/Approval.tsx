@@ -14,11 +14,7 @@ export default function Approval() {
     onSuccess: (data) => {
       utils.posts.list.invalidate();
       utils.automation.getQueue.invalidate();
-      if (data.status === "published") {
-        toast.success("✅ Post publicado no Instagram!", {
-          description: data.instagramPostId ? `ID: ${data.instagramPostId}` : "Publicado com sucesso.",
-        });
-      } else if (data.status === "scheduled") {
+      if (data.status === "scheduled") {
         toast.success("📅 Post agendado!", {
           description: "Será publicado automaticamente no horário configurado.",
         });
@@ -46,7 +42,7 @@ export default function Approval() {
       utils.posts.list.invalidate();
       utils.automation.getQueue.invalidate();
       toast.success(`Processamento concluído!`, {
-        description: `${data.published} publicados, ${data.scheduled} agendados, ${data.approved} aguardando.`,
+        description: `${data.approved} na fila de publicação, ${data.scheduled} agendados.`,
       });
     },
     onError: (err) => toast.error("Erro ao aprovar todos", { description: err.message }),
@@ -56,7 +52,7 @@ export default function Approval() {
     onSuccess: (data) => {
       utils.posts.list.invalidate();
       toast.success(`Posts agendados processados`, {
-        description: `${data.published} publicados de ${data.processed} verificados.`,
+        description: `${data.promoted} movidos para fila de publicação de ${data.processed} verificados.`,
       });
     },
     onError: (err) => toast.error("Erro ao processar agendados", { description: err.message }),

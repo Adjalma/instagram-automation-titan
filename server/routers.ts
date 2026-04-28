@@ -14,7 +14,7 @@ import { invokeLLM } from "./_core/llm";
 import { generateImage } from "./_core/imageGeneration";
 import { notifyOwner } from "./_core/notification";
 import { storagePut } from "./storage";
-import { publishToInstagram, processScheduledPosts, fetchPostInsights } from "./instagram";
+import { processScheduledPosts, fetchPostInsights } from "./instagram";
 
 const APP_CONTEXT = `O Titan App é um aplicativo PWA de escalada desenvolvido pela Triarc Solutions. Link oficial: titan.triarcsolutions.com.br. Slogan: "Iron Grip. Endless Ascend." Funcionalidades: registro de vias, modo offline, comunidade de escaladores, dicas de segurança, tracking de progresso. O sistema de gerenciamento é o Triarc Social Manager, plataforma de automação de conteúdo para Instagram da Triarc Solutions.`;
 
@@ -104,29 +104,14 @@ export const appRouter = router({
       const post = await getPostById(input.id);
       if (!post) throw new Error("Post not found");
 
-      // If no scheduledAt, publish immediately to Instagram
-      if (!post.scheduledAt) {
-        const result = await publishToInstagram(input.id);
-        if (result.success) {
-          return { success: true, status: "published", instagramPostId: result.instagramPostId };
-        } else {
-          // If publish fails, mark as approved and let user retry
-          await updatePost(input.id, { status: "approved" });
-          return { success: true, status: "approved", publishError: result.error };
-        }
+       // Se não tem agendamento ou o agendamento já passou → fila imediata (approved)
+      if (!post.scheduledAt || new Date(post.scheduledAt as any) <= new Date()) {
+        await updatePost(input.id, { status: "approved", mcpPending: 0 });
+        return { success: true, status: "approved" };
       }
-
-      // If scheduledAt is in the past, publish immediately
-      if (new Date(post.scheduledAt) <= new Date()) {
-        const result = await publishToInstagram(input.id);
-        if (result.success) {
-          return { success: true, status: "published", instagramPostId: result.instagramPostId };
-        }
-      }
-
-      // Future scheduled post - mark as scheduled
+      // Post com agendamento futuro → scheduled
       await updatePost(input.id, { status: "scheduled" });
-      return { success: true, status: "scheduled" };
+      return { success: true, status: "scheduled" };;
     }),
     reject: protectedProcedure.input(z.object({ id: z.number() })).mutation(async ({ input }) => {
       await updatePost(input.id, { status: "rejected" });
@@ -383,26 +368,18 @@ export const appRouter = router({
     approveAll: protectedProcedure.mutation(async () => {
       const pendingPosts = await getPostsByStatus("pending");
       let approved = 0;
-      let published = 0;
       let scheduled = 0;
       for (const post of pendingPosts) {
         const p = post as any;
         if (!p.scheduledAt || new Date(p.scheduledAt) <= new Date()) {
-          // Publish immediately
-          const result = await publishToInstagram(p.id);
-          if (result.success) {
-            published++;
-          } else {
-            await updatePost(p.id, { status: "approved" });
-            approved++;
-          }
+          await updatePost(p.id, { status: "approved", mcpPending: 0 });
+          approved++;
         } else {
-          // Schedule for future
           await updatePost(p.id, { status: "scheduled" });
           scheduled++;
         }
       }
-      return { approved, published, scheduled, total: pendingPosts.length };
+      return { approved, published: 0, scheduled, total: pendingPosts.length };
     }),
 
     processScheduled: protectedProcedure.mutation(async () => {

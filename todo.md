@@ -68,3 +68,9 @@
 - [x] Diagnosticar por que posts aprovados não são publicados: manus-mcp-cli não pode ser chamado pelo servidor web
 - [x] Corrigir fluxo: agente Manus agendado a cada 10min busca posts aprovados via /api/scheduled/pending-posts e publica via MCP
 - [x] Garantir feedback visual: banners atualizados no Approval.tsx explicando o novo fluxo automático
+
+## Bug v1.3 — Posts não chegam ao Instagram
+- [x] Diagnosticar: scheduler chamava manus-mcp-cli diretamente (falha) — CORRIGIDO: scheduler agora apenas promove posts agendados vencidos para 'approved'
+- [x] Testar publicação real: post 150006 publicado com sucesso em https://www.instagram.com/p/DXouDCjieVp/
+- [x] Tarefa agendada Manus atualizada com instruções corrigidas (aguarda 30s entre posts, usa publicUrl da mídia)
+- [x] Publicar projeto (deploy) para ativar a tarefa agendada (aguardando clique do usuário no botão Publish)
