@@ -9,6 +9,7 @@ import {
   addPostMedia, getPostMedia, deletePostMedia,
   createAsset, getAssetsByUser, deleteAsset,
   getAllThemes, getThemeBySlug,
+  getPublicationLogs, getPublicationLogsByPost, createPublicationLog,
 } from "./db";
 import { invokeLLM } from "./_core/llm";
 import { generateImage } from "./_core/imageGeneration";
@@ -384,6 +385,22 @@ export const appRouter = router({
 
     processScheduled: protectedProcedure.mutation(async () => {
       return processScheduledPosts();
+    }),
+
+    publishNow: protectedProcedure.input(z.object({ postId: z.number() })).mutation(async ({ input }) => {
+      // Marca o post como approved e mcpPending=0 para que o agente o publique na próxima execução
+      const post = await getPostById(input.postId);
+      if (!post) throw new Error("Post not found");
+      await updatePost(input.postId, { status: "approved", mcpPending: 0, retryCount: 0 });
+      return { success: true, message: "Post adicionado à fila de publicação imediata. O agente publicará em breve." };
+    }),
+
+    getLogs: protectedProcedure.query(async () => {
+      return getPublicationLogs(100);
+    }),
+
+    getPostLogs: protectedProcedure.input(z.object({ postId: z.number() })).query(async ({ input }) => {
+      return getPublicationLogsByPost(input.postId);
     }),
 
     syncInsights: protectedProcedure.input(z.object({ postId: z.number() })).mutation(async ({ input }) => {

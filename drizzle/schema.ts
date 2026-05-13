@@ -40,6 +40,8 @@ export const posts = mysqlTable("posts", {
   instagramPostId: varchar("instagramPostId", { length: 256 }),
   instagramPermalink: text("instagramPermalink"),
   mcpPending: int("mcpPending").default(0).notNull(), // 1 = MCP command sent, awaiting manual confirmation
+  retryCount: int("retryCount").default(0).notNull(), // número de tentativas de publicação
+  nextRetryAt: timestamp("nextRetryAt"), // próximo horário de tentativa (backoff)
   likes: int("likes").default(0),
   comments: int("comments").default(0),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -83,3 +85,16 @@ export const contentThemes = mysqlTable("content_themes", {
 });
 
 export type ContentTheme = typeof contentThemes.$inferSelect;
+
+export const publicationLogs = mysqlTable("publication_logs", {
+  id: int("id").autoincrement().primaryKey(),
+  postId: int("postId").notNull(),
+  attempt: int("attempt").default(1).notNull(),
+  status: mysqlEnum("status", ["success", "failed", "pending"]).notNull(),
+  instagramPostId: varchar("instagramPostId", { length: 256 }),
+  permalink: text("permalink"),
+  error: text("error"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type PublicationLog = typeof publicationLogs.$inferSelect;

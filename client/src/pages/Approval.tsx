@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Loader2, CheckCircle, XCircle, Clock, Instagram, Send, Zap, CalendarCheck, Radio } from "lucide-react";
+import { Loader2, CheckCircle, XCircle, Clock, Instagram, Send, Zap, CalendarCheck, Radio, Rocket } from "lucide-react";
 
 export default function Approval() {
   const utils = trpc.useUtils();
@@ -56,6 +56,16 @@ export default function Approval() {
       });
     },
     onError: (err) => toast.error("Erro ao processar agendados", { description: err.message }),
+  });
+
+  const publishNow = trpc.automation.publishNow.useMutation({
+    onSuccess: () => {
+      utils.automation.getQueue.invalidate();
+      toast.success("🚀 Post na fila de publicação imediata!", {
+        description: "O agente Manus publicará este post na próxima execução (até 10 minutos).",
+      });
+    },
+    onError: (err) => toast.error("Erro ao publicar", { description: err.message }),
   });
 
   const getAccount = (accountId: number) => accounts?.find(a => a.id === accountId);
@@ -182,12 +192,28 @@ export default function Approval() {
                       variant="outline"
                       size="sm"
                       onClick={() => reject.mutate({ id: post.id })}
-                      disabled={reject.isPending || approve.isPending}
+                      disabled={reject.isPending || approve.isPending || publishNow.isPending}
                       className="gap-1.5 text-destructive hover:text-destructive"
                     >
                       <XCircle className="h-3.5 w-3.5" />
                       Rejeitar
                     </Button>
+                    {!isFuture && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => publishNow.mutate({ postId: post.id })}
+                        disabled={publishNow.isPending || approve.isPending || reject.isPending}
+                        className="gap-1.5 border-violet-300 text-violet-700 hover:bg-violet-50"
+                      >
+                        {publishNow.isPending ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Rocket className="h-3.5 w-3.5" />
+                        )}
+                        Publicar Agora
+                      </Button>
+                    )}
                     <Button
                       size="sm"
                       onClick={() => approve.mutate({ id: post.id })}

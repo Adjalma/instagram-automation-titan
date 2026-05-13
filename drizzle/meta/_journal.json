@@ -15,6 +15,20 @@
       "when": 1776973124113,
       "tag": "0001_complex_blob",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1777483595398,
+      "tag": "0002_brown_phalanx",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1778667716357,
+      "tag": "0003_flaky_joshua_kane",
+      "breakpoints": true
     }
   ]
 }

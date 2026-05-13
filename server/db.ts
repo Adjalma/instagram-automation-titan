@@ -1,7 +1,7 @@
 import { eq, desc, and, sql, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { createPool } from "mysql2";
-import { InsertUser, users, instagramAccounts, posts, postMedia, assets, contentThemes } from "../drizzle/schema";
+import { InsertUser, users, instagramAccounts, posts, postMedia, assets, contentThemes, publicationLogs } from "../drizzle/schema";
 import type { InsertPost } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
@@ -130,7 +130,7 @@ export async function getAllPosts() {
   return db.select().from(posts).orderBy(desc(posts.createdAt));
 }
 
-export async function updatePost(id: number, data: Partial<{ caption: string; status: string; theme: string; scheduledAt: Date | null; publishedAt: Date | null; instagramPostId: string; instagramPermalink: string; mcpPending: number; likes: number; comments: number }>) {
+export async function updatePost(id: number, data: Partial<{ caption: string; status: string; theme: string; scheduledAt: Date | null; publishedAt: Date | null; instagramPostId: string; instagramPermalink: string; mcpPending: number; retryCount: number; nextRetryAt: Date | null; likes: number; comments: number }>) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   await db.update(posts).set(data as any).where(eq(posts.id, id));
@@ -181,6 +181,26 @@ export async function deleteAsset(id: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   await db.delete(assets).where(eq(assets.id, id));
+}
+
+// ─── Publication Logs ───────────────────────────────────────────
+export async function createPublicationLog(data: { postId: number; attempt: number; status: "success" | "failed" | "pending"; instagramPostId?: string; permalink?: string; error?: string }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(publicationLogs).values(data as any);
+  return { id: result[0].insertId };
+}
+
+export async function getPublicationLogs(limit = 50) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(publicationLogs).orderBy(desc(publicationLogs.createdAt)).limit(limit);
+}
+
+export async function getPublicationLogsByPost(postId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(publicationLogs).where(eq(publicationLogs.postId, postId)).orderBy(desc(publicationLogs.createdAt));
 }
 
 // ─── Content Themes ──────────────────────────────────────────────

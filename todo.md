@@ -74,3 +74,11 @@
 - [x] Testar publicação real: post 150006 publicado com sucesso em https://www.instagram.com/p/DXouDCjieVp/
 - [x] Tarefa agendada Manus atualizada com instruções corrigidas (aguarda 30s entre posts, usa publicUrl da mídia)
 - [x] Publicar projeto (deploy) para ativar a tarefa agendada (aguardando clique do usuário no botão Publish)
+
+## Features v1.5 — Sistema Completo
+- [x] Tabela publication_logs no banco (postId, status, instagramPostId, permalink, error, attempt, createdAt)
+- [x] Endpoint tRPC automation.publishNow para publicar um post imediatamente via agente
+- [x] Retry automático no scheduler (até 3 tentativas, backoff 5min entre tentativas)
+- [x] Notificação ao dono (notifyOwner) quando post é publicado com sucesso
+- [x] Página de Logs de Publicação na UI (rota /logs, listagem com status, permalink, erros)
+- [x] Botão "Publicar Agora" na tela de Aprovação (chama publishNow)
