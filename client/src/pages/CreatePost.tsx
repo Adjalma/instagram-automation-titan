@@ -14,8 +14,11 @@ export default function CreatePost() {
   const [, setLocation] = useLocation();
   const { data: accounts } = trpc.accounts.list.useQuery();
   const { data: themes } = trpc.themes.list.useQuery();
+  const { data: triacItems } = trpc.triacContent.list.useQuery();
   const [accountId, setAccountId] = useState<string>("");
   const [theme, setTheme] = useState<string>("");
+  const [contentSource, setContentSource] = useState<"theme" | "triac">("triac");
+  const [selectedTriacId, setSelectedTriacId] = useState<string>("");
   const [caption, setCaption] = useState("");
   const [extraContext, setExtraContext] = useState("");
   const [mediaUrls, setMediaUrls] = useState<string[]>([]);
@@ -29,17 +32,26 @@ export default function CreatePost() {
   const submitForApproval = trpc.posts.submitForApproval.useMutation();
 
   const selectedAccount = useMemo(() => accounts?.find(a => a.id === Number(accountId)), [accounts, accountId]);
+  const selectedTriacItem = useMemo(() => triacItems?.find(i => i.id === Number(selectedTriacId)), [triacItems, selectedTriacId]);
+
+  // Derive the effective theme string from selected source
+  const effectiveTheme = useMemo(() => {
+    if (contentSource === "triac" && selectedTriacItem) {
+      return `${selectedTriacItem.name}: ${selectedTriacItem.description}`;
+    }
+    return theme;
+  }, [contentSource, selectedTriacItem, theme]);
 
   const handleGenerateCaption = async () => {
-    if (!accountId || !theme) {
-      toast.error("Selecione a conta e o tema primeiro");
+    if (!accountId || !effectiveTheme) {
+      toast.error("Selecione a conta e o projeto/tema primeiro");
       return;
     }
     setIsGeneratingCaption(true);
     try {
       const result = await generateCaption.mutateAsync({
         accountId: Number(accountId),
-        theme,
+        theme: effectiveTheme,
         extraContext: extraContext || undefined,
       });
       setCaption(typeof result.caption === 'string' ? result.caption : '');
@@ -52,15 +64,15 @@ export default function CreatePost() {
   };
 
   const handleGenerateArt = async () => {
-    if (!accountId || !theme) {
-      toast.error("Selecione a conta e o tema primeiro");
+    if (!accountId || !effectiveTheme) {
+      toast.error("Selecione a conta e o projeto/tema primeiro");
       return;
     }
     setIsGeneratingArt(true);
     try {
       const result = await generateArt.mutateAsync({
         accountId: Number(accountId),
-        theme,
+        theme: effectiveTheme,
         description: extraContext || undefined,
       });
       if (result.url) setMediaUrls(prev => [...prev, result.url as string]);
@@ -81,7 +93,7 @@ export default function CreatePost() {
       const result = await createPost.mutateAsync({
         accountId: Number(accountId),
         caption,
-        theme: theme || undefined,
+        theme: effectiveTheme || undefined,
         scheduledAt: scheduledAt || undefined,
         mediaUrls: mediaUrls.length > 0 ? mediaUrls : undefined,
       });
@@ -132,6 +144,51 @@ export default function CreatePost() {
                   </Select>
                 </div>
                 <div>
+                  <label className="label-mono mb-2 block">Fonte de Conteúdo</label>
+                  <Select value={contentSource} onValueChange={(v) => setContentSource(v as "theme" | "triac")}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="triac">Projetos e Serviços Triarc</SelectItem>
+                      <SelectItem value="theme">Temas Genéricos</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              {contentSource === "triac" && (
+                <div>
+                  <label className="label-mono mb-2 block">Projeto / Serviço</label>
+                  <Select value={selectedTriacId} onValueChange={setSelectedTriacId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecionar projeto ou serviço" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-72">
+                      {triacItems?.filter(i => i.type === "servico").length ? (
+                        <>
+                          <div className="px-2 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wide">💼 Serviços</div>
+                          {triacItems.filter(i => i.type === "servico").map(i => (
+                            <SelectItem key={i.id} value={String(i.id)}>{i.name}</SelectItem>
+                          ))}
+                        </>
+                      ) : null}
+                      {triacItems?.filter(i => i.type === "projeto").length ? (
+                        <>
+                          <div className="px-2 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wide mt-1">🚀 Projetos</div>
+                          {triacItems.filter(i => i.type === "projeto").map(i => (
+                            <SelectItem key={i.id} value={String(i.id)}>{i.name}</SelectItem>
+                          ))}
+                        </>
+                      ) : null}
+                    </SelectContent>
+                  </Select>
+                  {selectedTriacItem && (
+                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{selectedTriacItem.subtitle}</p>
+                  )}
+                </div>
+              )}
+              {contentSource === "theme" && (
+                <div>
                   <label className="label-mono mb-2 block">Tema</label>
                   <Select value={theme} onValueChange={setTheme}>
                     <SelectTrigger>
@@ -144,7 +201,7 @@ export default function CreatePost() {
                     </SelectContent>
                   </Select>
                 </div>
-              </div>
+              )}
               {selectedAccount && (
                 <div className="flex items-center gap-2">
                   <Badge variant="outline" className={selectedAccount.tone === "personal" ? "border-pink-300 text-pink-600" : "border-cyan-300 text-cyan-700"}>

@@ -82,3 +82,10 @@
 - [x] Notificação ao dono (notifyOwner) quando post é publicado com sucesso
 - [x] Página de Logs de Publicação na UI (rota /logs, listagem com status, permalink, erros)
 - [x] Botão "Publicar Agora" na tela de Aprovação (chama publishNow)
+
+## Features v1.6 — Conteúdo Triarc Real
+- [x] Tabela triac_content (tipo: servico|projeto, nome, descricao, categoria, tecnologias, destaques)
+- [x] Seed com 8 serviços e 36 projetos reais da Triarc (idempotente no boot)
+- [x] Prompts de IA atualizados: tom corporativo Triarc + CTA para triarcsolutions.com.br
+- [x] UI: seleção de projeto/serviço ao criar post (dropdown com 8 serviços + 36 projetos)
+- [x] Calendário editorial: "Gerar Semana" usa temas dos projetos/serviços automaticamente

@@ -98,3 +98,18 @@ export const publicationLogs = mysqlTable("publication_logs", {
 });
 
 export type PublicationLog = typeof publicationLogs.$inferSelect;
+
+export const triacContent = mysqlTable("triac_content", {
+  id: int("id").autoincrement().primaryKey(),
+  type: mysqlEnum("type", ["servico", "projeto"]).notNull(),
+  name: varchar("name", { length: 256 }).notNull(),
+  subtitle: varchar("subtitle", { length: 256 }),
+  description: text("description").notNull(),
+  category: varchar("category", { length: 128 }),
+  technologies: text("technologies"), // JSON array
+  highlights: text("highlights"), // JSON array
+  status: mysqlEnum("status", ["ativo", "em_desenvolvimento", "em_breve"]).default("ativo").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type TriacContent = typeof triacContent.$inferSelect;

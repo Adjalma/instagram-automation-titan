@@ -10,6 +10,7 @@ import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { startScheduler } from "../scheduler";
 import { registerScheduledRoutes } from "../scheduledRoutes";
+import { seedTriarcContent } from "../seed-triarc";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -66,6 +67,8 @@ async function startServer() {
     console.log(`Server running on http://localhost:${port}/`);
     // Inicia o agendador periódico de publicações
     startScheduler();
+    // Seed de serviços e projetos Triarc (idempotente)
+    seedTriarcContent().catch(e => console.error("[Seed] Erro:", e));
   });
 }
 

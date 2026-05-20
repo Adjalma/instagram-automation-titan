@@ -16,8 +16,13 @@ import { generateImage } from "./_core/imageGeneration";
 import { notifyOwner } from "./_core/notification";
 import { storagePut } from "./storage";
 import { processScheduledPosts, fetchPostInsights } from "./instagram";
+import { seedTriarcContent, TRIARC_SERVICES, TRIARC_PROJECTS } from "./seed-triarc";
+import { triacContent, TriacContent } from "../drizzle/schema";
+import { getDb } from "./db";
 
-const APP_CONTEXT = `O Titan App é um aplicativo PWA de escalada desenvolvido pela Triarc Solutions. Link oficial: titan.triarcsolutions.com.br. Slogan: "Iron Grip. Endless Ascend." Funcionalidades: registro de vias, modo offline, comunidade de escaladores, dicas de segurança, tracking de progresso. O sistema de gerenciamento é o Triarc Social Manager, plataforma de automação de conteúdo para Instagram da Triarc Solutions.`;
+const APP_CONTEXT = `A Triarc Solutions é uma empresa de tecnologia e inovação com sede em Macaé/RJ. Site oficial: triarcsolutions.com.br. Pilares: Gestão, Treinamento e Tecnologia. Serviços: desenvolvimento de software sob encomenda, IA e automação, gestão empresarial, suporte técnico em TI, automação industrial, treinamento profissional, licenciamento de software e data science. Projetos em destaque: TopFlow.ai (SEO com IA), COPE (plataforma de conexão de profissionais), SS-Milhas (gestão de milhas), TransCarga (logística inteligente), TRIARC CRM, NutriSystem, Grupo Conecta e mais de 36 projetos entregues. O Triarc Social Manager é a plataforma interna de automação de conteúdo para Instagram da Triarc Solutions.`;
+
+const TRIARC_TONE = `Use um tom corporativo profissional, moderno e acessível. Posicione a Triarc Solutions como referência em tecnologia e inovação. Destaque expertise técnica, resultados concretos e valor para o cliente. Sempre inclua CTA direcionando para triarcsolutions.com.br. Use hashtags do nicho tech/inovação/negócios.`;
 
 export const appRouter = router({
   system: systemRouter,
@@ -189,12 +194,16 @@ export const appRouter = router({
       accountIds: z.array(z.number()).optional(),
     })).mutation(async ({ ctx, input }) => {
       const accounts = await getAllAccounts();
-      const themes = await getAllThemes();
       const targetAccounts = input.accountIds
         ? accounts.filter(a => input.accountIds!.includes(a.id))
         : accounts;
       if (targetAccounts.length === 0) throw new Error("Nenhuma conta encontrada");
-      if (themes.length === 0) throw new Error("Nenhum tema encontrado");
+
+      // Busca projetos e serviços reais da Triarc como base de conteúdo
+      const db = await getDb();
+      const triacItems = db ? await db.select().from(triacContent) : [];
+      const contentItems = triacItems.length > 0 ? triacItems : TRIARC_PROJECTS.map((p, i) => ({ id: i + 1, name: p.name, subtitle: p.subtitle, description: p.description, category: p.category, type: "projeto" as const }));
+      if (contentItems.length === 0) throw new Error("Nenhum conteúdo Triarc encontrado");
 
       // Best posting times (Brazilian timezone UTC-3)
       const bestTimes = [
@@ -209,15 +218,13 @@ export const appRouter = router({
 
       for (let day = 1; day <= 7; day++) {
         for (const account of targetAccounts) {
-          const theme = themes[(day + account.id) % themes.length];
+          const theme = contentItems[(day + account.id) % contentItems.length];
           const scheduleDate = new Date(now);
           scheduleDate.setDate(now.getDate() + day);
           const timeSlot = bestTimes[(day + account.id) % bestTimes.length];
           scheduleDate.setHours(timeSlot.hour, timeSlot.minute, 0, 0);
 
-          const toneInstruction = account.tone === "personal"
-            ? "Use um tom pessoal, autêntico e apaixonado. Fale como um escalador compartilhando sua jornada. Use primeira pessoa."
-            : "Use um tom corporativo profissional mas acessível. Destaque expertise técnica e valor do produto.";
+          const toneInstruction = TRIARC_TONE;
 
           // Generate caption with AI
           let caption = "";
@@ -226,11 +233,11 @@ export const appRouter = router({
               messages: [
                 {
                   role: "system",
-                  content: `Você é um especialista em marketing de conteúdo para Instagram. ${APP_CONTEXT}\n\n${toneInstruction}\n\nA legenda deve incluir:\n- Texto envolvente e relevante para o tema\n- Hashtags estratégicas (8-15 hashtags)\n- CTA (Call to Action) claro\n- Menção ao link titan.triarcsolutions.com.br quando relevante\n- Emojis moderados para engajamento\n\nResponda APENAS com a legenda pronta.`,
+                  content: `Você é um especialista em marketing de conteúdo para Instagram. ${APP_CONTEXT}\n\n${toneInstruction}\n\nA legenda deve incluir:\n- Texto envolvente e relevante ao tema/projeto/serviço\n- Hashtags estratégicas (8-15 hashtags do nicho tech, inovação, negócios)\n- CTA claro direcionando para triarcsolutions.com.br\n- Emojis moderados e profissionais\n\nResponda APENAS com a legenda pronta.`,
                 },
                 {
                   role: "user",
-                  content: `Crie uma legenda para @${account.handle}. Tema: ${theme.name}. Dia ${day} da semana de conteúdo.`,
+                  content: `Crie uma legenda para @triarcsolutions no Instagram. Tema/Projeto: ${theme.name}. Dia ${day} da semana de conteúdo. Foque em mostrar o valor e impacto desse serviço/projeto para empresas e profissionais.`,
                 },
               ],
             });
@@ -243,11 +250,9 @@ export const appRouter = router({
           // Generate art with AI
           let mediaUrl = "";
           try {
-            const style = account.tone === "personal"
-              ? "Estilo fotográfico natural de escalada, cores vibrantes, atmosfera aventureira"
-              : "Design moderno e limpo com elementos tech, cores azul ciano e cinza metálico, estilo corporativo";
+            const style = "Design moderno e limpo com elementos tech, cores azul ciano (#00BFFF) e cinza escuro, estilo corporativo premium, minimalista e sofisticado";
             const artResult = await generateImage({
-              prompt: `Instagram post for climbing/tech brand. Theme: ${theme.name}. ${style}. Include branding with text TITAN and tagline Iron Grip Endless Ascend in metallic shield. 1080x1080 square.`,
+              prompt: `Instagram post for Triarc Solutions tech company. Topic: ${theme.name}. ${style}. Include subtle TRIARC branding. Professional social media design, 1080x1080 square.`,
             });
             mediaUrl = artResult.url ?? "";
           } catch (e) {
@@ -297,9 +302,7 @@ export const appRouter = router({
         const scheduleDate = new Date(startDate);
         scheduleDate.setHours(scheduleDate.getHours() + (i * input.intervalHours));
 
-        const toneInstruction = account.tone === "personal"
-          ? "Use um tom pessoal, autêntico e apaixonado. Fale como um escalador compartilhando sua jornada."
-          : "Use um tom corporativo profissional mas acessível. Destaque expertise técnica.";
+        const toneInstruction = TRIARC_TONE;
 
         let caption = "";
         try {
@@ -307,9 +310,9 @@ export const appRouter = router({
             messages: [
               {
                 role: "system",
-                content: `Você é um especialista em marketing para Instagram. ${APP_CONTEXT}\n\n${toneInstruction}\n\nInclua hashtags estratégicas, CTA claro e menção a titan.triarcsolutions.com.br quando relevante. Responda APENAS com a legenda.`,
+                content: `Você é um especialista em marketing para Instagram. ${APP_CONTEXT}\n\n${toneInstruction}\n\nInclua hashtags estratégicas do nicho tech/inovação, CTA claro para triarcsolutions.com.br. Responda APENAS com a legenda.`,
               },
-              { role: "user", content: `Legenda para @${account.handle}. Tema: ${theme}.` },
+              { role: "user", content: `Legenda para @triarcsolutions. Tema/Projeto: ${theme}. Destaque o impacto e valor para o cliente.` },
             ],
           });
           const rawBatch = response.choices?.[0]?.message?.content;
@@ -320,11 +323,9 @@ export const appRouter = router({
 
         let mediaUrl = "";
         try {
-          const style = account.tone === "personal"
-            ? "Estilo fotográfico natural de escalada, cores vibrantes"
-            : "Design moderno tech, cores azul ciano e cinza metálico";
+          const style = "Design moderno tech, cores azul ciano (#00BFFF) e cinza escuro, estilo corporativo premium";
           const artResult = await generateImage({
-            prompt: `Instagram post for climbing/tech brand. Theme: ${theme}. ${style}. Include TITAN branding. 1080x1080 square.`,
+            prompt: `Instagram post for Triarc Solutions tech company. Topic: ${theme}. ${style}. Include subtle TRIARC branding. 1080x1080 square.`,
           });
           mediaUrl = artResult.url ?? "";
         } catch (e) { /* continue without media */ }
@@ -415,6 +416,20 @@ export const appRouter = router({
     }),
   }),
 
+  triacContent: router({
+    list: protectedProcedure.input(z.object({
+      type: z.enum(["servico", "projeto", "all"]).optional(),
+    }).optional()).query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return [];
+      const items = await db.select().from(triacContent);
+      if (input?.type && input.type !== "all") {
+        return items.filter((i: TriacContent) => i.type === input.type);
+      }
+      return items;
+    }),
+  }),
+
   ai: router({
     generateCaption: protectedProcedure.input(z.object({
       accountId: z.number(),
@@ -423,18 +438,16 @@ export const appRouter = router({
     })).mutation(async ({ input }) => {
       const account = await getAccountById(input.accountId);
       if (!account) throw new Error("Account not found");
-      const toneInstruction = account.tone === "personal"
-        ? "Use um tom pessoal, autêntico e apaixonado. Fale como um escalador que está compartilhando sua jornada real. Use primeira pessoa. Seja inspirador mas genuíno."
-        : "Use um tom corporativo profissional mas acessível. Fale como uma empresa de tecnologia inovadora. Destaque expertise técnica e valor do produto. Seja informativo e confiável.";
+      const toneInstruction = TRIARC_TONE;
       const response = await invokeLLM({
         messages: [
           {
             role: "system",
-            content: `Você é um especialista em marketing de conteúdo para Instagram. ${APP_CONTEXT}\n\n${toneInstruction}\n\nA legenda deve incluir:\n- Texto envolvente e relevante para o tema\n- Hashtags estratégicas (8-15 hashtags)\n- CTA (Call to Action) claro\n- Menção ao link titan.triarcsolutions.com.br quando relevante\n- Emojis moderados para engajamento\n\nResponda APENAS com a legenda pronta, sem explicações adicionais.`,
+            content: `Você é um especialista em marketing de conteúdo para Instagram. ${APP_CONTEXT}\n\n${toneInstruction}\n\nA legenda deve incluir:\n- Texto envolvente e relevante ao tema/projeto/serviço\n- Hashtags estratégicas (8-15 hashtags do nicho tech, inovação, negócios)\n- CTA claro para triarcsolutions.com.br\n- Emojis moderados e profissionais\n\nResponda APENAS com a legenda pronta, sem explicações adicionais.`,
           },
           {
             role: "user",
-            content: `Crie uma legenda para o Instagram da conta @${account.handle}.\nTema: ${input.theme}\n${input.extraContext ? `Contexto adicional: ${input.extraContext}` : ""}`,
+            content: `Crie uma legenda para @triarcsolutions no Instagram.\nTema/Projeto/Serviço: ${input.theme}\n${input.extraContext ? `Contexto adicional: ${input.extraContext}` : ""}\nDestaque o impacto, tecnologias usadas e valor para o cliente.`,
           },
         ],
       });
@@ -449,10 +462,8 @@ export const appRouter = router({
     })).mutation(async ({ input }) => {
       const account = await getAccountById(input.accountId);
       if (!account) throw new Error("Account not found");
-      const style = account.tone === "personal"
-        ? "Estilo fotográfico natural de escalada ao ar livre, cores vibrantes, atmosfera aventureira"
-        : "Design moderno e limpo com elementos tech, cores azul ciano e cinza metálico, estilo corporativo premium";
-      const prompt = `Instagram post image for climbing/tech brand. Theme: ${input.theme}. ${style}. ${input.description ?? ""}. Include branding elements with the text "TITAN" and tagline "Iron Grip. Endless Ascend." in a metallic shield emblem. Professional social media design, 1080x1080 square format.`;
+      const style = "Design moderno e limpo com elementos tech, cores azul ciano (#00BFFF) e cinza escuro, estilo corporativo premium, minimalista e sofisticado";
+      const prompt = `Instagram post image for Triarc Solutions tech company. Topic: ${input.theme}. ${style}. ${input.description ?? ""}. Include subtle TRIARC branding. Professional social media design, 1080x1080 square format.`;
       const { url } = await generateImage({ prompt });
       return { url };
     }),
