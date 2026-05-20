@@ -1,0 +1,18 @@
+{
+  "query": "SHOW COLUMNS FROM posts LIKE 'nextRetryAt';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3F5sJN7FajWtXbb.root --database 3LYkMyiPgdB2gzxf44Hk3M --execute SHOW COLUMNS FROM posts LIKE 'nextRetryAt';",
+  "rows": [
+    {
+      "Field": "nextRetryAt",
+      "Type": "timestamp",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    }
+  ],
+  "messages": [],
+  "stdout": "Field\tType\tNull\tKey\tDefault\tExtra\nnextRetryAt\ttimestamp\tYES\t\tNULL\t\n",
+  "stderr": "",
+  "execution_time_ms": 263
+}

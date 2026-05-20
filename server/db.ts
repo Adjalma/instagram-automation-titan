@@ -99,31 +99,43 @@ export async function createPost(data: { userId: number; accountId: number; capt
   return { id: result.insertId };
 }
 
+const POST_COLS = `id, userId, accountId, caption, status, theme, scheduledAt, publishedAt,
+  instagramPostId, instagramPermalink, likes, comments, createdAt, updatedAt,
+  mcpPending, retryCount, nextRetryAt`;
+
+async function queryPosts(db: ReturnType<typeof drizzle>, rawSql: ReturnType<typeof sql>): Promise<any[]> {
+  const result = await db.execute(rawSql);
+  // Drizzle mysql2 execute returns [rows, fields] tuple
+  const rows = Array.isArray(result) ? result[0] : result;
+  return Array.isArray(rows) ? rows : [];
+}
+
 export async function getPostById(id: number) {
   const db = await getDb();
   if (!db) return undefined;
-  const result = await db.select().from(posts).where(eq(posts.id, id)).limit(1);
-  return result[0];
+  const rows = await queryPosts(db, sql`SELECT ${sql.raw(POST_COLS)} FROM posts WHERE id = ${id} LIMIT 1`);
+  return rows[0];
 }
 
 export async function getPostsByAccount(accountId: number, status?: string) {
   const db = await getDb();
   if (!db) return [];
-  const conditions = [eq(posts.accountId, accountId)];
-  if (status) conditions.push(eq(posts.status, status as any));
-  return db.select().from(posts).where(and(...conditions)).orderBy(desc(posts.createdAt));
+  if (status) {
+    return queryPosts(db, sql`SELECT ${sql.raw(POST_COLS)} FROM posts WHERE accountId = ${accountId} AND status = ${status} ORDER BY createdAt DESC`);
+  }
+  return queryPosts(db, sql`SELECT ${sql.raw(POST_COLS)} FROM posts WHERE accountId = ${accountId} ORDER BY createdAt DESC`);
 }
 
 export async function getPostsByStatus(status: string) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(posts).where(eq(posts.status, status as any)).orderBy(desc(posts.createdAt));
+  return queryPosts(db, sql`SELECT ${sql.raw(POST_COLS)} FROM posts WHERE status = ${status} ORDER BY createdAt DESC`);
 }
 
 export async function getAllPosts() {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(posts).orderBy(desc(posts.createdAt));
+  return queryPosts(db, sql`SELECT ${sql.raw(POST_COLS)} FROM posts ORDER BY createdAt DESC`);
 }
 
 export async function updatePost(id: number, data: Partial<{ caption: string; status: string; theme: string; scheduledAt: Date | null; publishedAt: Date | null; instagramPostId: string; instagramPermalink: string; mcpPending: number; retryCount: number; nextRetryAt: Date | null; likes: number; comments: number }>) {
