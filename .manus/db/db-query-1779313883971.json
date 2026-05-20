@@ -1,0 +1,110 @@
+{
+  "query": "SELECT p.id, p.status, p.mcpPending, p.retryCount, p.scheduledAt, p.publishedAt, LEFT(p.caption,60) as caption, p.createdAt \nFROM posts p \nORDER BY p.createdAt DESC LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3F5sJN7FajWtXbb.root --database 3LYkMyiPgdB2gzxf44Hk3M --execute SELECT p.id, p.status, p.mcpPending, p.retryCount, p.scheduledAt, p.publishedAt, LEFT(p.caption,60) as caption, p.createdAt \nFROM posts p \nORDER BY p.createdAt DESC LIMIT 10;",
+  "rows": [
+    {
+      "id": "360012",
+      "status": "approved",
+      "mcpPending": "0",
+      "retryCount": "0",
+      "scheduledAt": "NULL",
+      "publishedAt": "NULL",
+      "caption": "Desvende o futuro com a Inteligência Artificial e Automação ",
+      "createdAt": "2026-05-20 21:42:50"
+    },
+    {
+      "id": "360011",
+      "status": "published",
+      "mcpPending": "0",
+      "retryCount": "0",
+      "scheduledAt": "NULL",
+      "publishedAt": "2026-05-20 21:44:14",
+      "caption": "Desvende o futuro com a Inteligência Artificial e Automação ",
+      "createdAt": "2026-05-20 21:31:18"
+    },
+    {
+      "id": "360001",
+      "status": "approved",
+      "mcpPending": "0",
+      "retryCount": "0",
+      "scheduledAt": "NULL",
+      "publishedAt": "NULL",
+      "caption": "Desbloqueie o futuro da sua empresa com a Inteligência Artif",
+      "createdAt": "2026-05-20 21:20:56"
+    },
+    {
+      "id": "150014",
+      "status": "approved",
+      "mcpPending": "0",
+      "retryCount": "0",
+      "scheduledAt": "2026-05-01 12:30:00",
+      "publishedAt": "NULL",
+      "caption": "Desafio Collab - Dia 7: A Escalada Rumo ao Topo com o Titan ",
+      "createdAt": "2026-04-24 17:52:09"
+    },
+    {
+      "id": "150012",
+      "status": "approved",
+      "mcpPending": "0",
+      "retryCount": "0",
+      "scheduledAt": "2026-04-30 08:00:00",
+      "publishedAt": "NULL",
+      "caption": "🚨 **Dia 6 da Semana de Conteúdo Triarc Solutions: Segurança ",
+      "createdAt": "2026-04-24 17:51:08"
+    },
+    {
+      "id": "150010",
+      "status": "approved",
+      "mcpPending": "0",
+      "retryCount": "0",
+      "scheduledAt": "2026-04-29 20:00:00",
+      "publishedAt": "NULL",
+      "caption": "Nos bastidores da inovação! 🚀 Hoje, no Dia 5 da nossa semana",
+      "createdAt": "2026-04-24 17:50:38"
+    },
+    {
+      "id": "150008",
+      "status": "published",
+      "mcpPending": "0",
+      "retryCount": "0",
+      "scheduledAt": "2026-04-28 18:00:00",
+      "publishedAt": "2026-05-20 21:40:26",
+      "caption": "🚀 **Funcionalidade em Foco: Modo Offline do Titan App** 🧗‍♀️",
+      "createdAt": "2026-04-24 17:50:11"
+    },
+    {
+      "id": "150006",
+      "status": "published",
+      "mcpPending": "0",
+      "retryCount": "0",
+      "scheduledAt": "2026-04-27 12:30:00",
+      "publishedAt": "2026-04-27 13:20:18",
+      "caption": "🚀 **Build in Public: Dia 3 - A Transparência que Impulsiona ",
+      "createdAt": "2026-04-24 17:49:44"
+    },
+    {
+      "id": "150004",
+      "status": "published",
+      "mcpPending": "0",
+      "retryCount": "0",
+      "scheduledAt": "2026-04-26 08:00:00",
+      "publishedAt": "2026-05-20 21:40:26",
+      "caption": "Desafio Collab - Dia 2: A Força da Comunidade na Escalada co",
+      "createdAt": "2026-04-24 17:49:17"
+    },
+    {
+      "id": "150002",
+      "status": "published",
+      "mcpPending": "0",
+      "retryCount": "0",
+      "scheduledAt": "2026-04-25 20:00:00",
+      "publishedAt": "2026-05-20 21:40:26",
+      "caption": "🚨 **Dicas de Segurança Titan App: Sua Ascensão Segura Começa",
+      "createdAt": "2026-04-24 17:48:48"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tstatus\tmcpPending\tretryCount\tscheduledAt\tpublishedAt\tcaption\tcreatedAt\n360012\tapproved\t0\t0\tNULL\tNULL\tDesvende o futuro com a Inteligência Artificial e Automação \t2026-05-20 21:42:50\n360011\tpublished\t0\t0\tNULL\t2026-05-20 21:44:14\tDesvende o futuro com a Inteligência Artificial e Automação \t2026-05-20 21:31:18\n360001\tapproved\t0\t0\tNULL\tNULL\tDesbloqueie o futuro da sua empresa com a Inteligência Artif\t2026-05-20 21:20:56\n150014\tapproved\t0\t0\t2026-05-01 12:30:00\tNULL\tDesafio Collab - Dia 7: A Escalada Rumo ao Topo com o Titan \t2026-04-24 17:52:09\n150012\tapproved\t0\t0\t2026-04-30 08:00:00\tNULL\t🚨 **Dia 6 da Semana de Conteúdo Triarc Solutions: Segurança \t2026-04-24 17:51:08\n150010\tapproved\t0\t0\t2026-04-29 20:00:00\tNULL\tNos bastidores da inovação! 🚀 Hoje, no Dia 5 da nossa semana\t2026-04-24 17:50:38\n150008\tpublished\t0\t0\t2026-04-28 18:00:00\t2026-05-20 21:40:26\t🚀 **Funcionalidade em Foco: Modo Offline do Titan App** 🧗‍♀️\t2026-04-24 17:50:11\n150006\tpublished\t0\t0\t2026-04-27 12:30:00\t2026-04-27 13:20:18\t🚀 **Build in Public: Dia 3 - A Transparência que Impulsiona \t2026-04-24 17:49:44\n150004\tpublished\t0\t0\t2026-04-26 08:00:00\t2026-05-20 21:40:26\tDesafio Collab - Dia 2: A Força da Comunidade na Escalada co\t2026-04-24 17:49:17\n150002\tpublished\t0\t0\t2026-04-25 20:00:00\t2026-05-20 21:40:26\t🚨 **Dicas de Segurança Titan App: Sua Ascensão Segura Começa\t2026-04-24 17:48:48\n",
+  "stderr": "",
+  "execution_time_ms": 294
+}
