@@ -39,11 +39,11 @@ export const posts = mysqlTable("posts", {
   publishedAt: timestamp("publishedAt"),
   instagramPostId: varchar("instagramPostId", { length: 256 }),
   instagramPermalink: text("instagramPermalink"),
-  mcpPending: int("mcpPending").default(0).notNull(), // 1 = MCP command sent, awaiting manual confirmation
-  retryCount: int("retryCount").default(0).notNull(), // número de tentativas de publicação
+  mcpPending: int("mcpPending").$defaultFn(() => 0).notNull(), // 1 = MCP command sent, awaiting manual confirmation
+  retryCount: int("retryCount").$defaultFn(() => 0).notNull(), // número de tentativas de publicação
   nextRetryAt: timestamp("nextRetryAt"), // próximo horário de tentativa (backoff)
-  likes: int("likes").default(0),
-  comments: int("comments").default(0),
+  likes: int("likes").$defaultFn(() => 0),
+  comments: int("comments").$defaultFn(() => 0),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
