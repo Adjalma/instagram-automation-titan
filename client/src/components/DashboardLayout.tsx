@@ -69,9 +69,7 @@ export default function DashboardLayout({
         <div className="flex flex-col items-center gap-8 p-8 max-w-md w-full">
           <div className="flex flex-col items-center gap-6">
             <div className="flex flex-col items-center gap-2">
-              <div className="w-16 h-16 rounded-2xl bg-primary flex items-center justify-center text-primary-foreground text-2xl font-bold shadow-lg">
-                T
-              </div>
+              <img src="/manus-storage/triarc-social-manager-logo_dd2d2325.png" alt="Triarc Social Manager" className="w-20 h-20 rounded-2xl object-cover shadow-lg" />
               <span className="text-xs font-semibold tracking-widest text-muted-foreground uppercase">Triarc Social Manager</span>
             </div>
             <h1 className="text-2xl font-semibold tracking-tight text-center">
@@ -183,13 +181,13 @@ function DashboardLayoutContent({
               </button>
               {!isCollapsed ? (
                 <div className="flex items-center gap-2 min-w-0">
-                  <img src="/manus-storage/triarc-social-manager-logo_c7cd4d9c.jpeg" alt="Triarc" className="h-8 w-8 rounded-full object-cover" />
+                  <img src="/manus-storage/triarc-social-manager-logo_dd2d2325.png" alt="Triarc" className="h-8 w-8 rounded-full object-cover" />
                   <span className="font-extrabold tracking-tight truncate text-lg">
                     Triarc<span className="text-primary">SM</span>
                   </span>
                 </div>
               ) : (
-                <img src="/manus-storage/triarc-social-manager-logo_c7cd4d9c.jpeg" alt="Triarc" className="h-7 w-7 rounded-full object-cover" />
+                <img src="/manus-storage/triarc-social-manager-logo_dd2d2325.png" alt="Triarc" className="h-7 w-7 rounded-full object-cover" />
               )}
             </div>
           </SidebarHeader>
