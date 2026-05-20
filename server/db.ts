@@ -92,15 +92,11 @@ export async function getAccountStats(accountId: number) {
 export async function createPost(data: { userId: number; accountId: number; caption?: string; theme?: string; scheduledAt?: Date; status?: string }) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const result = await db.insert(posts).values({
-    userId: data.userId,
-    accountId: data.accountId,
-    caption: data.caption ?? null,
-    theme: data.theme ?? null,
-    scheduledAt: data.scheduledAt ?? null,
-    status: (data.status as any) ?? "draft",
-  });
-  return { id: result[0].insertId };
+  const [result] = await db.execute<any>(
+    sql`INSERT INTO posts (userId, accountId, caption, theme, scheduledAt, status)
+        VALUES (${data.userId}, ${data.accountId}, ${data.caption ?? null}, ${data.theme ?? null}, ${data.scheduledAt ?? null}, ${(data.status ?? 'draft')})`
+  );
+  return { id: result.insertId };
 }
 
 export async function getPostById(id: number) {
