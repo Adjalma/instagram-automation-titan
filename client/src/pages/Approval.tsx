@@ -113,6 +113,17 @@ export default function Approval() {
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
+          {/* Thumbnail da imagem gerada */}
+          {post.mediaUrl && (
+            <div className="rounded-lg overflow-hidden bg-muted/20 border border-border">
+              <img
+                src={post.mediaUrl}
+                alt={post.theme ?? "Post"}
+                className="w-full h-48 object-cover"
+                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+              />
+            </div>
+          )}
           <div className="bg-muted/30 rounded-lg p-3 max-h-36 overflow-y-auto">
             <p className="text-sm whitespace-pre-wrap leading-relaxed">{post.caption ?? "Sem legenda"}</p>
           </div>

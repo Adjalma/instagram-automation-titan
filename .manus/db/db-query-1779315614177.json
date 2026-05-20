@@ -1,0 +1,90 @@
+{
+  "query": "SELECT pm.id, pm.postId, pm.mediaUrl, pm.mediaType, p.status, p.theme\nFROM post_media pm\nJOIN posts p ON p.id = pm.postId\nORDER BY pm.id DESC LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3F5sJN7FajWtXbb.root --database 3LYkMyiPgdB2gzxf44Hk3M --execute SELECT pm.id, pm.postId, pm.mediaUrl, pm.mediaType, p.status, p.theme\nFROM post_media pm\nJOIN posts p ON p.id = pm.postId\nORDER BY pm.id DESC LIMIT 10;",
+  "rows": [
+    {
+      "id": "90022",
+      "postId": "360061",
+      "mediaUrl": "/manus-storage/generated/1779315303736_00b4c754.png",
+      "mediaType": "image",
+      "status": "scheduled",
+      "theme": "Desafio Collab"
+    },
+    {
+      "id": "90021",
+      "postId": "360060",
+      "mediaUrl": "/manus-storage/generated/1779315292625_812a76fd.png",
+      "mediaType": "image",
+      "status": "rejected",
+      "theme": "Build in Public"
+    },
+    {
+      "id": "90020",
+      "postId": "360059",
+      "mediaUrl": "/manus-storage/generated/1779315279945_229efd61.png",
+      "mediaType": "image",
+      "status": "scheduled",
+      "theme": "Funcionalidade em Foco"
+    },
+    {
+      "id": "90019",
+      "postId": "360058",
+      "mediaUrl": "/manus-storage/generated/1779315270348_9d1aff19.png",
+      "mediaType": "image",
+      "status": "scheduled",
+      "theme": "Bastidores"
+    },
+    {
+      "id": "90018",
+      "postId": "360057",
+      "mediaUrl": "/manus-storage/generated/1779315258147_421d856c.png",
+      "mediaType": "image",
+      "status": "approved",
+      "theme": "Dicas de Segurança"
+    },
+    {
+      "id": "90017",
+      "postId": "360056",
+      "mediaUrl": "/manus-storage/generated/1779315204375_169b2613.png",
+      "mediaType": "image",
+      "status": "scheduled",
+      "theme": "Conexão Pessoas (COPE)"
+    },
+    {
+      "id": "90016",
+      "postId": "360055",
+      "mediaUrl": "/manus-storage/generated/1779315188255_ba293f50.png",
+      "mediaType": "image",
+      "status": "rejected",
+      "theme": "Sistema de Presença de Eventos"
+    },
+    {
+      "id": "90015",
+      "postId": "360054",
+      "mediaUrl": "/manus-storage/generated/1779315175664_7584d87a.png",
+      "mediaType": "image",
+      "status": "scheduled",
+      "theme": "Data Science e Analytics"
+    },
+    {
+      "id": "90014",
+      "postId": "360053",
+      "mediaUrl": "/manus-storage/generated/1779315165358_7248e8dc.png",
+      "mediaType": "image",
+      "status": "rejected",
+      "theme": "Licenciamento de Software"
+    },
+    {
+      "id": "90013",
+      "postId": "360052",
+      "mediaUrl": "/manus-storage/generated/1779315154365_4dcbfc6e.png",
+      "mediaType": "image",
+      "status": "scheduled",
+      "theme": "Treinamento Profissional"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tpostId\tmediaUrl\tmediaType\tstatus\ttheme\n90022\t360061\t/manus-storage/generated/1779315303736_00b4c754.png\timage\tscheduled\tDesafio Collab\n90021\t360060\t/manus-storage/generated/1779315292625_812a76fd.png\timage\trejected\tBuild in Public\n90020\t360059\t/manus-storage/generated/1779315279945_229efd61.png\timage\tscheduled\tFuncionalidade em Foco\n90019\t360058\t/manus-storage/generated/1779315270348_9d1aff19.png\timage\tscheduled\tBastidores\n90018\t360057\t/manus-storage/generated/1779315258147_421d856c.png\timage\tapproved\tDicas de Segurança\n90017\t360056\t/manus-storage/generated/1779315204375_169b2613.png\timage\tscheduled\tConexão Pessoas (COPE)\n90016\t360055\t/manus-storage/generated/1779315188255_ba293f50.png\timage\trejected\tSistema de Presença de Eventos\n90015\t360054\t/manus-storage/generated/1779315175664_7584d87a.png\timage\tscheduled\tData Science e Analytics\n90014\t360053\t/manus-storage/generated/1779315165358_7248e8dc.png\timage\trejected\tLicenciamento de Software\n90013\t360052\t/manus-storage/generated/1779315154365_4dcbfc6e.png\timage\tscheduled\tTreinamento Profissional\n",
+  "stderr": "",
+  "execution_time_ms": 265
+}
