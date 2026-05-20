@@ -34,7 +34,7 @@ export const posts = mysqlTable("posts", {
   accountId: int("accountId").notNull(),
   caption: text("caption"),
   status: mysqlEnum("status", ["draft", "pending", "approved", "scheduled", "published", "rejected"]).default("draft").notNull(),
-  theme: varchar("theme", { length: 128 }),
+  theme: text('theme'),
   scheduledAt: timestamp("scheduledAt"),
   publishedAt: timestamp("publishedAt"),
   instagramPostId: varchar("instagramPostId", { length: 256 }),

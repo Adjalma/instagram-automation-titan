@@ -1,0 +1,34 @@
+{
+  "query": "SHOW CREATE TABLE posts;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3F5sJN7FajWtXbb.root --database 3LYkMyiPgdB2gzxf44Hk3M --execute SHOW CREATE TABLE posts;",
+  "rows": [
+    {
+      "Table": "posts",
+      "Create Table": "CREATE TABLE `posts` ("
+    }
+  ],
+  "messages": [
+    "  `id` int NOT NULL AUTO_INCREMENT,",
+    "  `userId` int NOT NULL,",
+    "  `accountId` int NOT NULL,",
+    "  `caption` text DEFAULT NULL,",
+    "  `status` enum('draft','pending','approved','scheduled','published','rejected') NOT NULL DEFAULT 'draft',",
+    "  `theme` varchar(128) DEFAULT NULL,",
+    "  `scheduledAt` timestamp NULL DEFAULT NULL,",
+    "  `publishedAt` timestamp NULL DEFAULT NULL,",
+    "  `instagramPostId` varchar(256) DEFAULT NULL,",
+    "  `instagramPermalink` text DEFAULT NULL,",
+    "  `likes` int DEFAULT '0',",
+    "  `comments` int DEFAULT '0',",
+    "  `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,",
+    "  `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,",
+    "  `mcpPending` int NOT NULL DEFAULT '0',",
+    "  `retryCount` int NOT NULL DEFAULT '0',",
+    "  `nextRetryAt` timestamp NULL DEFAULT NULL,",
+    "  PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */",
+    ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin AUTO_INCREMENT=360001"
+  ],
+  "stdout": "Table\tCreate Table\nposts\tCREATE TABLE `posts` (\n  `id` int NOT NULL AUTO_INCREMENT,\n  `userId` int NOT NULL,\n  `accountId` int NOT NULL,\n  `caption` text DEFAULT NULL,\n  `status` enum('draft','pending','approved','scheduled','published','rejected') NOT NULL DEFAULT 'draft',\n  `theme` varchar(128) DEFAULT NULL,\n  `scheduledAt` timestamp NULL DEFAULT NULL,\n  `publishedAt` timestamp NULL DEFAULT NULL,\n  `instagramPostId` varchar(256) DEFAULT NULL,\n  `instagramPermalink` text DEFAULT NULL,\n  `likes` int DEFAULT '0',\n  `comments` int DEFAULT '0',\n  `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,\n  `mcpPending` int NOT NULL DEFAULT '0',\n  `retryCount` int NOT NULL DEFAULT '0',\n  `nextRetryAt` timestamp NULL DEFAULT NULL,\n  PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin AUTO_INCREMENT=360001\n",
+  "stderr": "",
+  "execution_time_ms": 262
+}
