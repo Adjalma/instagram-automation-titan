@@ -68,11 +68,17 @@ export default function DashboardLayout({
       <div className="flex items-center justify-center min-h-screen">
         <div className="flex flex-col items-center gap-8 p-8 max-w-md w-full">
           <div className="flex flex-col items-center gap-6">
+            <div className="flex flex-col items-center gap-2">
+              <div className="w-16 h-16 rounded-2xl bg-primary flex items-center justify-center text-primary-foreground text-2xl font-bold shadow-lg">
+                T
+              </div>
+              <span className="text-xs font-semibold tracking-widest text-muted-foreground uppercase">Triarc Social Manager</span>
+            </div>
             <h1 className="text-2xl font-semibold tracking-tight text-center">
-              Sign in to continue
+              Bem-vindo de volta
             </h1>
             <p className="text-sm text-muted-foreground text-center max-w-sm">
-              Access to this dashboard requires authentication. Continue to launch the login flow.
+              Faça login com sua conta Manus para acessar o painel de gerenciamento de conteúdo do Instagram.
             </p>
           </div>
           <Button
@@ -82,7 +88,7 @@ export default function DashboardLayout({
             size="lg"
             className="w-full shadow-lg hover:shadow-xl transition-all"
           >
-            Sign in
+            Entrar com Manus
           </Button>
         </div>
       </div>
