@@ -21,11 +21,23 @@ import {
 } from "@/components/ui/sidebar";
 import { getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
-import { LayoutDashboard, LogOut, PanelLeft, PenSquare, CheckCircle, Calendar, BookOpen, Image, History, Settings, Zap, ScrollText, BarChart2 } from "lucide-react";
+import {
+  LayoutDashboard, LogOut, PanelLeft, PenSquare, CheckCircle,
+  Calendar, BookOpen, Image, History, Zap, ScrollText, BarChart2, Menu,
+} from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
 import { Button } from "./ui/button";
+
+// Itens principais na bottom-bar mobile (máx 5)
+const bottomBarItems = [
+  { icon: LayoutDashboard, label: "Início", path: "/" },
+  { icon: PenSquare, label: "Criar", path: "/create" },
+  { icon: CheckCircle, label: "Aprovar", path: "/approval" },
+  { icon: BarChart2, label: "Analytics", path: "/analytics" },
+  { icon: Menu, label: "Mais", path: "__menu__" },
+];
 
 const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
@@ -41,15 +53,11 @@ const menuItems = [
 ];
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";
-const DEFAULT_WIDTH = 280;
+const DEFAULT_WIDTH = 260;
 const MIN_WIDTH = 200;
-const MAX_WIDTH = 480;
+const MAX_WIDTH = 400;
 
-export default function DashboardLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     const saved = localStorage.getItem(SIDEBAR_WIDTH_KEY);
     return saved ? parseInt(saved, 10) : DEFAULT_WIDTH;
@@ -60,32 +68,29 @@ export default function DashboardLayout({
     localStorage.setItem(SIDEBAR_WIDTH_KEY, sidebarWidth.toString());
   }, [sidebarWidth]);
 
-  if (loading) {
-    return <DashboardLayoutSkeleton />
-  }
+  if (loading) return <DashboardLayoutSkeleton />;
 
   if (!user) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="flex flex-col items-center gap-8 p-8 max-w-md w-full">
-          <div className="flex flex-col items-center gap-6">
-            <div className="flex flex-col items-center gap-2">
-              <img src="/manus-storage/triarc-social-manager-logo_dd2d2325.png" alt="Triarc Social Manager" className="w-20 h-20 rounded-2xl object-cover shadow-lg" />
-              <span className="text-xs font-semibold tracking-widest text-muted-foreground uppercase">Triarc Social Manager</span>
+      <div className="flex items-center justify-center min-h-screen bg-background px-4">
+        <div className="flex flex-col items-center gap-8 w-full max-w-sm">
+          <div className="flex flex-col items-center gap-4">
+            <img
+              src="/manus-storage/triarc-social-manager-logo_dd2d2325.png"
+              alt="Triarc Social Manager"
+              className="w-20 h-20 rounded-2xl object-cover shadow-lg"
+            />
+            <div className="text-center">
+              <h1 className="text-2xl font-bold tracking-tight">Triarc Social Manager</h1>
+              <p className="text-sm text-muted-foreground mt-2">
+                Faça login para acessar o painel de gerenciamento.
+              </p>
             </div>
-            <h1 className="text-2xl font-semibold tracking-tight text-center">
-              Bem-vindo de volta
-            </h1>
-            <p className="text-sm text-muted-foreground text-center max-w-sm">
-              Faça login com sua conta Manus para acessar o painel de gerenciamento de conteúdo do Instagram.
-            </p>
           </div>
           <Button
-            onClick={() => {
-              window.location.href = getLoginUrl();
-            }}
+            onClick={() => { window.location.href = getLoginUrl(); }}
             size="lg"
-            className="w-full shadow-lg hover:shadow-xl transition-all"
+            className="w-full"
           >
             Entrar com Manus
           </Button>
@@ -96,11 +101,7 @@ export default function DashboardLayout({
 
   return (
     <SidebarProvider
-      style={
-        {
-          "--sidebar-width": `${sidebarWidth}px`,
-        } as CSSProperties
-      }
+      style={{ "--sidebar-width": `${sidebarWidth}px` } as CSSProperties}
     >
       <DashboardLayoutContent setSidebarWidth={setSidebarWidth}>
         {children}
@@ -109,52 +110,45 @@ export default function DashboardLayout({
   );
 }
 
-type DashboardLayoutContentProps = {
-  children: React.ReactNode;
-  setSidebarWidth: (width: number) => void;
-};
-
 function DashboardLayoutContent({
   children,
   setSidebarWidth,
-}: DashboardLayoutContentProps) {
+}: {
+  children: React.ReactNode;
+  setSidebarWidth: (w: number) => void;
+}) {
   const { user, logout } = useAuth();
   const [location, setLocation] = useLocation();
   const { state, toggleSidebar } = useSidebar();
   const isCollapsed = state === "collapsed";
   const [isResizing, setIsResizing] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
-  const activeMenuItem = menuItems.find(item => item.path === location);
   const isMobile = useIsMobile();
+  const activeMenuItem = menuItems.find(item => item.path === location);
 
   useEffect(() => {
-    if (isCollapsed) {
-      setIsResizing(false);
-    }
+    if (isCollapsed) setIsResizing(false);
   }, [isCollapsed]);
+
+  // Fechar sidebar ao navegar no mobile
+  useEffect(() => {
+    if (isMobile && state === "expanded") toggleSidebar();
+  }, [location]);
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (!isResizing) return;
-
-      const sidebarLeft = sidebarRef.current?.getBoundingClientRect().left ?? 0;
-      const newWidth = e.clientX - sidebarLeft;
-      if (newWidth >= MIN_WIDTH && newWidth <= MAX_WIDTH) {
-        setSidebarWidth(newWidth);
-      }
+      const left = sidebarRef.current?.getBoundingClientRect().left ?? 0;
+      const w = e.clientX - left;
+      if (w >= MIN_WIDTH && w <= MAX_WIDTH) setSidebarWidth(w);
     };
-
-    const handleMouseUp = () => {
-      setIsResizing(false);
-    };
-
+    const handleMouseUp = () => setIsResizing(false);
     if (isResizing) {
       document.addEventListener("mousemove", handleMouseMove);
       document.addEventListener("mouseup", handleMouseUp);
       document.body.style.cursor = "col-resize";
       document.body.style.userSelect = "none";
     }
-
     return () => {
       document.removeEventListener("mousemove", handleMouseMove);
       document.removeEventListener("mouseup", handleMouseUp);
@@ -165,30 +159,29 @@ function DashboardLayoutContent({
 
   return (
     <>
+      {/* Sidebar — oculta no mobile por padrão, abre via overlay */}
       <div className="relative" ref={sidebarRef}>
-        <Sidebar
-          collapsible="icon"
-          className="border-r-0"
-          disableTransition={isResizing}
-        >
-          <SidebarHeader className="h-16 justify-center">
-            <div className="flex items-center gap-3 px-2 transition-all w-full">
+        <Sidebar collapsible="icon" className="border-r-0" disableTransition={isResizing}>
+          <SidebarHeader className="h-14 justify-center">
+            <div className="flex items-center gap-2 px-2 w-full">
               <button
                 onClick={toggleSidebar}
-                className="h-8 w-8 flex items-center justify-center hover:bg-accent rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring shrink-0"
+                className="h-8 w-8 flex items-center justify-center hover:bg-accent rounded-lg transition-colors shrink-0"
                 aria-label="Toggle navigation"
               >
                 <PanelLeft className="h-4 w-4 text-muted-foreground" />
               </button>
-              {!isCollapsed ? (
+              {!isCollapsed && (
                 <div className="flex items-center gap-2 min-w-0">
-                  <img src="/manus-storage/triarc-social-manager-logo_dd2d2325.png" alt="Triarc" className="h-8 w-8 rounded-full object-cover" />
-                  <span className="font-extrabold tracking-tight truncate text-lg">
+                  <img
+                    src="/manus-storage/triarc-social-manager-logo_dd2d2325.png"
+                    alt="Triarc"
+                    className="h-7 w-7 rounded-full object-cover"
+                  />
+                  <span className="font-bold tracking-tight truncate">
                     Triarc<span className="text-primary">SM</span>
                   </span>
                 </div>
-              ) : (
-                <img src="/manus-storage/triarc-social-manager-logo_dd2d2325.png" alt="Triarc" className="h-7 w-7 rounded-full object-cover" />
               )}
             </div>
           </SidebarHeader>
@@ -203,11 +196,9 @@ function DashboardLayoutContent({
                       isActive={isActive}
                       onClick={() => setLocation(item.path)}
                       tooltip={item.label}
-                      className={`h-10 transition-all font-normal`}
+                      className="h-10 font-normal"
                     >
-                      <item.icon
-                        className={`h-4 w-4 ${isActive ? "text-primary" : ""}`}
-                      />
+                      <item.icon className={`h-4 w-4 ${isActive ? "text-primary" : ""}`} />
                       <span>{item.label}</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -219,60 +210,85 @@ function DashboardLayoutContent({
           <SidebarFooter className="p-3">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="flex items-center gap-3 rounded-lg px-1 py-1 hover:bg-accent/50 transition-colors w-full text-left group-data-[collapsible=icon]:justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                  <Avatar className="h-9 w-9 border shrink-0">
+                <button className="flex items-center gap-3 rounded-lg px-1 py-1 hover:bg-accent/50 transition-colors w-full text-left focus:outline-none">
+                  <Avatar className="h-8 w-8 border shrink-0">
                     <AvatarFallback className="text-xs font-medium">
                       {user?.name?.charAt(0).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex-1 min-w-0 group-data-[collapsible=icon]:hidden">
-                    <p className="text-sm font-medium truncate leading-none">
-                      {user?.name || "-"}
-                    </p>
-                    <p className="text-xs text-muted-foreground truncate mt-1.5">
-                      {user?.email || "-"}
-                    </p>
+                    <p className="text-sm font-medium truncate leading-none">{user?.name || "-"}</p>
+                    <p className="text-xs text-muted-foreground truncate mt-1">{user?.email || "-"}</p>
                   </div>
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuItem
-                  onClick={logout}
-                  className="cursor-pointer text-destructive focus:text-destructive"
-                >
+              <DropdownMenuContent align="end" className="w-44">
+                <DropdownMenuItem onClick={logout} className="cursor-pointer text-destructive focus:text-destructive">
                   <LogOut className="mr-2 h-4 w-4" />
-                  <span>Sign out</span>
+                  Sair
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </SidebarFooter>
         </Sidebar>
-        <div
-          className={`absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-primary/20 transition-colors ${isCollapsed ? "hidden" : ""}`}
-          onMouseDown={() => {
-            if (isCollapsed) return;
-            setIsResizing(true);
-          }}
-          style={{ zIndex: 50 }}
-        />
+
+        {/* Resize handle — desktop only */}
+        {!isMobile && (
+          <div
+            className={`absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-primary/20 transition-colors ${isCollapsed ? "hidden" : ""}`}
+            onMouseDown={() => { if (!isCollapsed) setIsResizing(true); }}
+            style={{ zIndex: 50 }}
+          />
+        )}
       </div>
 
-      <SidebarInset>
+      <SidebarInset className={isMobile ? "pb-16" : ""}>
+        {/* Top bar mobile */}
         {isMobile && (
-          <div className="flex border-b h-14 items-center justify-between bg-background/95 px-2 backdrop-blur supports-[backdrop-filter]:backdrop-blur sticky top-0 z-40">
+          <div className="sticky top-0 z-40 flex h-14 items-center gap-3 border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:backdrop-blur-sm">
+            <SidebarTrigger className="h-9 w-9 rounded-lg" />
             <div className="flex items-center gap-2">
-              <SidebarTrigger className="h-9 w-9 rounded-lg bg-background" />
-              <div className="flex items-center gap-3">
-                <div className="flex flex-col gap-1">
-                  <span className="tracking-tight text-foreground">
-                    {activeMenuItem?.label ?? "Menu"}
-                  </span>
-                </div>
-              </div>
+              <img
+                src="/manus-storage/triarc-social-manager-logo_dd2d2325.png"
+                alt="Triarc"
+                className="h-7 w-7 rounded-full object-cover"
+              />
+              <span className="font-semibold text-sm">
+                {activeMenuItem?.label ?? "Triarc SM"}
+              </span>
             </div>
           </div>
         )}
-        <main className="flex-1 p-4">{children}</main>
+
+        {/* Conteúdo principal */}
+        <main className="flex-1 p-4 md:p-6">{children}</main>
+
+        {/* Bottom navigation bar — mobile only */}
+        {isMobile && (
+          <nav className="fixed bottom-0 left-0 right-0 z-50 flex h-16 items-center justify-around border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:backdrop-blur-sm px-1">
+            {bottomBarItems.map(item => {
+              const isMore = item.path === "__menu__";
+              const isActive = !isMore && location === item.path;
+              return (
+                <button
+                  key={item.path}
+                  onClick={() => {
+                    if (isMore) {
+                      toggleSidebar();
+                    } else {
+                      setLocation(item.path);
+                    }
+                  }}
+                  className={`flex flex-col items-center justify-center gap-1 flex-1 h-full rounded-lg transition-colors
+                    ${isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}
+                >
+                  <item.icon className={`h-5 w-5 ${isActive ? "text-primary" : ""}`} />
+                  <span className="text-[10px] font-medium leading-none">{item.label}</span>
+                </button>
+              );
+            })}
+          </nav>
+        )}
       </SidebarInset>
     </>
   );

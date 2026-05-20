@@ -11,6 +11,13 @@ import "./index.css";
 // Override browser tab title
 document.title = "Triarc Social Manager";
 
+// Registrar Service Worker para PWA
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}
+
 const queryClient = new QueryClient();
 
 const redirectToLoginIfUnauthorized = (error: unknown) => {

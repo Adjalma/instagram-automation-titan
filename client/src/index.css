@@ -158,4 +158,9 @@
     line-height: 1;
     letter-spacing: -0.03em;
   }
+
+  /* Mobile bottom-bar safe area */
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
 }

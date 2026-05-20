@@ -98,3 +98,14 @@
 - [x] tRPC analytics.getSummary, analytics.getPostsWithMetrics, analytics.getAccountStats
 - [x] Item "Analytics" adicionado ao menu lateral (sidebar)
 - [x] 17 testes passando, zero erros TypeScript
+
+## Features v1.16 — Mobile + PWA
+- [x] Bottom navigation bar no mobile (Início, Criar, Aprovar, Analytics, Mais)
+- [x] Top bar mobile com logo e nome da página ativa
+- [x] Sidebar fecha automaticamente ao navegar no mobile
+- [x] Padding inferior (pb-16) para conteúdo não ficar atrás da bottom-bar
+- [x] viewport-fit=cover para suporte a notch/Dynamic Island
+- [x] Meta tags Apple PWA (apple-mobile-web-app-capable, status-bar-style, touch-icon)
+- [x] manifest.json com nome, ícone, shortcuts (Criar Post, Aprovação)
+- [x] Service Worker básico registrado para habilitar instalação PWA
+- [x] lang="pt-BR" no HTML
