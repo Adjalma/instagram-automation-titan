@@ -89,3 +89,12 @@
 - [x] Prompts de IA atualizados: tom corporativo Triarc + CTA para triarcsolutions.com.br
 - [x] UI: seleção de projeto/serviço ao criar post (dropdown com 8 serviços + 36 projetos)
 - [x] Calendário editorial: "Gerar Semana" usa temas dos projetos/serviços automaticamente
+
+## Features v1.13 — Analytics + Publicação Corrigida
+- [x] Post de hoje (ID 360011) publicado no Instagram @triarcsolutions
+- [x] Página Analytics (/analytics) com KPIs: total posts, publicados, pendentes, aprovados
+- [x] Gráfico de engajamento (curtidas/comentários) por post publicado
+- [x] Lista de posts publicados com métricas e link direto para Instagram
+- [x] tRPC analytics.getSummary, analytics.getPostsWithMetrics, analytics.getAccountStats
+- [x] Item "Analytics" adicionado ao menu lateral (sidebar)
+- [x] 17 testes passando, zero erros TypeScript

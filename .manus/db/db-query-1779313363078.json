@@ -1,0 +1,76 @@
+{
+  "query": "DESCRIBE post_media; SELECT p.id, p.caption, p.status, p.createdAt FROM posts p WHERE DATE(p.createdAt) = CURDATE() ORDER BY p.createdAt DESC LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3F5sJN7FajWtXbb.root --database 3LYkMyiPgdB2gzxf44Hk3M --execute DESCRIBE post_media; SELECT p.id, p.caption, p.status, p.createdAt FROM posts p WHERE DATE(p.createdAt) = CURDATE() ORDER BY p.createdAt DESC LIMIT 10;",
+  "rows": [
+    {
+      "Field": "id",
+      "Type": "int",
+      "Null": "NO",
+      "Key": "PRI",
+      "Default": "NULL",
+      "Extra": "auto_increment"
+    },
+    {
+      "Field": "postId",
+      "Type": "int",
+      "Null": "NO",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "mediaUrl",
+      "Type": "text",
+      "Null": "NO",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "mediaType",
+      "Type": "enum('image','video')",
+      "Null": "NO",
+      "Key": "",
+      "Default": "image",
+      "Extra": ""
+    },
+    {
+      "Field": "sortOrder",
+      "Type": "int",
+      "Null": "NO",
+      "Key": "",
+      "Default": "0",
+      "Extra": ""
+    },
+    {
+      "Field": "createdAt",
+      "Type": "timestamp",
+      "Null": "NO",
+      "Key": "",
+      "Default": "CURRENT_TIMESTAMP",
+      "Extra": ""
+    }
+  ],
+  "messages": [
+    "id\tcaption\tstatus\tcreatedAt",
+    "360011\tDesvende o futuro com a Inteligência Artificial e Automação da Triarc Solutions! 🚀 Transformamos desafios em oportunidades, aplicando Machine Learning, Processamento de Linguagem Natural e Agentes Especialistas para otimizar seus processos. Imagine sistemas que aprendem, recomendam e automatizam fluxos de trabalho, liberando sua equipe para o que realmente importa: a estratégia.",
+    "Nossas soluções avançadas em IA não são apenas tecnologia, são um diferencial competitivo que impulsiona a eficiência, reduz custos e abre portas para inovações sem precedentes em sua empresa. De Macaé para o mundo, a Triarc Solutions é sua parceira na jornada da transformação digital.",
+    "Pronto para levar sua empresa ao próximo nível com IA? Fale com nossos especialistas!",
+    "🔗 triarcsolutions.com.br",
+    "#InteligenciaArtificial #Automacao #MachineLearning #ProcessamentoDeLinguagemNatural #AgentesEspecialistas #InovacaoTecnologica #TransformacaoDigital #TriarcSolutions #TechSolutions #GestaoEmpresarial #NegociosDoFuturo #EficienciaOperacional #Macaé #Tecnologia\tapproved\t2026-05-20 21:31:18",
+    "360001\tDesbloqueie o futuro da sua empresa com a Inteligência Artificial e a Automação da Triarc Solutions! 🚀",
+    "Em um cenário de negócios cada vez mais dinâmico, a capacidade de inovar e otimizar processos é crucial. Nossas soluções avançadas em IA e Automação são projetadas para transformar sua operação, desde a implementação de Machine Learning para insights preditivos e processamento de linguagem natural para interações inteligentes, até a criação de agentes especialistas e a automação de fluxos de trabalho complexos.",
+    "Na Triarc Solutions, aplicamos tecnologia de ponta para gerar valor real:",
+    "✅ **Otimização de Processos:** Reduza custos e aumente a eficiência operacional.",
+    "✅ **Tomada de Decisão Aprimorada:** Utilize dados para decisões mais estratégicas e assertivas.",
+    "✅ **Inovação Contínua:** Mantenha sua empresa à frente da concorrência com soluções inteligentes e adaptáveis.",
+    "Somos especialistas em transformar desafios em oportunidades, utilizando a IA para impulsionar seu crescimento. Deixe-nos mostrar como a tecnologia pode ser sua maior aliada.",
+    "Pronto para levar sua empresa ao próximo nível com IA e Automação?",
+    "Visite nosso site e descubra o poder da inovação!",
+    "👉 triarcsolutions.com.br",
+    "#InteligenciaArtificial #Automacao #MachineLearning #ProcessamentoDeLinguagemNatural #AgentesEspecialistas #TransformacaoDigital #InovacaoTecnologica #TechSolutions #EmpresasInteligentes #FuturoDosNegocios #TriarcSolutions #Macaé #Tecnologia\tapproved\t2026-05-20 21:20:56"
+  ],
+  "stdout": "Field\tType\tNull\tKey\tDefault\tExtra\nid\tint\tNO\tPRI\tNULL\tauto_increment\npostId\tint\tNO\t\tNULL\t\nmediaUrl\ttext\tNO\t\tNULL\t\nmediaType\tenum('image','video')\tNO\t\timage\t\nsortOrder\tint\tNO\t\t0\t\ncreatedAt\ttimestamp\tNO\t\tCURRENT_TIMESTAMP\t\nid\tcaption\tstatus\tcreatedAt\n360011\tDesvende o futuro com a Inteligência Artificial e Automação da Triarc Solutions! 🚀 Transformamos desafios em oportunidades, aplicando Machine Learning, Processamento de Linguagem Natural e Agentes Especialistas para otimizar seus processos. Imagine sistemas que aprendem, recomendam e automatizam fluxos de trabalho, liberando sua equipe para o que realmente importa: a estratégia.\n\nNossas soluções avançadas em IA não são apenas tecnologia, são um diferencial competitivo que impulsiona a eficiência, reduz custos e abre portas para inovações sem precedentes em sua empresa. De Macaé para o mundo, a Triarc Solutions é sua parceira na jornada da transformação digital.\n\nPronto para levar sua empresa ao próximo nível com IA? Fale com nossos especialistas!\n🔗 triarcsolutions.com.br\n\n#InteligenciaArtificial #Automacao #MachineLearning #ProcessamentoDeLinguagemNatural #AgentesEspecialistas #InovacaoTecnologica #TransformacaoDigital #TriarcSolutions #TechSolutions #GestaoEmpresarial #NegociosDoFuturo #EficienciaOperacional #Macaé #Tecnologia\tapproved\t2026-05-20 21:31:18\n360001\tDesbloqueie o futuro da sua empresa com a Inteligência Artificial e a Automação da Triarc Solutions! 🚀\n\nEm um cenário de negócios cada vez mais dinâmico, a capacidade de inovar e otimizar processos é crucial. Nossas soluções avançadas em IA e Automação são projetadas para transformar sua operação, desde a implementação de Machine Learning para insights preditivos e processamento de linguagem natural para interações inteligentes, até a criação de agentes especialistas e a automação de fluxos de trabalho complexos.\n\nNa Triarc Solutions, aplicamos tecnologia de ponta para gerar valor real:\n✅ **Otimização de Processos:** Reduza custos e aumente a eficiência operacional.\n✅ **Tomada de Decisão Aprimorada:** Utilize dados para decisões mais estratégicas e assertivas.\n✅ **Inovação Contínua:** Mantenha sua empresa à frente da concorrência com soluções inteligentes e adaptáveis.\n\nSomos especialistas em transformar desafios em oportunidades, utilizando a IA para impulsionar seu crescimento. Deixe-nos mostrar como a tecnologia pode ser sua maior aliada.\n\nPronto para levar sua empresa ao próximo nível com IA e Automação?\nVisite nosso site e descubra o poder da inovação!\n👉 triarcsolutions.com.br\n\n#InteligenciaArtificial #Automacao #MachineLearning #ProcessamentoDeLinguagemNatural #AgentesEspecialistas #TransformacaoDigital #InovacaoTecnologica #TechSolutions #EmpresasInteligentes #FuturoDosNegocios #TriarcSolutions #Macaé #Tecnologia\tapproved\t2026-05-20 21:20:56\n",
+  "stderr": "",
+  "execution_time_ms": 261
+}

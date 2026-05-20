@@ -1,0 +1,15 @@
+{
+  "query": "SELECT id, caption, status FROM posts WHERE id = 360011;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3F5sJN7FajWtXbb.root --database 3LYkMyiPgdB2gzxf44Hk3M --execute SELECT id, caption, status FROM posts WHERE id = 360011;",
+  "rows": [],
+  "messages": [
+    "360011\tDesvende o futuro com a Inteligência Artificial e Automação da Triarc Solutions! 🚀 Transformamos desafios em oportunidades, aplicando Machine Learning, Processamento de Linguagem Natural e Agentes Especialistas para otimizar seus processos. Imagine sistemas que aprendem, recomendam e automatizam fluxos de trabalho, liberando sua equipe para o que realmente importa: a estratégia.",
+    "Nossas soluções avançadas em IA não são apenas tecnologia, são um diferencial competitivo que impulsiona a eficiência, reduz custos e abre portas para inovações sem precedentes em sua empresa. De Macaé para o mundo, a Triarc Solutions é sua parceira na jornada da transformação digital.",
+    "Pronto para levar sua empresa ao próximo nível com IA? Fale com nossos especialistas!",
+    "🔗 triarcsolutions.com.br",
+    "#InteligenciaArtificial #Automacao #MachineLearning #ProcessamentoDeLinguagemNatural #AgentesEspecialistas #InovacaoTecnologica #TransformacaoDigital #TriarcSolutions #TechSolutions #GestaoEmpresarial #NegociosDoFuturo #EficienciaOperacional #Macaé #Tecnologia\tapproved"
+  ],
+  "stdout": "id\tcaption\tstatus\n360011\tDesvende o futuro com a Inteligência Artificial e Automação da Triarc Solutions! 🚀 Transformamos desafios em oportunidades, aplicando Machine Learning, Processamento de Linguagem Natural e Agentes Especialistas para otimizar seus processos. Imagine sistemas que aprendem, recomendam e automatizam fluxos de trabalho, liberando sua equipe para o que realmente importa: a estratégia.\n\nNossas soluções avançadas em IA não são apenas tecnologia, são um diferencial competitivo que impulsiona a eficiência, reduz custos e abre portas para inovações sem precedentes em sua empresa. De Macaé para o mundo, a Triarc Solutions é sua parceira na jornada da transformação digital.\n\nPronto para levar sua empresa ao próximo nível com IA? Fale com nossos especialistas!\n🔗 triarcsolutions.com.br\n\n#InteligenciaArtificial #Automacao #MachineLearning #ProcessamentoDeLinguagemNatural #AgentesEspecialistas #InovacaoTecnologica #TransformacaoDigital #TriarcSolutions #TechSolutions #GestaoEmpresarial #NegociosDoFuturo #EficienciaOperacional #Macaé #Tecnologia\tapproved\n",
+  "stderr": "",
+  "execution_time_ms": 253
+}

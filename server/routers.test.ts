@@ -276,3 +276,35 @@ describe("automation.processScheduled", () => {
     await caller.posts.delete({ id: created.id });
   });
 });
+
+describe("analytics.getSummary", () => {
+  it("retorna contadores de posts por status", async () => {
+    const { ctx } = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+    const result = await caller.analytics.getSummary();
+    expect(result).toBeDefined();
+    expect(typeof result.total).toBe("number");
+    expect(typeof result.pending).toBe("number");
+    expect(typeof result.approved).toBe("number");
+    expect(typeof result.published).toBe("number");
+    expect(typeof result.scheduled).toBe("number");
+    expect(typeof result.totalLikes).toBe("number");
+    expect(typeof result.totalComments).toBe("number");
+    expect(result.total).toBeGreaterThanOrEqual(0);
+  });
+});
+
+describe("analytics.getPostsWithMetrics", () => {
+  it("retorna posts publicados com campos de métricas", async () => {
+    const { ctx } = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+    const result = await caller.analytics.getPostsWithMetrics();
+    expect(Array.isArray(result)).toBe(true);
+    if (result.length > 0) {
+      const post = result[0];
+      expect(typeof post.id).toBe("number");
+      expect(typeof post.likes).toBe("number");
+      expect(typeof post.comments).toBe("number");
+    }
+  });
+});

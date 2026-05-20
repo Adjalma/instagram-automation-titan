@@ -430,6 +430,58 @@ export const appRouter = router({
     }),
   }),
 
+  analytics: router({
+    // Dados da conta Instagram via MCP (chamado pelo agente, cacheado no banco)
+    // Como o MCP só pode ser chamado pelo agente, estes endpoints retornam dados
+    // armazenados no banco ou buscam via endpoint interno do agente.
+    getAccountStats: protectedProcedure.query(async () => {
+      // Retorna stats da conta @triarcsolutions do banco
+      const accounts = await getAllAccounts();
+      const triarc = (accounts as any[]).find((a: any) => a.handle === 'triarcsolutions') || (accounts as any[])[0];
+      if (!triarc) return null;
+      const stats = await getAccountStats(triarc.id);
+      return { account: triarc, stats };
+    }),
+
+    getPostsWithMetrics: protectedProcedure.query(async () => {
+      // Retorna posts publicados com métricas do banco
+      const published = await getPostsByStatus('published');
+      return (published as any[]).map((p: any) => ({
+        id: p.id,
+        caption: p.caption,
+        publishedAt: p.publishedAt,
+        instagramPostId: p.instagramPostId,
+        instagramPermalink: p.instagramPermalink,
+        likes: p.likes ?? 0,
+        comments: p.comments ?? 0,
+        theme: p.theme,
+      }));
+    }),
+
+    getSummary: protectedProcedure.query(async () => {
+      // Resumo geral: total posts, pendentes, aprovados, publicados
+      const [all, pending, approved, published, scheduled] = await Promise.all([
+        getAllPosts(),
+        getPostsByStatus('pending'),
+        getPostsByStatus('approved'),
+        getPostsByStatus('published'),
+        getPostsByStatus('scheduled'),
+      ]);
+      const publishedPosts = published as any[];
+      const totalLikes = publishedPosts.reduce((s: number, p: any) => s + (p.likes ?? 0), 0);
+      const totalComments = publishedPosts.reduce((s: number, p: any) => s + (p.comments ?? 0), 0);
+      return {
+        total: (all as any[]).length,
+        pending: (pending as any[]).length,
+        approved: (approved as any[]).length,
+        published: publishedPosts.length,
+        scheduled: (scheduled as any[]).length,
+        totalLikes,
+        totalComments,
+      };
+    }),
+  }),
+
   ai: router({
     generateCaption: protectedProcedure.input(z.object({
       accountId: z.number(),

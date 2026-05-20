@@ -1,0 +1,52 @@
+{
+  "query": "SELECT p.id, p.status, LEFT(p.caption,80) as caption_preview, m.mediaUrl, m.mediaType \nFROM posts p \nLEFT JOIN post_media m ON m.postId = p.id \nWHERE DATE(p.createdAt) = CURDATE() \nORDER BY p.createdAt DESC LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3F5sJN7FajWtXbb.root --database 3LYkMyiPgdB2gzxf44Hk3M --execute SELECT p.id, p.status, LEFT(p.caption,80) as caption_preview, m.mediaUrl, m.mediaType \nFROM posts p \nLEFT JOIN post_media m ON m.postId = p.id \nWHERE DATE(p.createdAt) = CURDATE() \nORDER BY p.createdAt DESC LIMIT 10;",
+  "rows": [
+    {
+      "id": "360011",
+      "status": "approved",
+      "caption_preview": "Desvende o futuro com a Inteligência Artificial e Automação da Triarc Solutions!",
+      "mediaUrl": "/manus-storage/generated/1779312649531_0559277e.png",
+      "mediaType": "image"
+    },
+    {
+      "id": "360011",
+      "status": "approved",
+      "caption_preview": "Desvende o futuro com a Inteligência Artificial e Automação da Triarc Solutions!",
+      "mediaUrl": "/manus-storage/generated/1779312664563_b125db55.png",
+      "mediaType": "image"
+    },
+    {
+      "id": "360011",
+      "status": "approved",
+      "caption_preview": "Desvende o futuro com a Inteligência Artificial e Automação da Triarc Solutions!",
+      "mediaUrl": "/manus-storage/generated/1779312673604_c1cf49ca.png",
+      "mediaType": "image"
+    },
+    {
+      "id": "360001",
+      "status": "approved",
+      "caption_preview": "Desbloqueie o futuro da sua empresa com a Inteligência Artificial e a Automação ",
+      "mediaUrl": "/manus-storage/generated/1779311323237_0037c3a0.png",
+      "mediaType": "image"
+    },
+    {
+      "id": "360001",
+      "status": "approved",
+      "caption_preview": "Desbloqueie o futuro da sua empresa com a Inteligência Artificial e a Automação ",
+      "mediaUrl": "/manus-storage/generated/1779311618069_900d7786.png",
+      "mediaType": "image"
+    },
+    {
+      "id": "360001",
+      "status": "approved",
+      "caption_preview": "Desbloqueie o futuro da sua empresa com a Inteligência Artificial e a Automação ",
+      "mediaUrl": "/manus-storage/generated/1779312052007_d1579ea0.png",
+      "mediaType": "image"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tstatus\tcaption_preview\tmediaUrl\tmediaType\n360011\tapproved\tDesvende o futuro com a Inteligência Artificial e Automação da Triarc Solutions!\t/manus-storage/generated/1779312649531_0559277e.png\timage\n360011\tapproved\tDesvende o futuro com a Inteligência Artificial e Automação da Triarc Solutions!\t/manus-storage/generated/1779312664563_b125db55.png\timage\n360011\tapproved\tDesvende o futuro com a Inteligência Artificial e Automação da Triarc Solutions!\t/manus-storage/generated/1779312673604_c1cf49ca.png\timage\n360001\tapproved\tDesbloqueie o futuro da sua empresa com a Inteligência Artificial e a Automação \t/manus-storage/generated/1779311323237_0037c3a0.png\timage\n360001\tapproved\tDesbloqueie o futuro da sua empresa com a Inteligência Artificial e a Automação \t/manus-storage/generated/1779311618069_900d7786.png\timage\n360001\tapproved\tDesbloqueie o futuro da sua empresa com a Inteligência Artificial e a Automação \t/manus-storage/generated/1779312052007_d1579ea0.png\timage\n",
+  "stderr": "",
+  "execution_time_ms": 258
+}

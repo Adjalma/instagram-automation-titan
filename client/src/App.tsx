@@ -13,7 +13,8 @@ import Themes from "./pages/Themes";
 import HistoryView from "./pages/HistoryView";
 import Assets from "./pages/Assets";
 import Automation from "./pages/Automation";
-import PublicationLogs from "./pages/PublicationLogs";
+import PublicationLogs from "@/pages/PublicationLogs";
+import Analytics from "@/pages/Analytics";
 
 function Router() {
   return (
@@ -28,6 +29,7 @@ function Router() {
         <Route path={"/automation"} component={Automation} />
         <Route path={"/assets"} component={Assets} />
         <Route path={"/logs"} component={PublicationLogs} />
+        <Route path={"/analytics"} component={Analytics} />
         <Route path={"/404"} component={NotFound} />
         <Route component={NotFound} />
       </Switch>

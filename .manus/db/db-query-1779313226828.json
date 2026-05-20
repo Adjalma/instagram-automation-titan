@@ -1,0 +1,9 @@
+{
+  "query": "UPDATE posts SET status = 'published', publishedAt = NOW() WHERE id IN (150002, 150004, 150008);\nUPDATE posts SET instagramPermalink = 'https://www.instagram.com/p/DYk2tYgIGwA/' WHERE id = 150002;\nUPDATE posts SET instagramPermalink = 'https://www.instagram.com/p/DYk2x0RoPmL/' WHERE id = 150004;\nUPDATE posts SET instagramPermalink = 'https://www.instagram.com/p/DYk22aSoA6F/' WHERE id = 150008;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3F5sJN7FajWtXbb.root --database 3LYkMyiPgdB2gzxf44Hk3M --execute UPDATE posts SET status = 'published', publishedAt = NOW() WHERE id IN (150002, 150004, 150008);\nUPDATE posts SET instagramPermalink = 'https://www.instagram.com/p/DYk2tYgIGwA/' WHERE id = 150002;\nUPDATE posts SET instagramPermalink = 'https://www.instagram.com/p/DYk2x0RoPmL/' WHERE id = 150004;\nUPDATE posts SET instagramPermalink = 'https://www.instagram.com/p/DYk22aSoA6F/' WHERE id = 150008;",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 284
+}
