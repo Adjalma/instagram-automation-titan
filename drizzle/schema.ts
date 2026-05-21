@@ -19,10 +19,12 @@ export const instagramAccounts = mysqlTable("instagram_accounts", {
   id: int("id").autoincrement().primaryKey(),
   handle: varchar("handle", { length: 128 }).notNull().unique(),
   displayName: varchar("displayName", { length: 256 }).notNull(),
+  platform: mysqlEnum("platform", ["instagram", "linkedin", "facebook", "tiktok", "youtube"]).default("instagram").notNull(),
   accountType: mysqlEnum("accountType", ["personal", "business"]).notNull(),
   tone: mysqlEnum("tone", ["personal", "corporate"]).notNull(),
   avatarUrl: text("avatarUrl"),
   bio: text("bio"),
+  profileUrl: text("profileUrl"), // URL do perfil na rede social
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 

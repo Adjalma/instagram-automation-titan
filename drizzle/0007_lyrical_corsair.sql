@@ -1,0 +1,2 @@
+ALTER TABLE `instagram_accounts` ADD `platform` enum('instagram','linkedin','facebook','tiktok','youtube') DEFAULT 'instagram' NOT NULL;--> statement-breakpoint
+ALTER TABLE `instagram_accounts` ADD `profileUrl` text;

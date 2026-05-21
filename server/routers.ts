@@ -3,6 +3,8 @@ import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { z } from "zod";
+import { eq } from "drizzle-orm";
+import { instagramAccounts } from "../drizzle/schema";
 import {
   getAllAccounts, getAccountById, getAccountStats,
   createPost, getPostById, getPostsByAccount, getPostsByStatus, getAllPosts, updatePost, deletePost,
@@ -46,6 +48,34 @@ export const appRouter = router({
     }),
     stats: protectedProcedure.input(z.object({ accountId: z.number() })).query(async ({ input }) => {
       return getAccountStats(input.accountId);
+    }),
+    create: protectedProcedure.input(z.object({
+      handle: z.string().min(1).max(128),
+      displayName: z.string().min(1).max(256),
+      platform: z.enum(["instagram", "linkedin", "facebook", "tiktok", "youtube"]).default("instagram"),
+      accountType: z.enum(["personal", "business"]).default("business"),
+      tone: z.enum(["personal", "corporate"]).default("corporate"),
+      bio: z.string().optional(),
+      profileUrl: z.string().optional(),
+    })).mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new Error("DB unavailable");
+      const [result] = await db.insert(instagramAccounts).values({
+        handle: input.handle,
+        displayName: input.displayName,
+        platform: input.platform,
+        accountType: input.accountType,
+        tone: input.tone,
+        bio: input.bio ?? null,
+        profileUrl: input.profileUrl ?? null,
+      });
+      return { id: (result as any).insertId };
+    }),
+    delete: protectedProcedure.input(z.object({ id: z.number() })).mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new Error("DB unavailable");
+      await db.delete(instagramAccounts).where(eq(instagramAccounts.id, input.id));
+      return { success: true };
     }),
   }),
 
@@ -254,7 +284,8 @@ export const appRouter = router({
           try {
             const style = "Design moderno e limpo com elementos tech, cores azul ciano (#00BFFF) e cinza escuro, estilo corporativo premium, minimalista e sofisticado";
             const artResult = await generateImage({
-              prompt: `Instagram post for Triarc Solutions tech company. Topic: ${theme.name}. ${style}. Include subtle TRIARC branding. Professional social media design, 1080x1080 square.`,
+              prompt: `Instagram post for Triarc Solutions tech company. Topic: ${theme.name}. ${style}. Place the Triarc Solutions logo (circular tech emblem with gears and code symbols, navy blue, gray and green) prominently in the bottom-right corner. Professional social media design, 1080x1080 square.`,
+              originalImages: [{ url: "https://tsm.triarcsolutions.com.br/manus-storage/triarc-logo_cfb3dbe6.jpeg", mimeType: "image/jpeg" }],
             });
             mediaUrl = artResult.url ?? "";
           } catch (e) {
@@ -327,7 +358,8 @@ export const appRouter = router({
         try {
           const style = "Design moderno tech, cores azul ciano (#00BFFF) e cinza escuro, estilo corporativo premium";
           const artResult = await generateImage({
-            prompt: `Instagram post for Triarc Solutions tech company. Topic: ${theme}. ${style}. Include subtle TRIARC branding. 1080x1080 square.`,
+            prompt: `Instagram post for Triarc Solutions tech company. Topic: ${theme}. ${style}. Place the Triarc Solutions logo (circular tech emblem with gears and code symbols, navy blue, gray and green) prominently in the bottom-right corner. 1080x1080 square.`,
+            originalImages: [{ url: "https://tsm.triarcsolutions.com.br/manus-storage/triarc-logo_cfb3dbe6.jpeg", mimeType: "image/jpeg" }],
           });
           mediaUrl = artResult.url ?? "";
         } catch (e) { /* continue without media */ }
@@ -517,9 +549,59 @@ export const appRouter = router({
       const account = await getAccountById(input.accountId);
       if (!account) throw new Error("Account not found");
       const style = "Design moderno e limpo com elementos tech, cores azul ciano (#00BFFF) e cinza escuro, estilo corporativo premium, minimalista e sofisticado";
-      const prompt = `Instagram post image for Triarc Solutions tech company. Topic: ${input.theme}. ${style}. ${input.description ?? ""}. Include subtle TRIARC branding. Professional social media design, 1080x1080 square format.`;
-      const { url } = await generateImage({ prompt });
+      const prompt = `Instagram post image for Triarc Solutions tech company. Topic: ${input.theme}. ${style}. ${input.description ?? ""}. Place the Triarc Solutions logo (circular tech emblem with gears and code symbols, navy blue, gray and green) prominently in the bottom-right corner. Professional social media design, 1080x1080 square format.`;
+      const { url } = await generateImage({
+        prompt,
+        originalImages: [{ url: "https://tsm.triarcsolutions.com.br/manus-storage/triarc-logo_cfb3dbe6.jpeg", mimeType: "image/jpeg" }],
+      });
       return { url };
+    }),
+  }),
+
+  marketIntel: router({
+    analyze: protectedProcedure.input(z.object({
+      niche: z.string().min(1),
+      competitor: z.string().optional(),
+    })).mutation(async ({ input }) => {
+      const competitorContext = input.competitor
+        ? `Analise também o concorrente: ${input.competitor}. Compare estratégias de conteúdo.`
+        : "";
+      const res = await invokeLLM({
+        messages: [
+          { role: "system", content: `Você é um especialista em marketing digital e social media para empresas de tecnologia B2B no Brasil. Responda sempre em JSON válido.` },
+          { role: "user", content: `Faça uma análise completa de mercado para a Triarc Solutions (empresa de tecnologia e inovação de Macaé/RJ, especializada em software, IA, automação e consultoria) no nicho: "${input.niche}". ${competitorContext}\n\nRetorne JSON com exatamente esta estrutura:\n{\n  "summary": "diagnóstico do nicho em 3-4 frases",\n  "strengths": ["diferencial 1", "diferencial 2", "diferencial 3", "diferencial 4"],\n  "opportunities": ["oportunidade 1", "oportunidade 2", "oportunidade 3", "oportunidade 4"],\n  "contentPillars": ["pilar 1: descrição", "pilar 2: descrição", "pilar 3: descrição", "pilar 4: descrição"],\n  "hashtags": ["#hashtag1", "#hashtag2", "#hashtag3", "#hashtag4", "#hashtag5", "#hashtag6", "#hashtag7", "#hashtag8", "#hashtag9", "#hashtag10"],\n  "postingStrategy": "estratégia detalhada de frequência, horários e tipos de conteúdo por dia da semana"\n}` },
+        ],
+        response_format: {
+          type: "json_schema",
+          json_schema: {
+            name: "market_intel",
+            strict: true,
+            schema: {
+              type: "object",
+              properties: {
+                summary: { type: "string" },
+                strengths: { type: "array", items: { type: "string" } },
+                opportunities: { type: "array", items: { type: "string" } },
+                contentPillars: { type: "array", items: { type: "string" } },
+                hashtags: { type: "array", items: { type: "string" } },
+                postingStrategy: { type: "string" },
+              },
+              required: ["summary", "strengths", "opportunities", "contentPillars", "hashtags", "postingStrategy"],
+              additionalProperties: false,
+            },
+          },
+        },
+      });
+      const raw = res.choices?.[0]?.message?.content;
+      if (!raw) throw new Error("LLM não retornou resposta");
+      return JSON.parse(typeof raw === "string" ? raw : JSON.stringify(raw)) as {
+        summary: string;
+        strengths: string[];
+        opportunities: string[];
+        contentPillars: string[];
+        hashtags: string[];
+        postingStrategy: string;
+      };
     }),
   }),
 });

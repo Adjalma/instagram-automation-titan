@@ -16,6 +16,8 @@ import Automation from "./pages/Automation";
 import PublicationLogs from "@/pages/PublicationLogs";
 import Analytics from "@/pages/Analytics";
 import Research from "@/pages/Research";
+import Accounts from "@/pages/Accounts";
+import MarketIntel from "@/pages/MarketIntel";
 
 function Router() {
   return (
@@ -32,6 +34,8 @@ function Router() {
         <Route path={"/logs"} component={PublicationLogs} />
         <Route path={"/analytics"} component={Analytics} />
         <Route path={"/research"} component={Research} />
+        <Route path={"/accounts"} component={Accounts} />
+        <Route path={"/market-intel"} component={MarketIntel} />
         <Route path={"/404"} component={NotFound} />
         <Route component={NotFound} />
       </Switch>

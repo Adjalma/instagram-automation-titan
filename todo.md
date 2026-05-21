@@ -127,3 +127,12 @@
 - [x] Aba "Pesquisa Diária" com configuração de tópicos e histórico de posts gerados
 - [x] Rota /research no App.tsx
 - [x] Item "Pesquisa" no menu do DashboardLayout
+
+## Features v1.23 — Multi-Rede + Logo + Inteligência de Mercado
+
+- [ ] Upload do logo Triarc para storage e URL pública
+- [ ] Corrigir prompt de geração de imagem para incluir logo (via referência de imagem no generateImage)
+- [ ] Suporte a múltiplas redes na tabela instagram_accounts (campo platform: instagram|linkedin|facebook|tiktok|youtube)
+- [ ] UI para adicionar contas de outras redes (LinkedIn, Facebook, TikTok, YouTube)
+- [ ] Módulo Inteligência de Mercado: monitoramento de nicho e análise de concorrentes
+- [ ] Página Estratégia: recomendações de marketing geradas por LLM com base nos dados coletados
