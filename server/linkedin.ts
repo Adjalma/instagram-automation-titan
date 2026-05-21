@@ -1,6 +1,12 @@
 /**
  * LinkedIn OAuth 2.0 + UGC Posts API
- * Scopes: openid, profile, email, w_member_social
+ * Publica na Company Page triarc-solutions-brasil
+ *
+ * Escopos necessários (produto "Share on LinkedIn"):
+ *   r_liteprofile         — ler perfil do usuário autenticado
+ *   w_member_social       — publicar como pessoa física (fallback)
+ *   w_organization_social — publicar como Company Page (principal)
+ *   r_organization_social — ler posts da Company Page
  */
 import { Express, Request, Response } from "express";
 import { ENV } from "./_core/env";
@@ -10,24 +16,66 @@ import { eq } from "drizzle-orm";
 
 const LINKEDIN_AUTH_URL = "https://www.linkedin.com/oauth/v2/authorization";
 const LINKEDIN_TOKEN_URL = "https://www.linkedin.com/oauth/v2/accessToken";
-const LINKEDIN_USERINFO_URL = "https://api.linkedin.com/v2/userinfo";
 const LINKEDIN_UGC_URL = "https://api.linkedin.com/v2/ugcPosts";
 const LINKEDIN_ASSETS_URL = "https://api.linkedin.com/v2/assets?action=registerUpload";
+const LINKEDIN_ORG_VANITY = "triarc-solutions-brasil";
 
-// Share on LinkedIn product grants ONLY: r_liteprofile + w_member_social
-// r_emailaddress is NOT included in this product — causes unauthorized_scope_error
-const SCOPES = ["r_liteprofile", "w_member_social"].join(" ");
+// Escopos: r_liteprofile para perfil, w_organization_social para Company Page
+// w_member_social como fallback caso org não seja encontrada
+const SCOPES = ["r_liteprofile", "w_member_social", "w_organization_social", "r_organization_social"].join(" ");
 
 function getRedirectUri(origin: string): string {
-  // Use the exact redirect URIs registered in LinkedIn app
   if (origin.includes("tsm.triarcsolutions.com.br")) {
     return "https://tsm.triarcsolutions.com.br/auth/linkedin/callback";
   }
   if (origin.includes("triarcsolutions.com.br")) {
     return "https://triarcsolutions.com.br/auth/linkedin/callback";
   }
-  // Dev: use localhost:3000 (must be registered in LinkedIn app)
   return "http://localhost:3000/auth/linkedin/callback";
+}
+
+/**
+ * Busca o Organization URN via vanityName.
+ * Retorna urn:li:organization:{id} ou null se não encontrar / sem permissão.
+ */
+async function resolveOrganizationUrn(accessToken: string): Promise<string | null> {
+  try {
+    // Busca por vanityName (não requer r_organization_admin)
+    const res = await fetch(
+      `https://api.linkedin.com/v2/organizations?q=vanityName&vanityName=${LINKEDIN_ORG_VANITY}`,
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    );
+    if (!res.ok) {
+      console.warn("[LinkedIn] organizations lookup status:", res.status);
+      return null;
+    }
+    const data = await res.json() as any;
+    const org = data?.elements?.[0];
+    if (org?.id) {
+      const urn = `urn:li:organization:${org.id}`;
+      console.log(`[LinkedIn] Organization encontrada: ${urn}`);
+      return urn;
+    }
+
+    // Fallback: busca via organizationAcls (admin memberships)
+    const aclRes = await fetch(
+      "https://api.linkedin.com/v2/organizationAcls?q=roleAssignee&role=ADMINISTRATOR&projection=(elements*(organization~(id,vanityName,localizedName)))",
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    );
+    if (!aclRes.ok) return null;
+    const aclData = await aclRes.json() as any;
+    const match = aclData?.elements?.find(
+      (e: any) => e["organization~"]?.vanityName === LINKEDIN_ORG_VANITY
+    );
+    if (match?.["organization~"]?.id) {
+      const urn = `urn:li:organization:${match["organization~"].id}`;
+      console.log(`[LinkedIn] Organization via ACL: ${urn}`);
+      return urn;
+    }
+  } catch (err) {
+    console.warn("[LinkedIn] Erro ao resolver organization URN:", err);
+  }
+  return null;
 }
 
 export function registerLinkedInRoutes(app: Express) {
@@ -49,7 +97,7 @@ export function registerLinkedInRoutes(app: Express) {
     res.redirect(`${LINKEDIN_AUTH_URL}?${params.toString()}`);
   });
 
-  // Step 2: Callback — exchange code for token, save to DB
+  // Step 2: Callback — troca code por token, resolve org URN, salva no banco
   app.get("/auth/linkedin/callback", async (req: Request, res: Response) => {
     const { code, state, error } = req.query as Record<string, string>;
 
@@ -71,7 +119,7 @@ export function registerLinkedInRoutes(app: Express) {
     const redirectUri = getRedirectUri(origin);
 
     try {
-      // Exchange code for access token
+      // Troca code por access token
       const tokenRes = await fetch(LINKEDIN_TOKEN_URL, {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -93,15 +141,21 @@ export function registerLinkedInRoutes(app: Express) {
       const { access_token, expires_in } = tokenData;
       const expiresAt = new Date(Date.now() + (expires_in ?? 5184000) * 1000);
 
-      // Get LinkedIn profile (URN) via /v2/me (r_liteprofile)
-      const profileRes = await fetch("https://api.linkedin.com/v2/me", {
-        headers: { Authorization: `Bearer ${access_token}` },
-      });
-      const profile = await profileRes.json() as any;
-      const personId = profile.id;
-      const linkedinUrn = personId ? `urn:li:person:${personId}` : null;
+      // Tenta resolver a Company Page — se não conseguir, usa perfil pessoal como fallback
+      let linkedinUrn: string | null = await resolveOrganizationUrn(access_token);
 
-      // Save token to the LinkedIn account in DB
+      if (!linkedinUrn) {
+        // Fallback: perfil pessoal via /v2/me
+        const profileRes = await fetch("https://api.linkedin.com/v2/me", {
+          headers: { Authorization: `Bearer ${access_token}` },
+        });
+        const profile = await profileRes.json() as any;
+        if (profile.id) {
+          linkedinUrn = `urn:li:person:${profile.id}`;
+          console.warn(`[LinkedIn] Company Page não encontrada — usando perfil pessoal: ${linkedinUrn}`);
+        }
+      }
+
       if (accountId) {
         const db = await getDb();
         if (!db) throw new Error("DB unavailable");
@@ -112,7 +166,7 @@ export function registerLinkedInRoutes(app: Express) {
             linkedinUrn: linkedinUrn ?? undefined,
           })
           .where(eq(instagramAccounts.id, parseInt(accountId)));
-        console.log(`[LinkedIn] Token saved for account ${accountId}, URN: ${linkedinUrn}`);
+        console.log(`[LinkedIn] Token salvo para conta ${accountId}, URN: ${linkedinUrn}`);
       }
 
       res.redirect(`${origin}/accounts?linkedin_connected=1`);
@@ -124,7 +178,10 @@ export function registerLinkedInRoutes(app: Express) {
 }
 
 /**
- * Publish a post to LinkedIn via UGC Posts API
+ * Publica post no LinkedIn (Company Page ou perfil pessoal)
+ * O author é determinado pelo linkedinUrn salvo no banco:
+ *   urn:li:organization:{id} → Company Page
+ *   urn:li:person:{id}       → perfil pessoal (fallback)
  */
 export async function publishToLinkedIn(params: {
   accessToken: string;
@@ -134,10 +191,12 @@ export async function publishToLinkedIn(params: {
 }): Promise<{ postId: string; permalink: string }> {
   const { accessToken, linkedinUrn, caption, imageUrl } = params;
 
+  const isOrg = linkedinUrn.startsWith("urn:li:organization:");
+  console.log(`[LinkedIn] Publicando como ${isOrg ? "Company Page" : "perfil pessoal"}: ${linkedinUrn}`);
+
   let shareMediaCategory = "NONE";
   let media: any[] = [];
 
-  // Upload image if provided
   if (imageUrl) {
     try {
       const uploadedAsset = await registerLinkedInImage(accessToken, linkedinUrn, imageUrl);
@@ -192,14 +251,13 @@ export async function publishToLinkedIn(params: {
 }
 
 /**
- * Register and upload an image to LinkedIn
+ * Registra e faz upload de imagem para o LinkedIn Assets API
  */
 async function registerLinkedInImage(
   accessToken: string,
   ownerUrn: string,
   imageUrl: string
 ): Promise<string | null> {
-  // Register upload
   const registerRes = await fetch(LINKEDIN_ASSETS_URL, {
     method: "POST",
     headers: {
@@ -222,10 +280,8 @@ async function registerLinkedInImage(
   const registerData = await registerRes.json() as any;
   const uploadUrl = registerData?.value?.uploadMechanism?.["com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest"]?.uploadUrl;
   const assetUrn = registerData?.value?.asset;
-
   if (!uploadUrl || !assetUrn) return null;
 
-  // Download image and upload to LinkedIn
   const imgRes = await fetch(imageUrl);
   if (!imgRes.ok) return null;
   const imgBuffer = await imgRes.arrayBuffer();

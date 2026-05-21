@@ -172,7 +172,17 @@ export default function Accounts() {
                   <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
                     {platform === "linkedin" && (
                       account.accessToken ? (
-                        <Badge className="bg-green-600 text-white text-xs">OAuth Ativo</Badge>
+                        <div className="flex items-center gap-1 flex-wrap justify-end">
+                          <Badge className="bg-green-600 text-white text-xs">
+                            {account.linkedinUrn?.startsWith("urn:li:organization:") ? "🏢 Company Page" : "👤 Perfil Pessoal"}
+                          </Badge>
+                          <Button variant="ghost" size="sm" className="text-xs text-blue-700 h-6 px-2"
+                            onClick={() => {
+                              window.location.href = `/api/linkedin/auth?origin=${encodeURIComponent(window.location.origin)}&accountId=${account.id}`;
+                            }}>
+                            Reconectar
+                          </Button>
+                        </div>
                       ) : (
                         <Button variant="outline" size="sm" className="text-blue-700 border-blue-700 hover:bg-blue-50"
                           onClick={() => {
@@ -206,7 +216,7 @@ export default function Accounts() {
         </CardHeader>
         <CardContent className="text-xs text-muted-foreground space-y-1">
           <p>✅ <strong>Instagram</strong> — publicação automática via MCP ativa</p>
-          <p>🔄 <strong>LinkedIn</strong> — OAuth configurado, clique em "Conectar" na conta para autorizar</p>
+          <p>🔄 <strong>LinkedIn</strong> — OAuth configurado. Ao conectar, publica automaticamente na Company Page <em>triarc-solutions-brasil</em></p>
           <p>🔜 <strong>Facebook</strong> — em desenvolvimento (Meta Graph API)</p>
           <p>🔜 <strong>TikTok</strong> — em desenvolvimento (TikTok Content Posting API)</p>
           <p>🔜 <strong>YouTube</strong> — em desenvolvimento (YouTube Data API v3)</p>
