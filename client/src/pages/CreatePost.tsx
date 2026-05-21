@@ -7,8 +7,34 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Loader2, Sparkles, ImagePlus, Send, Calendar, X } from "lucide-react";
+import { Loader2, Sparkles, Send, Calendar, X, Plus, Images } from "lucide-react";
 import { useLocation } from "wouter";
+
+// Componente para adicionar URL manualmente
+function AddMediaUrlField({ onAdd, disabled }: { onAdd: (url: string) => void; disabled: boolean }) {
+  const [url, setUrl] = useState("");
+  const handleAdd = () => {
+    const trimmed = url.trim();
+    if (!trimmed.startsWith("http")) { toast.error("URL inválida"); return; }
+    onAdd(trimmed);
+    setUrl("");
+  };
+  return (
+    <div className="flex gap-2">
+      <Input
+        placeholder="Adicionar URL de imagem manualmente..."
+        value={url}
+        onChange={e => setUrl(e.target.value)}
+        onKeyDown={e => e.key === "Enter" && !disabled && handleAdd()}
+        disabled={disabled}
+        className="text-sm font-mono"
+      />
+      <Button variant="outline" size="sm" onClick={handleAdd} disabled={disabled || !url.trim()}>
+        <Plus className="h-4 w-4" />
+      </Button>
+    </div>
+  );
+}
 
 export default function CreatePost() {
   const [, setLocation] = useLocation();
@@ -34,7 +60,6 @@ export default function CreatePost() {
   const selectedAccount = useMemo(() => accounts?.find(a => a.id === Number(accountId)), [accounts, accountId]);
   const selectedTriacItem = useMemo(() => triacItems?.find(i => i.id === Number(selectedTriacId)), [triacItems, selectedTriacId]);
 
-  // Derive the effective theme string from selected source
   const effectiveTheme = useMemo(() => {
     if (contentSource === "triac" && selectedTriacItem) {
       return `${selectedTriacItem.name}: ${selectedTriacItem.description}`;
@@ -43,52 +68,34 @@ export default function CreatePost() {
   }, [contentSource, selectedTriacItem, theme]);
 
   const handleGenerateCaption = async () => {
-    if (!accountId || !effectiveTheme) {
-      toast.error("Selecione a conta e o projeto/tema primeiro");
-      return;
-    }
+    if (!accountId || !effectiveTheme) { toast.error("Selecione a conta e o projeto/tema primeiro"); return; }
     setIsGeneratingCaption(true);
     try {
-      const result = await generateCaption.mutateAsync({
-        accountId: Number(accountId),
-        theme: effectiveTheme,
-        extraContext: extraContext || undefined,
-      });
-      setCaption(typeof result.caption === 'string' ? result.caption : '');
-      toast.success("Legenda gerada com sucesso!");
-    } catch (e) {
-      toast.error("Erro ao gerar legenda");
-    } finally {
-      setIsGeneratingCaption(false);
-    }
+      const result = await generateCaption.mutateAsync({ accountId: Number(accountId), theme: effectiveTheme, extraContext: extraContext || undefined });
+      setCaption(typeof result.caption === "string" ? result.caption : "");
+      toast.success("Legenda gerada!");
+    } catch { toast.error("Erro ao gerar legenda"); }
+    finally { setIsGeneratingCaption(false); }
   };
 
   const handleGenerateArt = async () => {
-    if (!accountId || !effectiveTheme) {
-      toast.error("Selecione a conta e o projeto/tema primeiro");
-      return;
-    }
+    if (!accountId || !effectiveTheme) { toast.error("Selecione a conta e o projeto/tema primeiro"); return; }
+    if (mediaUrls.length >= 10) { toast.error("Máximo de 10 imagens por carrossel"); return; }
     setIsGeneratingArt(true);
     try {
-      const result = await generateArt.mutateAsync({
-        accountId: Number(accountId),
-        theme: effectiveTheme,
-        description: extraContext || undefined,
-      });
-      if (result.url) setMediaUrls(prev => [...prev, result.url as string]);
-      toast.success("Arte gerada com sucesso!");
-    } catch (e) {
-      toast.error("Erro ao gerar arte");
-    } finally {
-      setIsGeneratingArt(false);
-    }
+      const result = await generateArt.mutateAsync({ accountId: Number(accountId), theme: effectiveTheme, description: extraContext || undefined });
+      if (result.url) {
+        setMediaUrls(prev => [...prev, result.url as string]);
+        toast.success(mediaUrls.length === 0 ? "Arte gerada!" : `Slide ${mediaUrls.length + 1} adicionado ao carrossel!`);
+      }
+    } catch { toast.error("Erro ao gerar arte"); }
+    finally { setIsGeneratingArt(false); }
   };
 
+  const removeMedia = (index: number) => setMediaUrls(prev => prev.filter((_, i) => i !== index));
+
   const handleSubmit = async (submitApproval: boolean) => {
-    if (!accountId) {
-      toast.error("Selecione uma conta");
-      return;
-    }
+    if (!accountId) { toast.error("Selecione uma conta"); return; }
     try {
       const result = await createPost.mutateAsync({
         accountId: Number(accountId),
@@ -104,13 +111,7 @@ export default function CreatePost() {
         toast.success("Rascunho salvo!");
       }
       setLocation("/");
-    } catch (e) {
-      toast.error("Erro ao criar post");
-    }
-  };
-
-  const removeMedia = (index: number) => {
-    setMediaUrls(prev => prev.filter((_, i) => i !== index));
+    } catch { toast.error("Erro ao criar post"); }
   };
 
   return (
@@ -122,6 +123,7 @@ export default function CreatePost() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-4">
+          {/* Configuração */}
           <Card className="card-blueprint">
             <CardHeader className="pb-3">
               <CardTitle className="text-base font-bold">Configuração</CardTitle>
@@ -131,24 +133,16 @@ export default function CreatePost() {
                 <div>
                   <label className="label-mono mb-2 block">Conta Destino</label>
                   <Select value={accountId} onValueChange={setAccountId}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecionar conta" />
-                    </SelectTrigger>
+                    <SelectTrigger><SelectValue placeholder="Selecionar conta" /></SelectTrigger>
                     <SelectContent>
-                      {accounts?.map(a => (
-                        <SelectItem key={a.id} value={String(a.id)}>
-                          @{a.handle}
-                        </SelectItem>
-                      ))}
+                      {accounts?.map(a => <SelectItem key={a.id} value={String(a.id)}>@{a.handle}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
                 <div>
                   <label className="label-mono mb-2 block">Fonte de Conteúdo</label>
                   <Select value={contentSource} onValueChange={(v) => setContentSource(v as "theme" | "triac")}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="triac">Projetos e Serviços Triarc</SelectItem>
                       <SelectItem value="theme">Temas Genéricos</SelectItem>
@@ -160,58 +154,45 @@ export default function CreatePost() {
                 <div>
                   <label className="label-mono mb-2 block">Projeto / Serviço</label>
                   <Select value={selectedTriacId} onValueChange={setSelectedTriacId}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecionar projeto ou serviço" />
-                    </SelectTrigger>
+                    <SelectTrigger><SelectValue placeholder="Selecionar projeto ou serviço" /></SelectTrigger>
                     <SelectContent className="max-h-72">
                       {triacItems?.filter(i => i.type === "servico").length ? (
                         <>
                           <div className="px-2 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wide">💼 Serviços</div>
-                          {triacItems.filter(i => i.type === "servico").map(i => (
-                            <SelectItem key={i.id} value={String(i.id)}>{i.name}</SelectItem>
-                          ))}
+                          {triacItems.filter(i => i.type === "servico").map(i => <SelectItem key={i.id} value={String(i.id)}>{i.name}</SelectItem>)}
                         </>
                       ) : null}
                       {triacItems?.filter(i => i.type === "projeto").length ? (
                         <>
                           <div className="px-2 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wide mt-1">🚀 Projetos</div>
-                          {triacItems.filter(i => i.type === "projeto").map(i => (
-                            <SelectItem key={i.id} value={String(i.id)}>{i.name}</SelectItem>
-                          ))}
+                          {triacItems.filter(i => i.type === "projeto").map(i => <SelectItem key={i.id} value={String(i.id)}>{i.name}</SelectItem>)}
                         </>
                       ) : null}
                     </SelectContent>
                   </Select>
-                  {selectedTriacItem && (
-                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{selectedTriacItem.subtitle}</p>
-                  )}
+                  {selectedTriacItem && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{selectedTriacItem.subtitle}</p>}
                 </div>
               )}
               {contentSource === "theme" && (
                 <div>
                   <label className="label-mono mb-2 block">Tema</label>
                   <Select value={theme} onValueChange={setTheme}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecionar tema" />
-                    </SelectTrigger>
+                    <SelectTrigger><SelectValue placeholder="Selecionar tema" /></SelectTrigger>
                     <SelectContent>
-                      {themes?.map(t => (
-                        <SelectItem key={t.id} value={t.name}>{t.name}</SelectItem>
-                      ))}
+                      {themes?.map(t => <SelectItem key={t.id} value={t.name}>{t.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
               )}
               {selectedAccount && (
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline" className={selectedAccount.tone === "personal" ? "border-pink-300 text-pink-600" : "border-cyan-300 text-cyan-700"}>
-                    Tom: {selectedAccount.tone === "personal" ? "Pessoal" : "Corporativo"}
-                  </Badge>
-                </div>
+                <Badge variant="outline" className={selectedAccount.tone === "personal" ? "border-pink-300 text-pink-600" : "border-cyan-300 text-cyan-700"}>
+                  Tom: {selectedAccount.tone === "personal" ? "Pessoal" : "Corporativo"}
+                </Badge>
               )}
             </CardContent>
           </Card>
 
+          {/* Legenda */}
           <Card className="card-blueprint">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
@@ -223,71 +204,80 @@ export default function CreatePost() {
               </div>
             </CardHeader>
             <CardContent className="space-y-3">
-              <Input
-                placeholder="Contexto adicional para a IA (opcional)"
-                value={extraContext}
-                onChange={e => setExtraContext(e.target.value)}
-                className="text-sm"
-              />
-              <Textarea
-                placeholder="Escreva ou gere a legenda do post..."
-                value={caption}
-                onChange={e => setCaption(e.target.value)}
-                rows={8}
-                className="font-mono text-sm resize-none"
-              />
+              <Input placeholder="Contexto adicional para a IA (opcional)" value={extraContext} onChange={e => setExtraContext(e.target.value)} className="text-sm" />
+              <Textarea placeholder="Escreva ou gere a legenda do post..." value={caption} onChange={e => setCaption(e.target.value)} rows={8} className="font-mono text-sm resize-none" />
               <p className="label-mono text-right">{caption.length} caracteres</p>
             </CardContent>
           </Card>
 
+          {/* Mídia / Carrossel */}
           <Card className="card-blueprint">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
-                <CardTitle className="text-base font-bold">Mídia</CardTitle>
-                <Button variant="outline" size="sm" onClick={handleGenerateArt} disabled={isGeneratingArt} className="gap-1.5">
-                  {isGeneratingArt ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ImagePlus className="h-3.5 w-3.5" />}
-                  Gerar Arte com IA
+                <div>
+                  <CardTitle className="text-base font-bold flex items-center gap-2">
+                    <Images className="h-4 w-4" /> Mídia
+                    {mediaUrls.length > 0 && (
+                      <Badge variant="outline" className="text-xs">
+                        {mediaUrls.length}/10 {mediaUrls.length > 1 ? "— Carrossel" : "— Imagem única"}
+                      </Badge>
+                    )}
+                  </CardTitle>
+                  {mediaUrls.length > 1 && (
+                    <p className="text-xs text-muted-foreground mt-0.5">Carrossel: {mediaUrls.length} imagens publicadas em sequência no Instagram</p>
+                  )}
+                </div>
+                <Button variant="outline" size="sm" onClick={handleGenerateArt} disabled={isGeneratingArt || mediaUrls.length >= 10} className="gap-1.5">
+                  {isGeneratingArt ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                  Gerar Arte IA
                 </Button>
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-3">
               {mediaUrls.length > 0 ? (
                 <div className="grid grid-cols-3 gap-3">
                   {mediaUrls.map((url, i) => (
                     <div key={i} className="relative group aspect-square rounded-lg overflow-hidden border">
-                      <img src={url} alt={`Media ${i + 1}`} className="w-full h-full object-cover" />
+                      <img src={url} alt={`Slide ${i + 1}`} className="w-full h-full object-cover" />
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
+                      <div className="absolute top-1 left-1 bg-black/60 text-white rounded text-xs px-1.5 py-0.5 font-mono">{i + 1}</div>
                       <button onClick={() => removeMedia(i)} className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         <X className="h-3 w-3" />
                       </button>
-                      <span className="absolute bottom-1 left-1 label-mono bg-black/60 text-white px-1.5 py-0.5 rounded text-[10px]">{i + 1}</span>
                     </div>
                   ))}
+                  {mediaUrls.length < 10 && (
+                    <button
+                      onClick={handleGenerateArt}
+                      disabled={isGeneratingArt}
+                      className="aspect-square rounded-lg border-2 border-dashed flex flex-col items-center justify-center gap-1 text-muted-foreground hover:border-primary hover:text-primary transition-colors disabled:opacity-50"
+                    >
+                      {isGeneratingArt ? <Loader2 className="h-5 w-5 animate-spin" /> : <Plus className="h-5 w-5" />}
+                      <span className="text-xs">Gerar slide</span>
+                    </button>
+                  )}
                 </div>
               ) : (
                 <div className="border-2 border-dashed rounded-lg p-8 text-center text-muted-foreground">
-                  <ImagePlus className="h-8 w-8 mx-auto mb-2 opacity-40" />
-                  <p className="text-sm">Gere artes com IA ou adicione URLs de imagens</p>
+                  <Images className="h-8 w-8 mx-auto mb-2 opacity-40" />
+                  <p className="text-sm font-medium">Nenhuma imagem adicionada</p>
+                  <p className="text-xs mt-1">Gere com IA ou cole uma URL abaixo. Até 10 imagens para carrossel.</p>
                 </div>
               )}
+              <AddMediaUrlField onAdd={(url) => setMediaUrls(prev => [...prev, url])} disabled={mediaUrls.length >= 10} />
             </CardContent>
           </Card>
         </div>
 
+        {/* Sidebar direita */}
         <div className="space-y-4">
           <Card className="card-blueprint">
             <CardHeader className="pb-3">
               <CardTitle className="text-base font-bold">Agendamento</CardTitle>
             </CardHeader>
             <CardContent>
-              <div>
-                <label className="label-mono mb-2 block">Data e Hora</label>
-                <Input
-                  type="datetime-local"
-                  value={scheduledAt}
-                  onChange={e => setScheduledAt(e.target.value)}
-                  className="font-mono text-sm"
-                />
-              </div>
+              <label className="label-mono mb-2 block">Data e Hora</label>
+              <Input type="datetime-local" value={scheduledAt} onChange={e => setScheduledAt(e.target.value)} className="font-mono text-sm" />
               {scheduledAt && (
                 <div className="flex items-center gap-1.5 mt-2 text-xs text-muted-foreground">
                   <Calendar className="h-3 w-3" />
@@ -307,11 +297,16 @@ export default function CreatePost() {
                   <div className="w-7 h-7 rounded-full bg-gradient-to-br from-cyan-400 to-pink-400" />
                   <span className="text-xs font-bold">{selectedAccount ? `@${selectedAccount.handle}` : "Selecione uma conta"}</span>
                 </div>
-                {mediaUrls[0] && (
-                  <div className="aspect-square rounded overflow-hidden bg-muted">
+                {mediaUrls.length > 0 ? (
+                  <div className="relative aspect-square rounded overflow-hidden bg-muted">
                     <img src={mediaUrls[0]} alt="Preview" className="w-full h-full object-cover" />
+                    {mediaUrls.length > 1 && (
+                      <div className="absolute bottom-1 right-1 bg-black/70 text-white text-xs px-1.5 py-0.5 rounded font-mono">
+                        1/{mediaUrls.length}
+                      </div>
+                    )}
                   </div>
-                )}
+                ) : null}
                 <p className="text-xs leading-relaxed whitespace-pre-wrap line-clamp-6">{caption || "Legenda do post..."}</p>
               </div>
             </CardContent>

@@ -109,3 +109,11 @@
 - [x] manifest.json com nome, ícone, shortcuts (Criar Post, Aprovação)
 - [x] Service Worker básico registrado para habilitar instalação PWA
 - [x] lang="pt-BR" no HTML
+
+## Features v1.19 — Carrossel + Publicação Automática Corrigida
+
+- [x] Suporte a carrossel no Criar Post: até 10 imagens, badge "Carrossel", numeração nos slides, botão "Gerar slide" inline
+- [x] Campo para adicionar URL de imagem manualmente no Criar Post
+- [x] Preview mostra indicador 1/N quando há múltiplos slides
+- [x] Tarefa agendada atualizada: envia todos os itens de post.media como array no MCP (suporte a carrossel)
+- [x] Tarefa agendada reativada (estava pausada) e com parâmetros MCP corretos

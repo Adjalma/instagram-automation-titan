@@ -1,0 +1,28 @@
+{
+  "query": "SELECT p.id, p.status, p.retryCount, p.mcpPending, p.nextRetryAt, p.theme,\n  COUNT(pm.id) AS mediaCount\nFROM posts p\nLEFT JOIN post_media pm ON pm.postId = p.id\nWHERE p.status = 'approved'\nGROUP BY p.id\nORDER BY p.createdAt ASC;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3F5sJN7FajWtXbb.root --database 3LYkMyiPgdB2gzxf44Hk3M --execute SELECT p.id, p.status, p.retryCount, p.mcpPending, p.nextRetryAt, p.theme,\n  COUNT(pm.id) AS mediaCount\nFROM posts p\nLEFT JOIN post_media pm ON pm.postId = p.id\nWHERE p.status = 'approved'\nGROUP BY p.id\nORDER BY p.createdAt ASC;",
+  "rows": [
+    {
+      "id": "360001",
+      "status": "approved",
+      "retryCount": "0",
+      "mcpPending": "0",
+      "nextRetryAt": "NULL",
+      "theme": "Inteligência Artificial e Automação: Soluções avançadas em IA, automação e agentes especialistas. Machine Learning aplicado, processamento de linguagem natural, sistemas de recomendação e automação de fluxos de trabalho.",
+      "mediaCount": "3"
+    },
+    {
+      "id": "360012",
+      "status": "approved",
+      "retryCount": "0",
+      "mcpPending": "0",
+      "nextRetryAt": "NULL",
+      "theme": "Inteligência Artificial e Automação: Soluções avançadas em IA, automação e agentes especialistas. Machine Learning aplicado, processamento de linguagem natural, sistemas de recomendação e automação de fluxos de trabalho.",
+      "mediaCount": "1"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tstatus\tretryCount\tmcpPending\tnextRetryAt\ttheme\tmediaCount\n360001\tapproved\t0\t0\tNULL\tInteligência Artificial e Automação: Soluções avançadas em IA, automação e agentes especialistas. Machine Learning aplicado, processamento de linguagem natural, sistemas de recomendação e automação de fluxos de trabalho.\t3\n360012\tapproved\t0\t0\tNULL\tInteligência Artificial e Automação: Soluções avançadas em IA, automação e agentes especialistas. Machine Learning aplicado, processamento de linguagem natural, sistemas de recomendação e automação de fluxos de trabalho.\t1\n",
+  "stderr": "",
+  "execution_time_ms": 273
+}
