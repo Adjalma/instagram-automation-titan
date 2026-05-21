@@ -20,9 +20,9 @@ const LINKEDIN_UGC_URL = "https://api.linkedin.com/v2/ugcPosts";
 const LINKEDIN_ASSETS_URL = "https://api.linkedin.com/v2/assets?action=registerUpload";
 const LINKEDIN_ORG_VANITY = "triarc-solutions-brasil";
 
-// Apenas escopos de escrita — r_liteprofile e r_organization_social foram descontinuados
-// O produto Share on LinkedIn concede: w_member_social + w_organization_social
-const SCOPES = ["w_member_social", "w_organization_social"].join(" ");
+// Produto "Share on LinkedIn" concede APENAS w_member_social
+// w_organization_social requer produto "Community Management API" (não aprovado)
+const SCOPES = "w_member_social";
 
 function getRedirectUri(origin: string): string {
   if (origin.includes("tsm.triarcsolutions.com.br")) {
