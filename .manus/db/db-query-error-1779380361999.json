@@ -1,0 +1,8 @@
+{
+  "query": "\nSELECT id, name, query, active, publish_hour, language FROM research_topics;\nSELECT id, status, caption, created_at FROM posts WHERE status IN ('approved','pending') ORDER BY created_at DESC LIMIT 10;\nSELECT id, topic_id, status, error, generated_at FROM research_runs ORDER BY generated_at DESC LIMIT 10;\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3F5sJN7FajWtXbb.root --database 3LYkMyiPgdB2gzxf44Hk3M --execute \nSELECT id, name, query, active, publish_hour, language FROM research_topics;\nSELECT id, status, caption, created_at FROM posts WHERE status IN ('approved','pending') ORDER BY created_at DESC LIMIT 10;\nSELECT id, topic_id, status, error, generated_at FROM research_runs ORDER BY generated_at DESC LIMIT 10;\n",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1054 (42S22) at line 2: Unknown column 'publish_hour' in 'field list'"
+  ]
+}

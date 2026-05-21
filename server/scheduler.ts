@@ -11,6 +11,7 @@ import { researchTopics, researchRuns, posts, postMedia } from "../drizzle/schem
 import { eq } from "drizzle-orm";
 import { invokeLLM } from "./_core/llm";
 import { generateImage } from "./_core/imageGeneration";
+import { ENV } from "./_core/env";
 
 const INTERVAL_MS = parseInt(process.env.SCHEDULER_INTERVAL_MS || "300000", 10);
 const TZ_OFFSET = -3; // America/Sao_Paulo (UTC-3)
@@ -50,17 +51,21 @@ function getBrasiliaDateHour(): { date: string; hour: number } {
 
 // ─── Geração de conteúdo ──────────────────────────────────────────────────────
 async function fetchNews(query: string, language: string): Promise<{ title: string; description: string }[]> {
-  const key = process.env.NEWS_API_KEY;
-  if (!key) return [];
+  const key = ENV.newsApiKey;
+  if (!key) { console.error("[DailyResearch] NEWS_API_KEY não configurada"); return []; }
   const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
-  const lang = language === "pt" ? "pt" : "en";
-  const url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(query)}&from=${yesterday}&language=${lang}&pageSize=5&sortBy=publishedAt&apiKey=${key}`;
+  // NewsAPI plano gratuito só suporta inglês — traduzir query para EN
+  const enQuery = query.replace(/intelig[eê]ncia artificial/gi, "artificial intelligence")
+    .replace(/automa[çc][aã]o/gi, "automation").replace(/tecnologia/gi, "technology");
+  const url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(enQuery)}&from=${yesterday}&language=en&pageSize=5&sortBy=publishedAt&apiKey=${key}`;
+  console.log(`[DailyResearch] Buscando notícias: ${url.replace(key, '***')}`);
   try {
     const res = await fetch(url, { headers: { "User-Agent": "TriarcSocialManager/1.0" } });
-    const data = await res.json() as { status: string; articles?: { title: string; description: string }[] };
-    if (data.status !== "ok" || !data.articles?.length) return [];
+    const data = await res.json() as { status: string; code?: string; message?: string; articles?: { title: string; description: string }[] };
+    if (data.status !== "ok") { console.error(`[DailyResearch] NewsAPI erro: ${data.code} — ${data.message}`); return []; }
+    if (!data.articles?.length) return [];
     return data.articles.slice(0, 5).map(a => ({ title: a.title, description: a.description ?? "" }));
-  } catch { return []; }
+  } catch (e: any) { console.error("[DailyResearch] Fetch error:", e.message); return []; }
 }
 
 async function runTopicResearch(topic: { id: number; name: string; query: string; language: string; accountId: number }) {

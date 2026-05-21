@@ -1,0 +1,10 @@
+{
+  "query": "\nSELECT id, name, query, active, publishHour, language FROM research_topics;\nSELECT id, status, LEFT(caption,60) as caption, created_at FROM posts WHERE status IN ('approved','pending') ORDER BY created_at DESC LIMIT 10;\nSELECT id, topic_id, status, error, generated_at FROM research_runs ORDER BY generated_at DESC LIMIT 10;\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3F5sJN7FajWtXbb.root --database 3LYkMyiPgdB2gzxf44Hk3M --execute \nSELECT id, name, query, active, publishHour, language FROM research_topics;\nSELECT id, status, LEFT(caption,60) as caption, created_at FROM posts WHERE status IN ('approved','pending') ORDER BY created_at DESC LIMIT 10;\nSELECT id, topic_id, status, error, generated_at FROM research_runs ORDER BY generated_at DESC LIMIT 10;\n",
+  "returncode": 1,
+  "logs": [
+    "id\tname\tquery\tactive\tpublishHour\tlanguage",
+    "30001\tInteligência Artificial\tAtualizações das últimas 24 horas\t1\t8\tpt",
+    "ERROR 1054 (42S22) at line 3: Unknown column 'created_at' in 'field list'"
+  ]
+}

@@ -1,0 +1,45 @@
+{
+  "query": "SELECT id, topicId, status, error, ranAt FROM research_runs ORDER BY ranAt DESC LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3F5sJN7FajWtXbb.root --database 3LYkMyiPgdB2gzxf44Hk3M --execute SELECT id, topicId, status, error, ranAt FROM research_runs ORDER BY ranAt DESC LIMIT 10;",
+  "rows": [
+    {
+      "id": "60002",
+      "topicId": "30001",
+      "status": "skipped",
+      "error": "Sem notícias",
+      "ranAt": "2026-05-21 11:00:34"
+    },
+    {
+      "id": "60001",
+      "topicId": "30001",
+      "status": "skipped",
+      "error": "Sem notícias",
+      "ranAt": "2026-05-21 11:00:09"
+    },
+    {
+      "id": "30001",
+      "topicId": "30001",
+      "status": "skipped",
+      "error": "Nenhuma notícia encontrada",
+      "ranAt": "2026-05-21 09:44:26"
+    },
+    {
+      "id": "2",
+      "topicId": "1",
+      "status": "skipped",
+      "error": "Nenhuma notícia encontrada",
+      "ranAt": "2026-05-21 02:18:51"
+    },
+    {
+      "id": "1",
+      "topicId": "1",
+      "status": "skipped",
+      "error": "Nenhuma notícia encontrada",
+      "ranAt": "2026-05-21 02:18:06"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\ttopicId\tstatus\terror\tranAt\n60002\t30001\tskipped\tSem notícias\t2026-05-21 11:00:34\n60001\t30001\tskipped\tSem notícias\t2026-05-21 11:00:09\n30001\t30001\tskipped\tNenhuma notícia encontrada\t2026-05-21 09:44:26\n2\t1\tskipped\tNenhuma notícia encontrada\t2026-05-21 02:18:51\n1\t1\tskipped\tNenhuma notícia encontrada\t2026-05-21 02:18:06\n",
+  "stderr": "",
+  "execution_time_ms": 268
+}

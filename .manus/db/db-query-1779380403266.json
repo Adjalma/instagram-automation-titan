@@ -1,0 +1,61 @@
+{
+  "query": "SELECT id, status, LEFT(caption,80) as caption, scheduledAt, instagramPostId FROM posts WHERE status IN ('approved','scheduled') ORDER BY id DESC LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3F5sJN7FajWtXbb.root --database 3LYkMyiPgdB2gzxf44Hk3M --execute SELECT id, status, LEFT(caption,80) as caption, scheduledAt, instagramPostId FROM posts WHERE status IN ('approved','scheduled') ORDER BY id DESC LIMIT 10;",
+  "rows": [
+    {
+      "id": "360082",
+      "status": "scheduled",
+      "caption": "Desbloqueie o potencial máximo da sua equipe com o Treinamento Profissional da T",
+      "scheduledAt": "2026-05-23 12:30:00",
+      "instagramPostId": "NULL"
+    },
+    {
+      "id": "360081",
+      "status": "scheduled",
+      "caption": "Dia 2 da Semana da Inovação Triarc Solutions: Desvendando o Poder da Automação I",
+      "scheduledAt": "2026-05-22 08:00:00",
+      "instagramPostId": "NULL"
+    },
+    {
+      "id": "360080",
+      "status": "scheduled",
+      "caption": "🚀 Desvende o Futuro com a Inteligência Artificial e Automação da Triarc Solution",
+      "scheduledAt": "2026-05-21 20:00:00",
+      "instagramPostId": "NULL"
+    },
+    {
+      "id": "360059",
+      "status": "scheduled",
+      "caption": "Na Triarc Solutions, cada funcionalidade que desenvolvemos é pensada para gerar ",
+      "scheduledAt": "2026-05-22 08:14:00",
+      "instagramPostId": "NULL"
+    },
+    {
+      "id": "360058",
+      "status": "approved",
+      "caption": "Por trás de cada solução inovadora da Triarc Solutions, há uma equipe dedicada q",
+      "scheduledAt": "2026-05-21 08:14:00",
+      "instagramPostId": "NULL"
+    },
+    {
+      "id": "360056",
+      "status": "scheduled",
+      "caption": "Desvende o poder da conexão profissional com o COPE, a plataforma inovadora da T",
+      "scheduledAt": "2026-05-27 12:30:00",
+      "instagramPostId": "NULL"
+    }
+  ],
+  "messages": [
+    "360086\tscheduled\tConecte-se ao futuro do networking profissional com COPE! 🚀",
+    "Em um mundo cada ve\t2026-05-27 12:30:00\tNULL",
+    "360084\tscheduled\t📊✨ **Desbloqueie o Poder dos Seus Dados com Data Science e Analytics!**",
+    "No cená\t2026-05-25 20:00:00\tNULL",
+    "360083\tscheduled\tDesvende o Poder do Licenciamento de Software com a Triarc Solutions! 🚀",
+    "Em um c\t2026-05-24 18:00:00\tNULL",
+    "360061\tscheduled\tDesafio Collab: Transformando ideias em realidade com tecnologia de ponta! 🚀",
+    "Na\t2026-05-24 08:14:00\tNULL"
+  ],
+  "stdout": "id\tstatus\tcaption\tscheduledAt\tinstagramPostId\n360086\tscheduled\tConecte-se ao futuro do networking profissional com COPE! 🚀\n\nEm um mundo cada ve\t2026-05-27 12:30:00\tNULL\n360084\tscheduled\t📊✨ **Desbloqueie o Poder dos Seus Dados com Data Science e Analytics!**\n\nNo cená\t2026-05-25 20:00:00\tNULL\n360083\tscheduled\tDesvende o Poder do Licenciamento de Software com a Triarc Solutions! 🚀\n\nEm um c\t2026-05-24 18:00:00\tNULL\n360082\tscheduled\tDesbloqueie o potencial máximo da sua equipe com o Treinamento Profissional da T\t2026-05-23 12:30:00\tNULL\n360081\tscheduled\tDia 2 da Semana da Inovação Triarc Solutions: Desvendando o Poder da Automação I\t2026-05-22 08:00:00\tNULL\n360080\tscheduled\t🚀 Desvende o Futuro com a Inteligência Artificial e Automação da Triarc Solution\t2026-05-21 20:00:00\tNULL\n360061\tscheduled\tDesafio Collab: Transformando ideias em realidade com tecnologia de ponta! 🚀\n\nNa\t2026-05-24 08:14:00\tNULL\n360059\tscheduled\tNa Triarc Solutions, cada funcionalidade que desenvolvemos é pensada para gerar \t2026-05-22 08:14:00\tNULL\n360058\tapproved\tPor trás de cada solução inovadora da Triarc Solutions, há uma equipe dedicada q\t2026-05-21 08:14:00\tNULL\n360056\tscheduled\tDesvende o poder da conexão profissional com o COPE, a plataforma inovadora da T\t2026-05-27 12:30:00\tNULL\n",
+  "stderr": "",
+  "execution_time_ms": 261
+}

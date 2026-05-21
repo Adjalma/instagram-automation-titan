@@ -1,0 +1,16 @@
+{
+  "query": "SELECT id, name, active, publishHour FROM research_topics;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3F5sJN7FajWtXbb.root --database 3LYkMyiPgdB2gzxf44Hk3M --execute SELECT id, name, active, publishHour FROM research_topics;",
+  "rows": [
+    {
+      "id": "30001",
+      "name": "Inteligência Artificial",
+      "active": "1",
+      "publishHour": "8"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\tactive\tpublishHour\n30001\tInteligência Artificial\t1\t8\n",
+  "stderr": "",
+  "execution_time_ms": 285
+}

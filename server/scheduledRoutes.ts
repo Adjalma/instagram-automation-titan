@@ -12,6 +12,7 @@ import { sdk } from "./_core/sdk";
 import { updatePost, getPostsByStatus, getPostMedia, createPublicationLog, getPublicationLogsByPost } from "./db";
 import { storageGetSignedUrl } from "./storage";
 import { notifyOwner } from "./_core/notification";
+import { ENV } from "./_core/env";
 
 const MAX_RETRIES = 3;
 

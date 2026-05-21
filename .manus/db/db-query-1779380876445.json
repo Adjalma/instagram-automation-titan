@@ -1,0 +1,18 @@
+{
+  "query": "SELECT id, status, retryCount, mcpPending, nextRetryAt, LEFT(caption,50) as caption FROM posts WHERE status = 'approved' ORDER BY id DESC LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3F5sJN7FajWtXbb.root --database 3LYkMyiPgdB2gzxf44Hk3M --execute SELECT id, status, retryCount, mcpPending, nextRetryAt, LEFT(caption,50) as caption FROM posts WHERE status = 'approved' ORDER BY id DESC LIMIT 10;",
+  "rows": [
+    {
+      "id": "360058",
+      "status": "approved",
+      "retryCount": "0",
+      "mcpPending": "0",
+      "nextRetryAt": "NULL",
+      "caption": "Por trás de cada solução inovadora da Triarc Solut"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tstatus\tretryCount\tmcpPending\tnextRetryAt\tcaption\n360058\tapproved\t0\t0\tNULL\tPor trás de cada solução inovadora da Triarc Solut\n",
+  "stderr": "",
+  "execution_time_ms": 262
+}
