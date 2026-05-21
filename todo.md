@@ -136,3 +136,11 @@
 - [x] UI para adicionar contas de outras redes (LinkedIn, Facebook, TikTok, YouTube)
 - [x] Módulo Inteligência de Mercado: monitoramento de nicho e análise de concorrentes
 - [x] Página Estratégia: recomendações de marketing geradas por LLM com base nos dados coletados
+
+## Features v1.27 — LinkedIn Integration
+
+- [ ] Salvar LINKEDIN_CLIENT_ID e LINKEDIN_CLIENT_SECRET via secrets
+- [ ] OAuth flow LinkedIn: /api/linkedin/auth → callback → salvar access_token na conta
+- [ ] Publicação no LinkedIn via API (UGC Posts endpoint)
+- [ ] Botão "Conectar LinkedIn" na tela de Contas
+- [ ] Publicação automática no LinkedIn junto com Instagram quando post for aprovado

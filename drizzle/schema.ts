@@ -25,6 +25,9 @@ export const instagramAccounts = mysqlTable("instagram_accounts", {
   avatarUrl: text("avatarUrl"),
   bio: text("bio"),
   profileUrl: text("profileUrl"), // URL do perfil na rede social
+  accessToken: text("accessToken"), // OAuth access token (LinkedIn, Facebook, etc)
+  tokenExpiresAt: timestamp("tokenExpiresAt"), // expiração do token
+  linkedinUrn: varchar("linkedinUrn", { length: 256 }), // LinkedIn person/org URN
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 

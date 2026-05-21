@@ -169,7 +169,19 @@ export default function Accounts() {
                     <p className="text-sm text-muted-foreground">@{account.handle}</p>
                     {account.bio && <p className="text-xs text-muted-foreground mt-1 truncate">{account.bio}</p>}
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+                    {platform === "linkedin" && (
+                      account.accessToken ? (
+                        <Badge className="bg-green-600 text-white text-xs">OAuth Ativo</Badge>
+                      ) : (
+                        <Button variant="outline" size="sm" className="text-blue-700 border-blue-700 hover:bg-blue-50"
+                          onClick={() => {
+                            window.location.href = `/api/linkedin/auth?origin=${encodeURIComponent(window.location.origin)}&accountId=${account.id}`;
+                          }}>
+                          <Linkedin className="w-3 h-3 mr-1" /> Conectar
+                        </Button>
+                      )
+                    )}
                     {account.profileUrl && (
                       <Button variant="outline" size="sm" asChild>
                         <a href={account.profileUrl} target="_blank" rel="noopener noreferrer">Ver Perfil</a>
@@ -194,7 +206,7 @@ export default function Accounts() {
         </CardHeader>
         <CardContent className="text-xs text-muted-foreground space-y-1">
           <p>✅ <strong>Instagram</strong> — publicação automática via MCP ativa</p>
-          <p>🔜 <strong>LinkedIn</strong> — em desenvolvimento (API LinkedIn disponível)</p>
+          <p>🔄 <strong>LinkedIn</strong> — OAuth configurado, clique em "Conectar" na conta para autorizar</p>
           <p>🔜 <strong>Facebook</strong> — em desenvolvimento (Meta Graph API)</p>
           <p>🔜 <strong>TikTok</strong> — em desenvolvimento (TikTok Content Posting API)</p>
           <p>🔜 <strong>YouTube</strong> — em desenvolvimento (YouTube Data API v3)</p>

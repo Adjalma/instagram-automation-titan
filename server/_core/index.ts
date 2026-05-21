@@ -10,6 +10,7 @@ import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { startScheduler } from "../scheduler";
 import { registerScheduledRoutes } from "../scheduledRoutes";
+import { registerLinkedInRoutes } from "../linkedin";
 import { seedTriarcContent } from "../seed-triarc";
 
 function isPortAvailable(port: number): Promise<boolean> {
@@ -41,6 +42,8 @@ async function startServer() {
   registerOAuthRoutes(app);
   // Scheduled task routes (called by Manus agent via HTTP)
   registerScheduledRoutes(app);
+  // LinkedIn OAuth + publishing routes
+  registerLinkedInRoutes(app);
   // tRPC API
   app.use(
     "/api/trpc",
