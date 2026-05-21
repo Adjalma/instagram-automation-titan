@@ -20,9 +20,9 @@ const LINKEDIN_UGC_URL = "https://api.linkedin.com/v2/ugcPosts";
 const LINKEDIN_ASSETS_URL = "https://api.linkedin.com/v2/assets?action=registerUpload";
 const LINKEDIN_ORG_VANITY = "triarc-solutions-brasil";
 
-// Escopos: r_liteprofile para perfil, w_organization_social para Company Page
-// w_member_social como fallback caso org não seja encontrada
-const SCOPES = ["r_liteprofile", "w_member_social", "w_organization_social", "r_organization_social"].join(" ");
+// Apenas escopos de escrita — r_liteprofile e r_organization_social foram descontinuados
+// O produto Share on LinkedIn concede: w_member_social + w_organization_social
+const SCOPES = ["w_member_social", "w_organization_social"].join(" ");
 
 function getRedirectUri(origin: string): string {
   if (origin.includes("tsm.triarcsolutions.com.br")) {
@@ -141,19 +141,11 @@ export function registerLinkedInRoutes(app: Express) {
       const { access_token, expires_in } = tokenData;
       const expiresAt = new Date(Date.now() + (expires_in ?? 5184000) * 1000);
 
-      // Tenta resolver a Company Page — se não conseguir, usa perfil pessoal como fallback
-      let linkedinUrn: string | null = await resolveOrganizationUrn(access_token);
-
+      // Resolve o Organization URN da Company Page
+      // Sem escopo de leitura de perfil, não há fallback para perfil pessoal
+      const linkedinUrn: string | null = await resolveOrganizationUrn(access_token);
       if (!linkedinUrn) {
-        // Fallback: perfil pessoal via /v2/me
-        const profileRes = await fetch("https://api.linkedin.com/v2/me", {
-          headers: { Authorization: `Bearer ${access_token}` },
-        });
-        const profile = await profileRes.json() as any;
-        if (profile.id) {
-          linkedinUrn = `urn:li:person:${profile.id}`;
-          console.warn(`[LinkedIn] Company Page não encontrada — usando perfil pessoal: ${linkedinUrn}`);
-        }
+        console.warn("[LinkedIn] Não foi possível resolver Organization URN para triarc-solutions-brasil");
       }
 
       if (accountId) {
