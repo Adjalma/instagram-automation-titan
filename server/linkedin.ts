@@ -14,7 +14,9 @@ const LINKEDIN_USERINFO_URL = "https://api.linkedin.com/v2/userinfo";
 const LINKEDIN_UGC_URL = "https://api.linkedin.com/v2/ugcPosts";
 const LINKEDIN_ASSETS_URL = "https://api.linkedin.com/v2/assets?action=registerUpload";
 
-const SCOPES = ["openid", "profile", "email", "w_member_social"].join(" ");
+// Share on LinkedIn product grants: r_liteprofile, r_emailaddress, w_member_social
+// Do NOT include openid/profile/email — those are OIDC scopes that conflict
+const SCOPES = ["r_liteprofile", "r_emailaddress", "w_member_social"].join(" ");
 
 function getRedirectUri(origin: string): string {
   // Use the exact redirect URIs registered in LinkedIn app
@@ -91,12 +93,13 @@ export function registerLinkedInRoutes(app: Express) {
       const { access_token, expires_in } = tokenData;
       const expiresAt = new Date(Date.now() + (expires_in ?? 5184000) * 1000);
 
-      // Get LinkedIn profile (URN)
-      const profileRes = await fetch(LINKEDIN_USERINFO_URL, {
+      // Get LinkedIn profile (URN) via /v2/me (r_liteprofile)
+      const profileRes = await fetch("https://api.linkedin.com/v2/me", {
         headers: { Authorization: `Bearer ${access_token}` },
       });
       const profile = await profileRes.json() as any;
-      const linkedinUrn = profile.sub ? `urn:li:person:${profile.sub}` : null;
+      const personId = profile.id;
+      const linkedinUrn = personId ? `urn:li:person:${personId}` : null;
 
       // Save token to the LinkedIn account in DB
       if (accountId) {
