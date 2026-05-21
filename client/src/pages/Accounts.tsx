@@ -170,6 +170,26 @@ export default function Accounts() {
                     {account.bio && <p className="text-xs text-muted-foreground mt-1 truncate">{account.bio}</p>}
                   </div>
                   <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+                    {platform === "facebook" && (
+                      account.accessToken && account.linkedinUrn?.startsWith("fb:page:") ? (
+                        <div className="flex items-center gap-1 flex-wrap justify-end">
+                          <Badge className="bg-blue-600 text-white text-xs">📰 Page Conectada</Badge>
+                          <Button variant="ghost" size="sm" className="text-xs text-blue-700 h-6 px-2"
+                            onClick={() => {
+                              window.location.href = `/api/facebook/auth?origin=${encodeURIComponent(window.location.origin)}&accountId=${account.id}`;
+                            }}>
+                            Reconectar
+                          </Button>
+                        </div>
+                      ) : (
+                        <Button variant="outline" size="sm" className="text-blue-600 border-blue-600 hover:bg-blue-50"
+                          onClick={() => {
+                            window.location.href = `/api/facebook/auth?origin=${encodeURIComponent(window.location.origin)}&accountId=${account.id}`;
+                          }}>
+                          <Facebook className="w-3 h-3 mr-1" /> Conectar
+                        </Button>
+                      )
+                    )}
                     {platform === "linkedin" && (
                       account.accessToken ? (
                         <div className="flex items-center gap-1 flex-wrap justify-end">
@@ -217,7 +237,7 @@ export default function Accounts() {
         <CardContent className="text-xs text-muted-foreground space-y-1">
           <p>✅ <strong>Instagram</strong> — publicação automática via MCP ativa</p>
           <p>🔄 <strong>LinkedIn</strong> — OAuth configurado. Ao conectar, publica automaticamente na Company Page <em>triarc-solutions-brasil</em></p>
-          <p>🔜 <strong>Facebook</strong> — em desenvolvimento (Meta Graph API)</p>
+          <p>🔄 <strong>Facebook</strong> — OAuth configurado. Ao conectar, publica automaticamente na Página da empresa</p>
           <p>🔜 <strong>TikTok</strong> — em desenvolvimento (TikTok Content Posting API)</p>
           <p>🔜 <strong>YouTube</strong> — em desenvolvimento (YouTube Data API v3)</p>
         </CardContent>

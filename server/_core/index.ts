@@ -11,6 +11,7 @@ import { serveStatic, setupVite } from "./vite";
 import { startScheduler } from "../scheduler";
 import { registerScheduledRoutes } from "../scheduledRoutes";
 import { registerLinkedInRoutes } from "../linkedin";
+import { registerFacebookRoutes } from "../facebook";
 import { seedTriarcContent } from "../seed-triarc";
 
 function isPortAvailable(port: number): Promise<boolean> {
@@ -44,6 +45,8 @@ async function startServer() {
   registerScheduledRoutes(app);
   // LinkedIn OAuth + publishing routes
   registerLinkedInRoutes(app);
+  // Facebook OAuth + Pages publishing routes
+  registerFacebookRoutes(app);
   // tRPC API
   app.use(
     "/api/trpc",

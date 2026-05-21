@@ -14,6 +14,7 @@ import { storageGetSignedUrl } from "./storage";
 import { notifyOwner } from "./_core/notification";
 import { ENV } from "./_core/env";
 import { publishToLinkedIn } from "./linkedin";
+import { publishToFacebook } from "./facebook";
 
 const MAX_RETRIES = 3;
 
@@ -139,16 +140,15 @@ export function registerScheduledRoutes(app: Express) {
         })
       );
 
-      // Auto-publish to LinkedIn for posts with connected LinkedIn accounts
       const allAccounts = await getAllAccounts() as any[];
+
+      // Auto-publish to LinkedIn
       const linkedinAccounts = allAccounts.filter(
         (a: any) => a.platform === "linkedin" && a.accessToken && a.linkedinUrn
       );
-
       if (linkedinAccounts.length > 0) {
         for (const post of postsWithMedia) {
-          const firstMedia = post.media?.[0];
-          const imageUrl = firstMedia?.publicUrl;
+          const imageUrl = post.media?.[0]?.publicUrl;
           for (const liAccount of linkedinAccounts) {
             try {
               const result = await publishToLinkedIn({
@@ -160,10 +160,38 @@ export function registerScheduledRoutes(app: Express) {
               console.log(`[LinkedIn] Post ${post.id} publicado: ${result.postId}`);
               await notifyOwner({
                 title: "✅ Post publicado no LinkedIn",
-                content: `Post #${post.id} publicado com sucesso!\nLink: ${result.permalink}`,
+                content: `Post #${post.id} publicado!\nLink: ${result.permalink}`,
               });
             } catch (err: any) {
-              console.error(`[LinkedIn] Falha ao publicar post ${post.id}:`, err.message);
+              console.error(`[LinkedIn] Falha post ${post.id}:`, err.message);
+            }
+          }
+        }
+      }
+
+      // Auto-publish to Facebook Pages
+      const facebookAccounts = allAccounts.filter(
+        (a: any) => a.platform === "facebook" && a.accessToken && a.linkedinUrn?.startsWith("fb:page:")
+      );
+      if (facebookAccounts.length > 0) {
+        for (const post of postsWithMedia) {
+          const imageUrl = post.media?.[0]?.publicUrl;
+          for (const fbAccount of facebookAccounts) {
+            const pageId = fbAccount.linkedinUrn.replace("fb:page:", "");
+            try {
+              const result = await publishToFacebook({
+                pageToken: fbAccount.accessToken,
+                pageId,
+                caption: post.caption,
+                imageUrl,
+              });
+              console.log(`[Facebook] Post ${post.id} publicado: ${result.postId}`);
+              await notifyOwner({
+                title: "✅ Post publicado no Facebook",
+                content: `Post #${post.id} publicado!\nLink: ${result.permalink}`,
+              });
+            } catch (err: any) {
+              console.error(`[Facebook] Falha post ${post.id}:`, err.message);
             }
           }
         }
