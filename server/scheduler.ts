@@ -89,7 +89,7 @@ async function runTopicResearch(topic: { id: number; name: string; query: string
     const prompt = `Premium Instagram post for Triarc Solutions tech company. Topic: "${topic.name}". Headline: "${articles[0].title}". Ultra-modern tech aesthetic, deep navy blue (#0A1628) background with electric cyan (#00BFFF) and neon purple (#7B2FBE) accents. Futuristic data visualization, glowing circuit patterns, holographic overlays. Bold typography with topic name. Place the Triarc Solutions logo (circular tech emblem with gears and code symbols, navy blue, gray and green) prominently in the bottom-right corner. 1080x1080 square, magazine quality.`;
     const { url: imageUrl } = await generateImage({
       prompt,
-      originalImages: [{ url: "https://tsm.triarcsolutions.com.br/manus-storage/triarc-logo_cfb3dbe6.jpeg", mimeType: "image/jpeg" }],
+      originalImages: [{ url: "https://tsm.triarcsolutions.com.br/manus-storage/triarc-logo_4d0b8405.jpeg", mimeType: "image/jpeg" }],
     });
     if (!imageUrl) throw new Error("Falha ao gerar imagem");
 

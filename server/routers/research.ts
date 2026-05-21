@@ -55,7 +55,7 @@ async function generateArtForResearch(topicName: string, headlines: string[]): P
   const prompt = `Premium Instagram post for Triarc Solutions tech company. Topic: "${topicName}". Headline: "${topHeadline}". Style: ultra-modern tech aesthetic, deep navy blue (#0A1628) background with electric cyan (#00BFFF) and neon purple (#7B2FBE) accents. Futuristic data visualization elements, glowing circuit patterns, holographic overlays. Bold typography with the topic name prominently displayed. Place the Triarc Solutions logo (circular tech emblem with gears and code symbols, navy blue, gray and green) prominently in the bottom-right corner. Professional social media design, 1080x1080 square format, magazine quality.`;
   const { url } = await generateImage({
     prompt,
-    originalImages: [{ url: "https://tsm.triarcsolutions.com.br/manus-storage/triarc-logo_cfb3dbe6.jpeg", mimeType: "image/jpeg" }],
+    originalImages: [{ url: "https://tsm.triarcsolutions.com.br/manus-storage/triarc-logo_4d0b8405.jpeg", mimeType: "image/jpeg" }],
   });
   if (!url) throw new Error("Falha ao gerar imagem");
   return url as string;

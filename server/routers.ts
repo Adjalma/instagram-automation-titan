@@ -285,7 +285,7 @@ export const appRouter = router({
             const style = "Design moderno e limpo com elementos tech, cores azul ciano (#00BFFF) e cinza escuro, estilo corporativo premium, minimalista e sofisticado";
             const artResult = await generateImage({
               prompt: `Instagram post for Triarc Solutions tech company. Topic: ${theme.name}. ${style}. Place the Triarc Solutions logo (circular tech emblem with gears and code symbols, navy blue, gray and green) prominently in the bottom-right corner. Professional social media design, 1080x1080 square.`,
-              originalImages: [{ url: "https://tsm.triarcsolutions.com.br/manus-storage/triarc-logo_cfb3dbe6.jpeg", mimeType: "image/jpeg" }],
+              originalImages: [{ url: "https://tsm.triarcsolutions.com.br/manus-storage/triarc-logo_4d0b8405.jpeg", mimeType: "image/jpeg" }],
             });
             mediaUrl = artResult.url ?? "";
           } catch (e) {
@@ -359,7 +359,7 @@ export const appRouter = router({
           const style = "Design moderno tech, cores azul ciano (#00BFFF) e cinza escuro, estilo corporativo premium";
           const artResult = await generateImage({
             prompt: `Instagram post for Triarc Solutions tech company. Topic: ${theme}. ${style}. Place the Triarc Solutions logo (circular tech emblem with gears and code symbols, navy blue, gray and green) prominently in the bottom-right corner. 1080x1080 square.`,
-            originalImages: [{ url: "https://tsm.triarcsolutions.com.br/manus-storage/triarc-logo_cfb3dbe6.jpeg", mimeType: "image/jpeg" }],
+            originalImages: [{ url: "https://tsm.triarcsolutions.com.br/manus-storage/triarc-logo_4d0b8405.jpeg", mimeType: "image/jpeg" }],
           });
           mediaUrl = artResult.url ?? "";
         } catch (e) { /* continue without media */ }
@@ -552,7 +552,7 @@ export const appRouter = router({
       const prompt = `Instagram post image for Triarc Solutions tech company. Topic: ${input.theme}. ${style}. ${input.description ?? ""}. Place the Triarc Solutions logo (circular tech emblem with gears and code symbols, navy blue, gray and green) prominently in the bottom-right corner. Professional social media design, 1080x1080 square format.`;
       const { url } = await generateImage({
         prompt,
-        originalImages: [{ url: "https://tsm.triarcsolutions.com.br/manus-storage/triarc-logo_cfb3dbe6.jpeg", mimeType: "image/jpeg" }],
+        originalImages: [{ url: "https://tsm.triarcsolutions.com.br/manus-storage/triarc-logo_4d0b8405.jpeg", mimeType: "image/jpeg" }],
       });
       return { url };
     }),
