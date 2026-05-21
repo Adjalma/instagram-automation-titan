@@ -7,9 +7,14 @@ import {
   CheckCircle, AlertCircle, Rocket, ArrowRight,
 } from "lucide-react";
 import { useLocation } from "wouter";
+import { useEffect } from "react";
 
 export default function Home() {
   const [, setLocation] = useLocation();
+
+  useEffect(() => {
+    document.title = "Triarc Social Manager — Automação Instagram";
+  }, []);
 
   const { data: accounts, isLoading: loadingAccounts } = trpc.accounts.list.useQuery();
 
@@ -43,6 +48,7 @@ export default function Home() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
         <p className="text-sm text-muted-foreground mt-1">Triarc Social Manager // Visão Geral</p>
+        <h2 className="sr-only">Automação de conteúdo para Instagram com inteligência artificial</h2>
       </div>
 
       {/* Card da conta */}
