@@ -18,28 +18,37 @@ import Analytics from "@/pages/Analytics";
 import Research from "@/pages/Research";
 import Accounts from "@/pages/Accounts";
 import MarketIntel from "@/pages/MarketIntel";
+import Privacy from "@/pages/Privacy";
 
 function Router() {
   return (
-    <DashboardLayout>
-      <Switch>
-        <Route path={"/"} component={Home} />
-        <Route path={"/create"} component={CreatePost} />
-        <Route path={"/approval"} component={Approval} />
-        <Route path={"/calendar"} component={CalendarView} />
-        <Route path={"/themes"} component={Themes} />
-        <Route path={"/history"} component={HistoryView} />
-        <Route path={"/automation"} component={Automation} />
-        <Route path={"/assets"} component={Assets} />
-        <Route path={"/logs"} component={PublicationLogs} />
-        <Route path={"/analytics"} component={Analytics} />
-        <Route path={"/research"} component={Research} />
-        <Route path={"/accounts"} component={Accounts} />
-        <Route path={"/market-intel"} component={MarketIntel} />
-        <Route path={"/404"} component={NotFound} />
-        <Route component={NotFound} />
-      </Switch>
-    </DashboardLayout>
+    <Switch>
+      {/* Páginas públicas — sem DashboardLayout */}
+      <Route path="/privacidade" component={Privacy} />
+
+      {/* Todas as demais rotas dentro do DashboardLayout */}
+      <Route>
+        <DashboardLayout>
+          <Switch>
+            <Route path={"/"} component={Home} />
+            <Route path={"/create"} component={CreatePost} />
+            <Route path={"/approval"} component={Approval} />
+            <Route path={"/calendar"} component={CalendarView} />
+            <Route path={"/themes"} component={Themes} />
+            <Route path={"/history"} component={HistoryView} />
+            <Route path={"/automation"} component={Automation} />
+            <Route path={"/assets"} component={Assets} />
+            <Route path={"/logs"} component={PublicationLogs} />
+            <Route path={"/analytics"} component={Analytics} />
+            <Route path={"/research"} component={Research} />
+            <Route path={"/accounts"} component={Accounts} />
+            <Route path={"/market-intel"} component={MarketIntel} />
+            <Route path={"/404"} component={NotFound} />
+            <Route component={NotFound} />
+          </Switch>
+        </DashboardLayout>
+      </Route>
+    </Switch>
   );
 }
 
