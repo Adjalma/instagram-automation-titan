@@ -3,21 +3,21 @@
  *
  * Responsabilidades:
  * 1. Mover posts agendados vencidos para status "approved" (a cada 5 min)
- * 2. Executar pesquisa diária de notícias às 8h (America/Sao_Paulo)
+ * 2. Executar pesquisa de notícias por tópico no horário configurado (publishHour, Brasília)
  */
 
 import { getPostsByStatus, updatePost, getDb } from "./db";
 import { researchTopics, researchRuns, posts, postMedia } from "../drizzle/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { invokeLLM } from "./_core/llm";
 import { generateImage } from "./_core/imageGeneration";
 
 const INTERVAL_MS = parseInt(process.env.SCHEDULER_INTERVAL_MS || "300000", 10);
-const DAILY_RESEARCH_HOUR = parseInt(process.env.DAILY_RESEARCH_HOUR || "8", 10); // 8h Brasília
 const TZ_OFFSET = -3; // America/Sao_Paulo (UTC-3)
 
 let schedulerHandle: ReturnType<typeof setInterval> | null = null;
-let lastResearchDate: string | null = null; // "YYYY-MM-DD" da última execução
+// Controla quais tópicos já rodaram hoje: Set de "topicId:YYYY-MM-DD"
+const ranToday: Set<string> = new Set();
 
 // ─── Posts agendados ──────────────────────────────────────────────────────────
 async function promoteScheduledPosts() {
@@ -38,7 +38,7 @@ async function promoteScheduledPosts() {
   }
 }
 
-// ─── Pesquisa diária ──────────────────────────────────────────────────────────
+// ─── Helpers de data/hora ─────────────────────────────────────────────────────
 function getBrasiliaDateHour(): { date: string; hour: number } {
   const now = new Date();
   const brasiliaMs = now.getTime() + TZ_OFFSET * 3600000;
@@ -48,6 +48,7 @@ function getBrasiliaDateHour(): { date: string; hour: number } {
   return { date, hour };
 }
 
+// ─── Geração de conteúdo ──────────────────────────────────────────────────────
 async function fetchNews(query: string, language: string): Promise<{ title: string; description: string }[]> {
   const key = process.env.NEWS_API_KEY;
   if (!key) return [];
@@ -62,65 +63,69 @@ async function fetchNews(query: string, language: string): Promise<{ title: stri
   } catch { return []; }
 }
 
-async function runDailyResearch() {
+async function runTopicResearch(topic: { id: number; name: string; query: string; language: string; accountId: number }) {
+  const db = await getDb();
+  if (!db) return;
+
+  try {
+    const articles = await fetchNews(topic.query, topic.language);
+    if (!articles.length) {
+      await db.insert(researchRuns).values({ topicId: topic.id, status: "skipped", error: "Sem notícias" });
+      console.log(`[DailyResearch] Tópico "${topic.name}": sem notícias.`);
+      return;
+    }
+
+    const headlines = articles.map((a, i) => `${i + 1}. ${a.title}: ${a.description}`).join("\n");
+    const llmRes = await invokeLLM({
+      messages: [
+        { role: "system", content: "Você é especialista em marketing digital para Instagram da Triarc Solutions, empresa de tecnologia de Macaé/RJ. Tom corporativo, moderno e acessível. Inclua CTA para triarcsolutions.com.br e hashtags tech." },
+        { role: "user" as const, content: `Crie uma legenda impactante para o Instagram da @triarcsolutions sobre: "${topic.name}".\nNotícias das últimas 24h:\n${headlines}\n\nConecte as novidades ao posicionamento da Triarc. Máximo 2200 chars. Emojis estratégicos. CTA + 5-10 hashtags.` },
+      ],
+    });
+    const caption = typeof llmRes.choices?.[0]?.message?.content === "string"
+      ? llmRes.choices[0].message.content
+      : `Novidades em ${topic.name}! Acompanhe as tendências com a Triarc Solutions. triarcsolutions.com.br`;
+
+    const prompt = `Premium Instagram post for Triarc Solutions tech company. Topic: "${topic.name}". Headline: "${articles[0].title}". Ultra-modern tech aesthetic, deep navy blue (#0A1628) background with electric cyan (#00BFFF) and neon purple (#7B2FBE) accents. Futuristic data visualization, glowing circuit patterns, holographic overlays. Bold typography with topic name. Subtle TRIARC watermark. 1080x1080 square, magazine quality.`;
+    const { url: imageUrl } = await generateImage({ prompt });
+    if (!imageUrl) throw new Error("Falha ao gerar imagem");
+
+    const [postResult] = await db.insert(posts).values({
+      userId: 1,
+      accountId: topic.accountId,
+      caption,
+      theme: `Pesquisa Diária: ${topic.name}`,
+      status: "pending",
+    });
+    const postId = (postResult as any).insertId as number;
+
+    await db.insert(postMedia).values({ postId, mediaUrl: imageUrl as string, mediaType: "image", sortOrder: 0 });
+    await db.insert(researchRuns).values({
+      topicId: topic.id, postId,
+      headlines: JSON.stringify(articles.map(a => a.title)),
+      status: "success",
+    });
+
+    console.log(`[DailyResearch] Tópico "${topic.name}" (${topic.id}): post ${postId} criado às ${getBrasiliaDateHour().hour}h Brasília.`);
+  } catch (err: any) {
+    const db2 = await getDb();
+    if (db2) await db2.insert(researchRuns).values({ topicId: topic.id, status: "failed", error: err?.message });
+    console.error(`[DailyResearch] Erro no tópico "${topic.name}":`, err?.message);
+  }
+}
+
+// ─── Verificar e disparar tópicos para a hora atual ───────────────────────────
+async function checkAndRunTopicsForHour(date: string, hour: number) {
   const db = await getDb();
   if (!db) return;
 
   const activeTopics = await db.select().from(researchTopics).where(eq(researchTopics.active, 1));
-  if (!activeTopics.length) {
-    console.log("[DailyResearch] Nenhum tópico ativo.");
-    return;
-  }
-
-  console.log(`[DailyResearch] Iniciando pesquisa para ${activeTopics.length} tópico(s)...`);
-
   for (const topic of activeTopics) {
-    try {
-      const articles = await fetchNews(topic.query, topic.language);
-      if (!articles.length) {
-        await db.insert(researchRuns).values({ topicId: topic.id, status: "skipped", error: "Sem notícias" });
-        console.log(`[DailyResearch] Tópico "${topic.name}": sem notícias.`);
-        continue;
-      }
-
-      // Gerar legenda
-      const headlines = articles.map((a, i) => `${i + 1}. ${a.title}: ${a.description}`).join("\n");
-      const llmRes = await invokeLLM({
-        messages: [
-          { role: "system", content: "Você é especialista em marketing digital para Instagram da Triarc Solutions, empresa de tecnologia de Macaé/RJ. Tom corporativo, moderno e acessível. Inclua CTA para triarcsolutions.com.br e hashtags tech." },
-          { role: "user" as const, content: `Crie uma legenda impactante para o Instagram da @triarcsolutions sobre: "${topic.name}".\nNotícias das últimas 24h:\n${headlines}\n\nConecte as novidades ao posicionamento da Triarc. Máximo 2200 chars. Emojis estratégicos. CTA + 5-10 hashtags.` },
-        ],
-      });
-      const caption = typeof llmRes.choices?.[0]?.message?.content === "string"
-        ? llmRes.choices[0].message.content
-        : `Novidades em ${topic.name}! Acompanhe as tendências com a Triarc Solutions. triarcsolutions.com.br`;
-
-      // Gerar imagem premium
-      const prompt = `Premium Instagram post for Triarc Solutions tech company. Topic: "${topic.name}". Headline: "${articles[0].title}". Ultra-modern tech aesthetic, deep navy blue (#0A1628) background with electric cyan (#00BFFF) and neon purple (#7B2FBE) accents. Futuristic data visualization, glowing circuit patterns, holographic overlays. Bold typography with topic name. Subtle TRIARC watermark. 1080x1080 square, magazine quality.`;
-      const { url: imageUrl } = await generateImage({ prompt });
-      if (!imageUrl) throw new Error("Falha ao gerar imagem");
-
-      // Criar post
-      const [postResult] = await db.insert(posts).values({
-        userId: 1, // sistema
-        accountId: topic.accountId,
-        caption,
-        theme: `Pesquisa Diária: ${topic.name}`,
-        status: "pending",
-      });
-      const postId = (postResult as any).insertId as number;
-
-      await db.insert(postMedia).values({ postId, mediaUrl: imageUrl as string, mediaType: "image", sortOrder: 0 });
-      await db.insert(researchRuns).values({
-        topicId: topic.id, postId,
-        headlines: JSON.stringify(articles.map(a => a.title)),
-        status: "success",
-      });
-
-      console.log(`[DailyResearch] Tópico "${topic.name}": post ${postId} criado com sucesso.`);
-    } catch (err: any) {
-      await db.insert(researchRuns).values({ topicId: topic.id, status: "failed", error: err?.message });
-      console.error(`[DailyResearch] Erro no tópico "${topic.name}":`, err?.message);
+    const key = `${topic.id}:${date}`;
+    if (topic.publishHour === hour && !ranToday.has(key)) {
+      ranToday.add(key);
+      console.log(`[DailyResearch] Disparando tópico "${topic.name}" (${hour}h Brasília)...`);
+      runTopicResearch(topic).catch((err: any) => console.error(`[DailyResearch] Erro:`, err?.message));
     }
   }
 }
@@ -130,11 +135,13 @@ async function tick() {
   await promoteScheduledPosts();
 
   const { date, hour } = getBrasiliaDateHour();
-  if (hour === DAILY_RESEARCH_HOUR && lastResearchDate !== date) {
-    lastResearchDate = date;
-    console.log(`[DailyResearch] Disparando pesquisa diária (${date} ${hour}h Brasília)...`);
-    runDailyResearch().catch(err => console.error("[DailyResearch] Erro geral:", err?.message));
-  }
+
+  // Limpar chaves de dias anteriores
+  ranToday.forEach(key => {
+    if (!key.endsWith(`:${date}`)) ranToday.delete(key);
+  });
+
+  await checkAndRunTopicsForHour(date, hour);
 }
 
 export function startScheduler() {
@@ -142,7 +149,7 @@ export function startScheduler() {
     console.warn("[Scheduler] Já está em execução.");
     return;
   }
-  console.log(`[Scheduler] Iniciado — intervalo ${INTERVAL_MS / 1000}s | pesquisa diária às ${DAILY_RESEARCH_HOUR}h Brasília.`);
+  console.log(`[Scheduler] Iniciado — intervalo ${INTERVAL_MS / 1000}s | pesquisa por tópico no horário configurado (Brasília).`);
   tick();
   schedulerHandle = setInterval(tick, INTERVAL_MS);
 }

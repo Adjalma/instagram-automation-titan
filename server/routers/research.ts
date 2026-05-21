@@ -76,6 +76,7 @@ export const researchRouter = router({
     name: z.string().min(1).max(256),
     query: z.string().min(1).max(512),
     language: z.enum(["pt", "en"]).default("pt"),
+    publishHour: z.number().min(0).max(23).default(8),
   })).mutation(async ({ input }) => {
     const db = await getDb();
     if (!db) throw new Error("DB unavailable");
@@ -84,6 +85,7 @@ export const researchRouter = router({
       name: input.name,
       query: input.query,
       language: input.language,
+      publishHour: input.publishHour,
       active: 1,
     });
     return { id: (result as any).insertId };

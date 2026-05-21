@@ -21,13 +21,14 @@ function AddTopicDialog({ onCreated }: { onCreated: () => void }) {
   const [query, setQuery] = useState("");
   const [language, setLanguage] = useState<"pt" | "en">("pt");
   const [accountId, setAccountId] = useState("");
+  const [publishHour, setPublishHour] = useState("8");
   const { data: accounts } = trpc.accounts.list.useQuery();
   const createTopic = trpc.research.createTopic.useMutation();
 
   const handleSubmit = async () => {
     if (!name.trim() || !query.trim() || !accountId) { toast.error("Preencha todos os campos"); return; }
     try {
-      await createTopic.mutateAsync({ name: name.trim(), query: query.trim(), language, accountId: Number(accountId) });
+      await createTopic.mutateAsync({ name: name.trim(), query: query.trim(), language, accountId: Number(accountId), publishHour: Number(publishHour) });
       toast.success("Tópico criado!");
       setOpen(false);
       setName(""); setQuery(""); setAccountId("");
@@ -54,7 +55,18 @@ function AddTopicDialog({ onCreated }: { onCreated: () => void }) {
             <Input placeholder='ex: "artificial intelligence" OR "machine learning"' value={query} onChange={e => setQuery(e.target.value)} />
             <p className="text-xs text-muted-foreground mt-1">Palavras-chave para buscar nas notícias. Use aspas para frases exatas.</p>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="label-mono mb-2 block">Horário (Brasília)</label>
+              <Select value={publishHour} onValueChange={setPublishHour}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {Array.from({ length: 24 }, (_, i) => (
+                    <SelectItem key={i} value={String(i)}>{String(i).padStart(2, "0")}:00</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <div>
               <label className="label-mono mb-2 block">Idioma das Notícias</label>
               <Select value={language} onValueChange={v => setLanguage(v as "pt" | "en")}>
@@ -160,6 +172,9 @@ export default function Research() {
                         <span className="font-semibold text-sm truncate">{topic.name}</span>
                         <Badge variant="outline" className="text-xs shrink-0">
                           <Globe className="h-2.5 w-2.5 mr-1" />{topic.language === "pt" ? "PT" : "EN"}
+                        </Badge>
+                        <Badge variant="outline" className="text-xs shrink-0 font-mono">
+                          <Clock className="h-2.5 w-2.5 mr-1" />{String(topic.publishHour ?? 8).padStart(2, "0")}:00
                         </Badge>
                         {topic.active ? (
                           <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-xs shrink-0">Ativo</Badge>
