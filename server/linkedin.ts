@@ -18,7 +18,10 @@ const SCOPES = ["openid", "profile", "email", "w_member_social"].join(" ");
 
 function getRedirectUri(origin: string): string {
   // Use the exact redirect URIs registered in LinkedIn app
-  if (ENV.isProduction || origin.includes("triarcsolutions.com.br")) {
+  if (origin.includes("tsm.triarcsolutions.com.br")) {
+    return "https://tsm.triarcsolutions.com.br/auth/linkedin/callback";
+  }
+  if (origin.includes("triarcsolutions.com.br")) {
     return "https://triarcsolutions.com.br/auth/linkedin/callback";
   }
   // Dev: use localhost:3000 (must be registered in LinkedIn app)
