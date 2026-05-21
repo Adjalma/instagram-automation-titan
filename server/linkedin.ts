@@ -17,11 +17,12 @@ const LINKEDIN_ASSETS_URL = "https://api.linkedin.com/v2/assets?action=registerU
 const SCOPES = ["openid", "profile", "email", "w_member_social"].join(" ");
 
 function getRedirectUri(origin: string): string {
-  // Use production URL in prod, localhost in dev
-  if (ENV.isProduction) {
-    return "https://tsm.triarcsolutions.com.br/auth/linkedin/callback";
+  // Use the exact redirect URIs registered in LinkedIn app
+  if (ENV.isProduction || origin.includes("triarcsolutions.com.br")) {
+    return "https://triarcsolutions.com.br/auth/linkedin/callback";
   }
-  return `${origin}/auth/linkedin/callback`;
+  // Dev: use localhost:3000 (must be registered in LinkedIn app)
+  return "http://localhost:3000/auth/linkedin/callback";
 }
 
 export function registerLinkedInRoutes(app: Express) {

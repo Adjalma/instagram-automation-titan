@@ -9,10 +9,11 @@
  */
 import type { Express, Request, Response } from "express";
 import { sdk } from "./_core/sdk";
-import { updatePost, getPostsByStatus, getPostMedia, createPublicationLog, getPublicationLogsByPost } from "./db";
+import { updatePost, getPostsByStatus, getPostMedia, createPublicationLog, getPublicationLogsByPost, getAllAccounts } from "./db";
 import { storageGetSignedUrl } from "./storage";
 import { notifyOwner } from "./_core/notification";
 import { ENV } from "./_core/env";
+import { publishToLinkedIn } from "./linkedin";
 
 const MAX_RETRIES = 3;
 
@@ -137,6 +138,36 @@ export function registerScheduledRoutes(app: Express) {
           return { ...post, media: mediaWithUrls };
         })
       );
+
+      // Auto-publish to LinkedIn for posts with connected LinkedIn accounts
+      const allAccounts = await getAllAccounts() as any[];
+      const linkedinAccounts = allAccounts.filter(
+        (a: any) => a.platform === "linkedin" && a.accessToken && a.linkedinUrn
+      );
+
+      if (linkedinAccounts.length > 0) {
+        for (const post of postsWithMedia) {
+          const firstMedia = post.media?.[0];
+          const imageUrl = firstMedia?.publicUrl;
+          for (const liAccount of linkedinAccounts) {
+            try {
+              const result = await publishToLinkedIn({
+                accessToken: liAccount.accessToken,
+                linkedinUrn: liAccount.linkedinUrn,
+                caption: post.caption,
+                imageUrl,
+              });
+              console.log(`[LinkedIn] Post ${post.id} publicado: ${result.postId}`);
+              await notifyOwner({
+                title: "✅ Post publicado no LinkedIn",
+                content: `Post #${post.id} publicado com sucesso!\nLink: ${result.permalink}`,
+              });
+            } catch (err: any) {
+              console.error(`[LinkedIn] Falha ao publicar post ${post.id}:`, err.message);
+            }
+          }
+        }
+      }
 
       return res.json({ posts: postsWithMedia });
     } catch (err: any) {
