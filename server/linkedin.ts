@@ -14,9 +14,9 @@ const LINKEDIN_USERINFO_URL = "https://api.linkedin.com/v2/userinfo";
 const LINKEDIN_UGC_URL = "https://api.linkedin.com/v2/ugcPosts";
 const LINKEDIN_ASSETS_URL = "https://api.linkedin.com/v2/assets?action=registerUpload";
 
-// Share on LinkedIn product grants: r_liteprofile, r_emailaddress, w_member_social
-// Do NOT include openid/profile/email — those are OIDC scopes that conflict
-const SCOPES = ["r_liteprofile", "r_emailaddress", "w_member_social"].join(" ");
+// Share on LinkedIn product grants ONLY: r_liteprofile + w_member_social
+// r_emailaddress is NOT included in this product — causes unauthorized_scope_error
+const SCOPES = ["r_liteprofile", "w_member_social"].join(" ");
 
 function getRedirectUri(origin: string): string {
   // Use the exact redirect URIs registered in LinkedIn app
