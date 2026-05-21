@@ -5,9 +5,19 @@ import { Button } from "@/components/ui/button";
 import {
   Loader2, Instagram, FileText, Clock,
   CheckCircle, AlertCircle, Rocket, ArrowRight,
+  Linkedin, Facebook, Youtube, Music, Globe,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { useEffect } from "react";
+import React from "react";
+
+const PLATFORM_CONFIG: Record<string, { label: string; icon: React.ElementType; color: string; bg: string; badge: string }> = {
+  instagram: { label: "Instagram", icon: Instagram, color: "text-pink-600", bg: "bg-pink-100", badge: "border-pink-300 text-pink-700" },
+  linkedin:  { label: "LinkedIn",  icon: Linkedin,  color: "text-blue-700", bg: "bg-blue-100",  badge: "border-blue-400 text-blue-700" },
+  facebook:  { label: "Facebook",  icon: Facebook,  color: "text-blue-500", bg: "bg-blue-50",   badge: "border-blue-300 text-blue-600" },
+  tiktok:    { label: "TikTok",    icon: Music,     color: "text-gray-900", bg: "bg-gray-100",  badge: "border-gray-400 text-gray-700" },
+  youtube:   { label: "YouTube",   icon: Youtube,   color: "text-red-600",  bg: "bg-red-100",   badge: "border-red-300 text-red-700" },
+};
 
 export default function Home() {
   const [, setLocation] = useLocation();
@@ -18,8 +28,8 @@ export default function Home() {
 
   const { data: accounts, isLoading: loadingAccounts } = trpc.accounts.list.useQuery();
 
-  // Pega a conta triarcsolutions dinamicamente
-  const triarc = accounts?.find((a: any) => a.handle === "triarcsolutions") ?? accounts?.[0];
+  // Pega a conta principal (Instagram) para os stats gerais
+  const triarc = accounts?.find((a: any) => a.platform === "instagram" || !a.platform) ?? accounts?.[0];
   const triacId = triarc?.id ?? 0;
 
   const { data: stats, isLoading: loadingStats } = trpc.accounts.stats.useQuery(
@@ -51,57 +61,75 @@ export default function Home() {
         <h2 className="sr-only">Automação de conteúdo para Instagram com inteligência artificial</h2>
       </div>
 
-      {/* Card da conta */}
-      {triarc && (
-        <Card className="border-border">
-          <CardHeader className="pb-3">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full flex items-center justify-center bg-cyan-100">
-                <Instagram className="h-5 w-5 text-cyan-600" />
-              </div>
-              <div>
-                <CardTitle className="text-lg font-bold">@{triarc.handle}</CardTitle>
-                <p className="text-xs text-muted-foreground">{triarc.displayName}</p>
-              </div>
-              <Badge variant="outline" className="ml-auto border-cyan-300 text-cyan-700">
-                Corporativo
-              </Badge>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {/* Linha principal: Pendentes | Aprovados | Agendados | Publicados */}
-            <div className="grid grid-cols-4 gap-3">
-              <button
-                onClick={() => setLocation("/approval")}
-                className="text-center p-3 rounded-lg bg-amber-50 hover:bg-amber-100 transition-colors border border-amber-100"
-              >
-                <div className="text-2xl font-extrabold text-amber-600">{stats?.pending ?? 0}</div>
-                <p className="text-xs text-muted-foreground mt-1 uppercase tracking-wide">Pendentes</p>
-              </button>
-              <button
-                onClick={() => setLocation("/approval")}
-                className="text-center p-3 rounded-lg bg-green-50 hover:bg-green-100 transition-colors border border-green-200"
-              >
-                <div className="text-2xl font-extrabold text-green-600">{stats?.approved ?? 0}</div>
-                <p className="text-xs text-muted-foreground mt-1 uppercase tracking-wide">Aprovados</p>
-              </button>
-              <button
-                onClick={() => setLocation("/calendar")}
-                className="text-center p-3 rounded-lg bg-blue-50 hover:bg-blue-100 transition-colors border border-blue-100"
-              >
-                <div className="text-2xl font-extrabold text-blue-600">{stats?.scheduled ?? 0}</div>
-                <p className="text-xs text-muted-foreground mt-1 uppercase tracking-wide">Agendados</p>
-              </button>
-              <button
-                onClick={() => setLocation("/history")}
-                className="text-center p-3 rounded-lg bg-emerald-50 hover:bg-emerald-100 transition-colors border border-emerald-100"
-              >
-                <div className="text-2xl font-extrabold text-emerald-600">{stats?.published ?? 0}</div>
-                <p className="text-xs text-muted-foreground mt-1 uppercase tracking-wide">Publicados</p>
-              </button>
-            </div>
-          </CardContent>
-        </Card>
+      {/* Cards de todas as contas */}
+      {(accounts ?? []).length > 0 && (
+        <div className="space-y-3">
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Redes Conectadas</h2>
+          <div className="grid gap-3">
+            {(accounts ?? []).map((account: any) => {
+              const platform = account.platform ?? "instagram";
+              const cfg = PLATFORM_CONFIG[platform] ?? { label: platform, icon: Globe, color: "text-gray-600", bg: "bg-gray-100", badge: "border-gray-300 text-gray-600" };
+              const Icon = cfg.icon;
+              const isInstagram = platform === "instagram";
+              return (
+                <Card key={account.id} className="border-border">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${cfg.bg}`}>
+                        <Icon className={`h-5 w-5 ${cfg.color}`} />
+                      </div>
+                      <div>
+                        <CardTitle className="text-base font-bold">
+                          {platform === "instagram" || platform === "tiktok" ? "@" : ""}{account.handle}
+                        </CardTitle>
+                        <p className="text-xs text-muted-foreground">{account.displayName}</p>
+                      </div>
+                      <div className="ml-auto flex items-center gap-2">
+                        <Badge variant="outline" className={`text-xs ${cfg.badge}`}>{cfg.label}</Badge>
+                        {!isInstagram && (
+                          <Badge variant="secondary" className="text-xs">Cadastrada</Badge>
+                        )}
+                        {isInstagram && (
+                          <Badge variant="outline" className="text-xs border-green-400 text-green-700">MCP Ativo</Badge>
+                        )}
+                      </div>
+                    </div>
+                  </CardHeader>
+                  {isInstagram && (
+                    <CardContent>
+                      <div className="grid grid-cols-4 gap-3">
+                        <button onClick={() => setLocation("/approval")} className="text-center p-3 rounded-lg bg-amber-50 hover:bg-amber-100 transition-colors border border-amber-100">
+                          <div className="text-2xl font-extrabold text-amber-600">{stats?.pending ?? 0}</div>
+                          <p className="text-xs text-muted-foreground mt-1 uppercase tracking-wide">Pendentes</p>
+                        </button>
+                        <button onClick={() => setLocation("/approval")} className="text-center p-3 rounded-lg bg-green-50 hover:bg-green-100 transition-colors border border-green-200">
+                          <div className="text-2xl font-extrabold text-green-600">{stats?.approved ?? 0}</div>
+                          <p className="text-xs text-muted-foreground mt-1 uppercase tracking-wide">Aprovados</p>
+                        </button>
+                        <button onClick={() => setLocation("/calendar")} className="text-center p-3 rounded-lg bg-blue-50 hover:bg-blue-100 transition-colors border border-blue-100">
+                          <div className="text-2xl font-extrabold text-blue-600">{stats?.scheduled ?? 0}</div>
+                          <p className="text-xs text-muted-foreground mt-1 uppercase tracking-wide">Agendados</p>
+                        </button>
+                        <button onClick={() => setLocation("/history")} className="text-center p-3 rounded-lg bg-emerald-50 hover:bg-emerald-100 transition-colors border border-emerald-100">
+                          <div className="text-2xl font-extrabold text-emerald-600">{stats?.published ?? 0}</div>
+                          <p className="text-xs text-muted-foreground mt-1 uppercase tracking-wide">Publicados</p>
+                        </button>
+                      </div>
+                    </CardContent>
+                  )}
+                  {!isInstagram && account.profileUrl && (
+                    <CardContent className="pt-0">
+                      <a href={account.profileUrl} target="_blank" rel="noopener noreferrer"
+                        className="text-xs text-primary hover:underline truncate block">
+                        {account.profileUrl}
+                      </a>
+                    </CardContent>
+                  )}
+                </Card>
+              );
+            })}
+          </div>
+        </div>
       )}
 
       {/* Alerta: posts aprovados aguardando publicação */}

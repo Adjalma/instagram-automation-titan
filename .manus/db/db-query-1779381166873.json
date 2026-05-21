@@ -1,0 +1,9 @@
+{
+  "query": "UPDATE research_topics SET query = 'artificial intelligence machine learning', language = 'en' WHERE id = 30001;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3F5sJN7FajWtXbb.root --database 3LYkMyiPgdB2gzxf44Hk3M --execute UPDATE research_topics SET query = 'artificial intelligence machine learning', language = 'en' WHERE id = 30001;",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 270
+}

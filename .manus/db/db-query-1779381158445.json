@@ -1,0 +1,19 @@
+{
+  "query": "SELECT id, name, query, language, publishHour, active, accountId FROM research_topics ORDER BY id DESC LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3F5sJN7FajWtXbb.root --database 3LYkMyiPgdB2gzxf44Hk3M --execute SELECT id, name, query, language, publishHour, active, accountId FROM research_topics ORDER BY id DESC LIMIT 10;",
+  "rows": [
+    {
+      "id": "30001",
+      "name": "Inteligência Artificial",
+      "query": "Atualizações das últimas 24 horas",
+      "language": "pt",
+      "publishHour": "8",
+      "active": "1",
+      "accountId": "2"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\tquery\tlanguage\tpublishHour\tactive\taccountId\n30001\tInteligência Artificial\tAtualizações das últimas 24 horas\tpt\t8\t1\t2\n",
+  "stderr": "",
+  "execution_time_ms": 263
+}

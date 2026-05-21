@@ -1,0 +1,34 @@
+{
+  "query": "SELECT id, handle, displayName, platform, profileUrl, accountType FROM instagram_accounts ORDER BY id;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3F5sJN7FajWtXbb.root --database 3LYkMyiPgdB2gzxf44Hk3M --execute SELECT id, handle, displayName, platform, profileUrl, accountType FROM instagram_accounts ORDER BY id;",
+  "rows": [
+    {
+      "id": "2",
+      "handle": "triarcsolutions",
+      "displayName": "Triarc Solutions",
+      "platform": "instagram",
+      "profileUrl": "NULL",
+      "accountType": "business"
+    },
+    {
+      "id": "30001",
+      "handle": "Triarcsolutions",
+      "displayName": "Triarc Solutions",
+      "platform": "facebook",
+      "profileUrl": "https://www.facebook.com/profile.php?id=61587356575542",
+      "accountType": "business"
+    },
+    {
+      "id": "30002",
+      "handle": "triarcsolutions",
+      "displayName": "Triarc Solutions Brasil",
+      "platform": "linkedin",
+      "profileUrl": "https://www.linkedin.com/company/triarc-solutions-brasil",
+      "accountType": "business"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\thandle\tdisplayName\tplatform\tprofileUrl\taccountType\n2\ttriarcsolutions\tTriarc Solutions\tinstagram\tNULL\tbusiness\n30001\tTriarcsolutions\tTriarc Solutions\tfacebook\thttps://www.facebook.com/profile.php?id=61587356575542\tbusiness\n30002\ttriarcsolutions\tTriarc Solutions Brasil\tlinkedin\thttps://www.linkedin.com/company/triarc-solutions-brasil\tbusiness\n",
+  "stderr": "",
+  "execution_time_ms": 262
+}
