@@ -36,6 +36,13 @@
       "when": 1779306915635,
       "tag": "0004_nebulous_wildside",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1779328084988,
+      "tag": "0005_giant_gunslinger",
+      "breakpoints": true
     }
   ]
 }

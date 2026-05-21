@@ -308,3 +308,26 @@ describe("analytics.getPostsWithMetrics", () => {
     }
   });
 });
+
+describe("research.listTopics", () => {
+  it("retorna array de tópicos (pode ser vazio)", async () => {
+    const { ctx } = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+    const result = await caller.research.listTopics();
+    expect(Array.isArray(result)).toBe(true);
+  });
+  it("rejeita usuário não autenticado", async () => {
+    const ctx = createUnauthContext();
+    const caller = appRouter.createCaller(ctx);
+    await expect(caller.research.listTopics()).rejects.toThrow();
+  });
+});
+
+describe("research.listRuns", () => {
+  it("retorna histórico de execuções (pode ser vazio)", async () => {
+    const { ctx } = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+    const result = await caller.research.listRuns({ limit: 10 });
+    expect(Array.isArray(result)).toBe(true);
+  });
+});

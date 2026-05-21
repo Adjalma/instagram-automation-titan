@@ -16,6 +16,7 @@ import { generateImage } from "./_core/imageGeneration";
 import { notifyOwner } from "./_core/notification";
 import { storagePut } from "./storage";
 import { processScheduledPosts, fetchPostInsights } from "./instagram";
+import { researchRouter } from "./routers/research";
 import { seedTriarcContent, TRIARC_SERVICES, TRIARC_PROJECTS } from "./seed-triarc";
 import { triacContent, TriacContent } from "../drizzle/schema";
 import { getDb } from "./db";
@@ -26,6 +27,7 @@ const TRIARC_TONE = `Use um tom corporativo profissional, moderno e acessível. 
 
 export const appRouter = router({
   system: systemRouter,
+  research: researchRouter,
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
     logout: publicProcedure.mutation(({ ctx }) => {

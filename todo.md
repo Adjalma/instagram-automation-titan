@@ -117,3 +117,13 @@
 - [x] Preview mostra indicador 1/N quando há múltiplos slides
 - [x] Tarefa agendada atualizada: envia todos os itens de post.media como array no MCP (suporte a carrossel)
 - [x] Tarefa agendada reativada (estava pausada) e com parâmetros MCP corretos
+
+## Features v1.20 — Pesquisa Diária
+
+- [x] Tabela research_topics no banco (id, name, query, active, accountId)
+- [x] Tabela research_posts no banco (id, topicId, headlines, postId, generatedAt)
+- [x] Endpoint /api/cron/daily-research para buscar notícias, gerar legenda+imagem e criar post
+- [x] Cron job diário às 8h (America/Sao_Paulo) no servidor
+- [x] Aba "Pesquisa Diária" com configuração de tópicos e histórico de posts gerados
+- [x] Rota /research no App.tsx
+- [x] Item "Pesquisa" no menu do DashboardLayout

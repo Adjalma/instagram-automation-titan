@@ -1,59 +1,150 @@
 /**
  * Scheduler — agendador periódico do Triarc Social Manager.
  *
- * RESPONSABILIDADE: mover posts agendados vencidos para status "approved",
- * colocando-os na fila de publicação do agente Manus.
- *
- * A publicação real no Instagram é feita pelo agente Manus agendado
- * (tarefa externa) que chama GET /api/scheduled/pending-posts e
- * POST /api/scheduled/publish-result via HTTP.
- *
- * NÃO tenta chamar manus-mcp-cli diretamente — isso só funciona
- * no contexto do agente Manus, não no servidor web.
+ * Responsabilidades:
+ * 1. Mover posts agendados vencidos para status "approved" (a cada 5 min)
+ * 2. Executar pesquisa diária de notícias às 8h (America/Sao_Paulo)
  */
 
-import { getPostsByStatus, updatePost } from "./db";
+import { getPostsByStatus, updatePost, getDb } from "./db";
+import { researchTopics, researchRuns, posts, postMedia } from "../drizzle/schema";
+import { eq, desc } from "drizzle-orm";
+import { invokeLLM } from "./_core/llm";
+import { generateImage } from "./_core/imageGeneration";
 
 const INTERVAL_MS = parseInt(process.env.SCHEDULER_INTERVAL_MS || "300000", 10);
+const DAILY_RESEARCH_HOUR = parseInt(process.env.DAILY_RESEARCH_HOUR || "8", 10); // 8h Brasília
+const TZ_OFFSET = -3; // America/Sao_Paulo (UTC-3)
 
 let schedulerHandle: ReturnType<typeof setInterval> | null = null;
+let lastResearchDate: string | null = null; // "YYYY-MM-DD" da última execução
 
+// ─── Posts agendados ──────────────────────────────────────────────────────────
 async function promoteScheduledPosts() {
   try {
     const scheduledPosts = await getPostsByStatus("scheduled");
     const now = new Date();
     let promoted = 0;
-
     for (const post of scheduledPosts as any[]) {
       if (post.scheduledAt && new Date(post.scheduledAt) <= now) {
-        // Mover para "approved" para que o agente Manus publique
         await updatePost(post.id, { status: "approved", mcpPending: 0 });
         promoted++;
-        console.log(`[Scheduler] Post ${post.id} movido para fila de publicação (agendado para ${post.scheduledAt}).`);
+        console.log(`[Scheduler] Post ${post.id} movido para fila de publicação.`);
       }
     }
-
-    if (promoted > 0) {
-      console.log(`[Scheduler] ${promoted} post(s) movidos para fila de publicação.`);
-    }
+    if (promoted > 0) console.log(`[Scheduler] ${promoted} post(s) promovidos.`);
   } catch (err: any) {
-    console.error("[Scheduler] Erro ao verificar posts agendados:", err?.message || err);
+    console.error("[Scheduler] Erro ao verificar posts agendados:", err?.message);
+  }
+}
+
+// ─── Pesquisa diária ──────────────────────────────────────────────────────────
+function getBrasiliaDateHour(): { date: string; hour: number } {
+  const now = new Date();
+  const brasiliaMs = now.getTime() + TZ_OFFSET * 3600000;
+  const brasilia = new Date(brasiliaMs);
+  const date = brasilia.toISOString().split("T")[0];
+  const hour = brasilia.getUTCHours();
+  return { date, hour };
+}
+
+async function fetchNews(query: string, language: string): Promise<{ title: string; description: string }[]> {
+  const key = process.env.NEWS_API_KEY;
+  if (!key) return [];
+  const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
+  const lang = language === "pt" ? "pt" : "en";
+  const url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(query)}&from=${yesterday}&language=${lang}&pageSize=5&sortBy=publishedAt&apiKey=${key}`;
+  try {
+    const res = await fetch(url, { headers: { "User-Agent": "TriarcSocialManager/1.0" } });
+    const data = await res.json() as { status: string; articles?: { title: string; description: string }[] };
+    if (data.status !== "ok" || !data.articles?.length) return [];
+    return data.articles.slice(0, 5).map(a => ({ title: a.title, description: a.description ?? "" }));
+  } catch { return []; }
+}
+
+async function runDailyResearch() {
+  const db = await getDb();
+  if (!db) return;
+
+  const activeTopics = await db.select().from(researchTopics).where(eq(researchTopics.active, 1));
+  if (!activeTopics.length) {
+    console.log("[DailyResearch] Nenhum tópico ativo.");
+    return;
+  }
+
+  console.log(`[DailyResearch] Iniciando pesquisa para ${activeTopics.length} tópico(s)...`);
+
+  for (const topic of activeTopics) {
+    try {
+      const articles = await fetchNews(topic.query, topic.language);
+      if (!articles.length) {
+        await db.insert(researchRuns).values({ topicId: topic.id, status: "skipped", error: "Sem notícias" });
+        console.log(`[DailyResearch] Tópico "${topic.name}": sem notícias.`);
+        continue;
+      }
+
+      // Gerar legenda
+      const headlines = articles.map((a, i) => `${i + 1}. ${a.title}: ${a.description}`).join("\n");
+      const llmRes = await invokeLLM({
+        messages: [
+          { role: "system", content: "Você é especialista em marketing digital para Instagram da Triarc Solutions, empresa de tecnologia de Macaé/RJ. Tom corporativo, moderno e acessível. Inclua CTA para triarcsolutions.com.br e hashtags tech." },
+          { role: "user" as const, content: `Crie uma legenda impactante para o Instagram da @triarcsolutions sobre: "${topic.name}".\nNotícias das últimas 24h:\n${headlines}\n\nConecte as novidades ao posicionamento da Triarc. Máximo 2200 chars. Emojis estratégicos. CTA + 5-10 hashtags.` },
+        ],
+      });
+      const caption = typeof llmRes.choices?.[0]?.message?.content === "string"
+        ? llmRes.choices[0].message.content
+        : `Novidades em ${topic.name}! Acompanhe as tendências com a Triarc Solutions. triarcsolutions.com.br`;
+
+      // Gerar imagem premium
+      const prompt = `Premium Instagram post for Triarc Solutions tech company. Topic: "${topic.name}". Headline: "${articles[0].title}". Ultra-modern tech aesthetic, deep navy blue (#0A1628) background with electric cyan (#00BFFF) and neon purple (#7B2FBE) accents. Futuristic data visualization, glowing circuit patterns, holographic overlays. Bold typography with topic name. Subtle TRIARC watermark. 1080x1080 square, magazine quality.`;
+      const { url: imageUrl } = await generateImage({ prompt });
+      if (!imageUrl) throw new Error("Falha ao gerar imagem");
+
+      // Criar post
+      const [postResult] = await db.insert(posts).values({
+        userId: 1, // sistema
+        accountId: topic.accountId,
+        caption,
+        theme: `Pesquisa Diária: ${topic.name}`,
+        status: "pending",
+      });
+      const postId = (postResult as any).insertId as number;
+
+      await db.insert(postMedia).values({ postId, mediaUrl: imageUrl as string, mediaType: "image", sortOrder: 0 });
+      await db.insert(researchRuns).values({
+        topicId: topic.id, postId,
+        headlines: JSON.stringify(articles.map(a => a.title)),
+        status: "success",
+      });
+
+      console.log(`[DailyResearch] Tópico "${topic.name}": post ${postId} criado com sucesso.`);
+    } catch (err: any) {
+      await db.insert(researchRuns).values({ topicId: topic.id, status: "failed", error: err?.message });
+      console.error(`[DailyResearch] Erro no tópico "${topic.name}":`, err?.message);
+    }
+  }
+}
+
+// ─── Loop principal ───────────────────────────────────────────────────────────
+async function tick() {
+  await promoteScheduledPosts();
+
+  const { date, hour } = getBrasiliaDateHour();
+  if (hour === DAILY_RESEARCH_HOUR && lastResearchDate !== date) {
+    lastResearchDate = date;
+    console.log(`[DailyResearch] Disparando pesquisa diária (${date} ${hour}h Brasília)...`);
+    runDailyResearch().catch(err => console.error("[DailyResearch] Erro geral:", err?.message));
   }
 }
 
 export function startScheduler() {
   if (schedulerHandle) {
-    console.warn("[Scheduler] Já está em execução. Ignorando nova inicialização.");
+    console.warn("[Scheduler] Já está em execução.");
     return;
   }
-
-  console.log(
-    `[Scheduler] Iniciado — verificando posts agendados a cada ${INTERVAL_MS / 1000}s.`
-  );
-
-  // Executa imediatamente e depois a cada intervalo
-  promoteScheduledPosts();
-  schedulerHandle = setInterval(promoteScheduledPosts, INTERVAL_MS);
+  console.log(`[Scheduler] Iniciado — intervalo ${INTERVAL_MS / 1000}s | pesquisa diária às ${DAILY_RESEARCH_HOUR}h Brasília.`);
+  tick();
+  schedulerHandle = setInterval(tick, INTERVAL_MS);
 }
 
 export function stopScheduler() {

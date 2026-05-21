@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE `research_runs` (\n  `id` int AUTO_INCREMENT NOT NULL,\n  `topicId` int NOT NULL,\n  `postId` int,\n  `headlines` text,\n  `status` enum('success','failed','skipped') NOT NULL,\n  `error` text,\n  `ranAt` timestamp NOT NULL DEFAULT (now()),\n  CONSTRAINT `research_runs_id` PRIMARY KEY(`id`)\n);\n\nCREATE TABLE `research_topics` (\n  `id` int AUTO_INCREMENT NOT NULL,\n  `accountId` int NOT NULL,\n  `name` varchar(256) NOT NULL,\n  `query` varchar(512) NOT NULL,\n  `language` varchar(8) NOT NULL DEFAULT 'pt',\n  `active` int NOT NULL DEFAULT 1,\n  `sortOrder` int NOT NULL DEFAULT 0,\n  `createdAt` timestamp NOT NULL DEFAULT (now()),\n  CONSTRAINT `research_topics_id` PRIMARY KEY(`id`)\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3F5sJN7FajWtXbb.root --database 3LYkMyiPgdB2gzxf44Hk3M --execute CREATE TABLE `research_runs` (\n  `id` int AUTO_INCREMENT NOT NULL,\n  `topicId` int NOT NULL,\n  `postId` int,\n  `headlines` text,\n  `status` enum('success','failed','skipped') NOT NULL,\n  `error` text,\n  `ranAt` timestamp NOT NULL DEFAULT (now()),\n  CONSTRAINT `research_runs_id` PRIMARY KEY(`id`)\n);\n\nCREATE TABLE `research_topics` (\n  `id` int AUTO_INCREMENT NOT NULL,\n  `accountId` int NOT NULL,\n  `name` varchar(256) NOT NULL,\n  `query` varchar(512) NOT NULL,\n  `language` varchar(8) NOT NULL DEFAULT 'pt',\n  `active` int NOT NULL DEFAULT 1,\n  `sortOrder` int NOT NULL DEFAULT 0,\n  `createdAt` timestamp NOT NULL DEFAULT (now()),\n  CONSTRAINT `research_topics_id` PRIMARY KEY(`id`)\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 421
+}

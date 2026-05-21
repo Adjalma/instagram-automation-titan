@@ -113,3 +113,29 @@ export const triacContent = mysqlTable("triac_content", {
 });
 
 export type TriacContent = typeof triacContent.$inferSelect;
+
+export const researchTopics = mysqlTable("research_topics", {
+  id: int("id").autoincrement().primaryKey(),
+  accountId: int("accountId").notNull(),
+  name: varchar("name", { length: 256 }).notNull(),
+  query: varchar("query", { length: 512 }).notNull(), // query para a NewsAPI
+  language: varchar("language", { length: 8 }).default("pt").notNull(), // pt ou en
+  active: int("active").default(1).notNull(), // 1 = ativo
+  sortOrder: int("sortOrder").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type ResearchTopic = typeof researchTopics.$inferSelect;
+export type InsertResearchTopic = typeof researchTopics.$inferInsert;
+
+export const researchRuns = mysqlTable("research_runs", {
+  id: int("id").autoincrement().primaryKey(),
+  topicId: int("topicId").notNull(),
+  postId: int("postId"), // post gerado (null se falhou)
+  headlines: text("headlines"), // JSON array de títulos usados
+  status: mysqlEnum("status", ["success", "failed", "skipped"]).notNull(),
+  error: text("error"),
+  ranAt: timestamp("ranAt").defaultNow().notNull(),
+});
+
+export type ResearchRun = typeof researchRuns.$inferSelect;

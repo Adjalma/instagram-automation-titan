@@ -23,7 +23,7 @@ import { getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
 import {
   LayoutDashboard, LogOut, PanelLeft, PenSquare, CheckCircle,
-  Calendar, BookOpen, Image, History, Zap, ScrollText, BarChart2, Menu,
+  Calendar, BookOpen, Image, History, Zap, ScrollText, BarChart2, Menu, Newspaper,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -50,6 +50,7 @@ const menuItems = [
   { icon: Image, label: "Assets", path: "/assets" },
   { icon: ScrollText, label: "Logs", path: "/logs" },
   { icon: BarChart2, label: "Analytics", path: "/analytics" },
+  { icon: Newspaper, label: "Pesquisa Diária", path: "/research" },
 ];
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";
