@@ -1,18 +1,19 @@
 /**
  * Rotas para tarefas agendadas — chamadas pelo agente Manus via HTTP.
  *
- * O agente Manus (que tem acesso ao MCP do Instagram) publica os posts
- * e depois reporta o resultado para este endpoint, que atualiza o banco.
+ * Fluxo correto:
+ * 1. GET /pending-posts → retorna posts aprovados para o agente publicar no Instagram via MCP
+ * 2. POST /publish-result → agente reporta sucesso/falha do Instagram
+ *    → em caso de SUCESSO: publica automaticamente no LinkedIn e Facebook
  *
- * Segurança: usa o mesmo mecanismo de sessão OAuth da plataforma.
- * O agente usa o cookie SCHEDULED_TASK_COOKIE injetado automaticamente.
+ * Isso garante que LinkedIn/Facebook só publicam após o Instagram confirmar,
+ * e usa flags linkedinPublished/facebookPublished para evitar duplicatas.
  */
 import type { Express, Request, Response } from "express";
 import { sdk } from "./_core/sdk";
 import { updatePost, getPostsByStatus, getPostMedia, createPublicationLog, getPublicationLogsByPost, getAllAccounts } from "./db";
 import { storageGetSignedUrl } from "./storage";
 import { notifyOwner } from "./_core/notification";
-import { ENV } from "./_core/env";
 import { publishToLinkedIn } from "./linkedin";
 import { publishToFacebook } from "./facebook";
 
@@ -22,11 +23,64 @@ async function getUser(req: Request) {
   try { return await sdk.authenticateRequest(req); } catch { return null; }
 }
 
+/** Publica em LinkedIn e Facebook após sucesso no Instagram */
+async function publishToOtherPlatforms(postId: number, caption: string, imageUrl?: string) {
+  const allAccounts = await getAllAccounts() as any[];
+
+  // LinkedIn
+  const linkedinAccounts = allAccounts.filter(
+    (a: any) => a.platform === "linkedin" && a.accessToken && a.linkedinUrn
+  );
+  for (const liAccount of linkedinAccounts) {
+    try {
+      const result = await publishToLinkedIn({
+        accessToken: liAccount.accessToken,
+        linkedinUrn: liAccount.linkedinUrn,
+        caption,
+        imageUrl,
+      });
+      await updatePost(postId, { linkedinPublished: 1 });
+      console.log(`[LinkedIn] Post ${postId} publicado: ${result.postId}`);
+      await notifyOwner({
+        title: "✅ Post publicado no LinkedIn",
+        content: `Post #${postId} publicado!\nLink: ${result.permalink}`,
+      });
+    } catch (err: any) {
+      console.error(`[LinkedIn] Falha post ${postId}:`, err.message);
+    }
+  }
+
+  // Facebook
+  const facebookAccounts = allAccounts.filter(
+    (a: any) => a.platform === "facebook" && a.accessToken && a.linkedinUrn?.startsWith("fb:page:")
+  );
+  for (const fbAccount of facebookAccounts) {
+    const pageId = fbAccount.linkedinUrn.replace("fb:page:", "");
+    try {
+      const result = await publishToFacebook({
+        pageToken: fbAccount.accessToken,
+        pageId,
+        caption,
+        imageUrl,
+      });
+      await updatePost(postId, { facebookPublished: 1 });
+      console.log(`[Facebook] Post ${postId} publicado: ${result.postId}`);
+      await notifyOwner({
+        title: "✅ Post publicado no Facebook",
+        content: `Post #${postId} publicado!\nLink: ${result.permalink}`,
+      });
+    } catch (err: any) {
+      console.error(`[Facebook] Falha post ${postId}:`, err.message);
+    }
+  }
+}
+
 export function registerScheduledRoutes(app: Express) {
   /**
    * POST /api/scheduled/publish-result
    * Recebe o resultado de uma publicação feita pelo agente Manus via MCP.
    * Body: { postId, instagramPostId, permalink, success, error? }
+   * Em caso de sucesso: publica automaticamente no LinkedIn e Facebook.
    */
   app.post("/api/scheduled/publish-result", async (req: Request, res: Response) => {
     try {
@@ -37,8 +91,6 @@ export function registerScheduledRoutes(app: Express) {
       if (!postId) return res.status(400).json({ error: "postId is required" });
 
       const postIdNum = Number(postId);
-
-      // Contar tentativas anteriores para este post
       const previousLogs = await getPublicationLogsByPost(postIdNum);
       const attempt = previousLogs.length + 1;
 
@@ -52,7 +104,6 @@ export function registerScheduledRoutes(app: Express) {
           retryCount: 0,
         });
 
-        // Registrar log de sucesso
         await createPublicationLog({
           postId: postIdNum,
           attempt,
@@ -61,16 +112,37 @@ export function registerScheduledRoutes(app: Express) {
           permalink: permalink ? String(permalink) : undefined,
         });
 
-        // Notificar dono
         await notifyOwner({
           title: "✅ Post publicado no Instagram",
           content: `Post #${postIdNum} publicado com sucesso!\nInstagram ID: ${instagramPostId}\nLink: ${permalink || "N/A"}`,
         });
 
-        console.log(`[ScheduledRoutes] Post ${postIdNum} publicado: ${instagramPostId}`);
+        console.log(`[ScheduledRoutes] Post ${postIdNum} publicado no Instagram: ${instagramPostId}`);
+
+        // Buscar dados do post para publicar nas outras plataformas
+        try {
+          const posts = await getPostsByStatus("published") as any[];
+          const post = posts.find((p: any) => p.id === postIdNum);
+          if (post) {
+            const media = await getPostMedia(postIdNum) as any[];
+            let imageUrl: string | undefined;
+            if (media?.[0]?.mediaUrl) {
+              const url = media[0].mediaUrl;
+              imageUrl = url.startsWith("/manus-storage/")
+                ? await storageGetSignedUrl(url.replace("/manus-storage/", ""))
+                : url;
+            }
+            // Publicar no LinkedIn e Facebook (não bloqueia a resposta)
+            publishToOtherPlatforms(postIdNum, post.caption || "", imageUrl).catch((e) =>
+              console.error("[ScheduledRoutes] Erro ao publicar em outras plataformas:", e.message)
+            );
+          }
+        } catch (e: any) {
+          console.error("[ScheduledRoutes] Erro ao buscar post para outras plataformas:", e.message);
+        }
+
         return res.json({ ok: true });
       } else {
-        // Registrar log de falha
         await createPublicationLog({
           postId: postIdNum,
           attempt,
@@ -78,16 +150,13 @@ export function registerScheduledRoutes(app: Express) {
           error: error ? String(error) : "Erro desconhecido",
         });
 
-        // Verificar se ainda há tentativas disponíveis
         const newRetryCount = attempt;
         if (newRetryCount < MAX_RETRIES) {
-          // Backoff: próxima tentativa em 5 minutos
           const nextRetryAt = new Date(Date.now() + 5 * 60 * 1000);
           await updatePost(postIdNum, { mcpPending: 0, retryCount: newRetryCount, nextRetryAt });
-          console.warn(`[ScheduledRoutes] Post ${postIdNum} falhou (tentativa ${newRetryCount}/${MAX_RETRIES}), próxima tentativa em ${nextRetryAt.toISOString()}: ${error}`);
+          console.warn(`[ScheduledRoutes] Post ${postIdNum} falhou (tentativa ${newRetryCount}/${MAX_RETRIES}), próxima em ${nextRetryAt.toISOString()}: ${error}`);
           return res.json({ ok: false, error, willRetry: true, attempt: newRetryCount, nextRetryAt });
         } else {
-          // Máximo de tentativas atingido — marcar como rejected para não tentar mais
           await updatePost(postIdNum, { mcpPending: 0, retryCount: newRetryCount, status: "rejected" });
           await notifyOwner({
             title: "❌ Falha ao publicar post no Instagram",
@@ -105,8 +174,8 @@ export function registerScheduledRoutes(app: Express) {
 
   /**
    * GET /api/scheduled/pending-posts
-   * Retorna posts aprovados com mcpPending=0 prontos para publicação.
-   * Usado pelo agente Manus para saber quais posts publicar.
+   * Retorna posts aprovados com mcpPending=0 prontos para publicação no Instagram via MCP.
+   * Não publica em LinkedIn/Facebook aqui — isso acontece em publish-result após sucesso.
    */
   app.get("/api/scheduled/pending-posts", async (req: Request, res: Response) => {
     try {
@@ -114,12 +183,11 @@ export function registerScheduledRoutes(app: Express) {
       if (!user) return res.status(401).json({ error: "Unauthorized" });
 
       const approved = await getPostsByStatus("approved");
-      // Filtrar posts elegíveis: não aguardando MCP, não atingiram limite, e backoff expirado
       const now = new Date();
       const pendingPosts = (approved as any[]).filter((p) => {
         if (p.mcpPending) return false;
         if ((p.retryCount ?? 0) >= MAX_RETRIES) return false;
-        if (p.nextRetryAt && new Date(p.nextRetryAt) > now) return false; // backoff ainda ativo
+        if (p.nextRetryAt && new Date(p.nextRetryAt) > now) return false;
         return true;
       });
 
@@ -139,63 +207,6 @@ export function registerScheduledRoutes(app: Express) {
           return { ...post, media: mediaWithUrls };
         })
       );
-
-      const allAccounts = await getAllAccounts() as any[];
-
-      // Auto-publish to LinkedIn
-      const linkedinAccounts = allAccounts.filter(
-        (a: any) => a.platform === "linkedin" && a.accessToken && a.linkedinUrn
-      );
-      if (linkedinAccounts.length > 0) {
-        for (const post of postsWithMedia) {
-          const imageUrl = post.media?.[0]?.publicUrl;
-          for (const liAccount of linkedinAccounts) {
-            try {
-              const result = await publishToLinkedIn({
-                accessToken: liAccount.accessToken,
-                linkedinUrn: liAccount.linkedinUrn,
-                caption: post.caption,
-                imageUrl,
-              });
-              console.log(`[LinkedIn] Post ${post.id} publicado: ${result.postId}`);
-              await notifyOwner({
-                title: "✅ Post publicado no LinkedIn",
-                content: `Post #${post.id} publicado!\nLink: ${result.permalink}`,
-              });
-            } catch (err: any) {
-              console.error(`[LinkedIn] Falha post ${post.id}:`, err.message);
-            }
-          }
-        }
-      }
-
-      // Auto-publish to Facebook Pages
-      const facebookAccounts = allAccounts.filter(
-        (a: any) => a.platform === "facebook" && a.accessToken && a.linkedinUrn?.startsWith("fb:page:")
-      );
-      if (facebookAccounts.length > 0) {
-        for (const post of postsWithMedia) {
-          const imageUrl = post.media?.[0]?.publicUrl;
-          for (const fbAccount of facebookAccounts) {
-            const pageId = fbAccount.linkedinUrn.replace("fb:page:", "");
-            try {
-              const result = await publishToFacebook({
-                pageToken: fbAccount.accessToken,
-                pageId,
-                caption: post.caption,
-                imageUrl,
-              });
-              console.log(`[Facebook] Post ${post.id} publicado: ${result.postId}`);
-              await notifyOwner({
-                title: "✅ Post publicado no Facebook",
-                content: `Post #${post.id} publicado!\nLink: ${result.permalink}`,
-              });
-            } catch (err: any) {
-              console.error(`[Facebook] Falha post ${post.id}:`, err.message);
-            }
-          }
-        }
-      }
 
       return res.json({ posts: postsWithMedia });
     } catch (err: any) {

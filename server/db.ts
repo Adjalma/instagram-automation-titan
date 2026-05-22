@@ -139,7 +139,7 @@ export async function getAllPosts() {
   return queryPosts(db, sql`SELECT ${sql.raw(POST_COLS)} FROM posts p ORDER BY p.createdAt DESC`);
 }
 
-export async function updatePost(id: number, data: Partial<{ caption: string; status: string; theme: string; scheduledAt: Date | null; publishedAt: Date | null; instagramPostId: string; instagramPermalink: string; mcpPending: number; retryCount: number; nextRetryAt: Date | null; likes: number; comments: number }>) {
+export async function updatePost(id: number, data: Partial<{ caption: string; status: string; theme: string; scheduledAt: Date | null; publishedAt: Date | null; instagramPostId: string; instagramPermalink: string; mcpPending: number; retryCount: number; nextRetryAt: Date | null; likes: number; comments: number; linkedinPublished: number; facebookPublished: number }>) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   await db.update(posts).set(data as any).where(eq(posts.id, id));

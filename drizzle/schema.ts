@@ -47,6 +47,8 @@ export const posts = mysqlTable("posts", {
   mcpPending: int("mcpPending").$defaultFn(() => 0).notNull(), // 1 = MCP command sent, awaiting manual confirmation
   retryCount: int("retryCount").$defaultFn(() => 0).notNull(), // número de tentativas de publicação
   nextRetryAt: timestamp("nextRetryAt"), // próximo horário de tentativa (backoff)
+  linkedinPublished: int("linkedinPublished").$defaultFn(() => 0).notNull(), // 1 = publicado no LinkedIn
+  facebookPublished: int("facebookPublished").$defaultFn(() => 0).notNull(), // 1 = publicado no Facebook
   likes: int("likes").$defaultFn(() => 0),
   comments: int("comments").$defaultFn(() => 0),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
