@@ -14,6 +14,16 @@ import { notifyOwner } from "./_core/notification";
 import { publishToLinkedIn } from "./linkedin";
 import { publishToFacebook } from "./facebook";
 
+/** Autentica requisição de heartbeat via header x-manus-cron-task-uid ou sessão normal */
+async function authenticateHeartbeat(req: Request): Promise<boolean> {
+  const cronUid = req.headers["x-manus-cron-task-uid"];
+  if (cronUid && typeof cronUid === "string" && cronUid.length > 0) return true;
+  try {
+    const user = await sdk.authenticateRequest(req);
+    return !!user;
+  } catch { return false; }
+}
+
 const MAX_RETRIES = 3;
 
 async function getUser(req: Request) {
@@ -246,6 +256,115 @@ export function registerScheduledRoutes(app: Express) {
       return res.json({ likes: post.likes ?? 0, comments: post.comments ?? 0 });
     } catch (err: any) {
       return res.status(500).json({ error: err.message });
+    }
+  });
+
+  /**
+   * POST /api/scheduled/heartbeat-publish
+   * Chamado pelo Heartbeat HTTP a cada 10 minutos.
+   * 1. Promove posts agendados vencidos → approved
+   * 2. Publica posts approved no Facebook e LinkedIn inline
+   * 3. Marca posts Instagram como mcpPending=1 (AGENT cron publica via MCP)
+   */
+  app.post("/api/scheduled/heartbeat-publish", async (req: Request, res: Response) => {
+    const start = Date.now();
+    try {
+      const ok = await authenticateHeartbeat(req);
+      if (!ok) return res.status(403).json({ error: "cron-only" });
+
+      // 1. Promover posts agendados vencidos
+      const { getDb } = await import("./db");
+      const { posts: postsTable } = await import("../drizzle/schema");
+      const { eq, and, lte } = await import("drizzle-orm");
+      const db = await getDb();
+      let promoted = 0;
+      if (db) {
+        const now = new Date();
+        const scheduled = await db.select().from(postsTable)
+          .where(and(eq(postsTable.status, "scheduled"), lte(postsTable.scheduledAt, now)));
+        for (const p of scheduled) {
+          await updatePost(p.id, { status: "approved", mcpPending: 0 });
+          promoted++;
+        }
+        if (promoted > 0) console.log(`[Heartbeat] ${promoted} post(s) promovidos scheduled→approved`);
+      }
+
+      // 2. Buscar posts approved prontos (sem mcpPending, sem retries esgotados)
+      const approved = await getPostsByStatus("approved");
+      const now = new Date();
+      const ready = (approved as any[]).filter((p) => {
+        if (p.mcpPending) return false;
+        if ((p.retryCount ?? 0) >= MAX_RETRIES) return false;
+        if (p.nextRetryAt && new Date(p.nextRetryAt) > now) return false;
+        return true;
+      });
+
+      if (ready.length === 0) {
+        return res.json({ ok: true, promoted, processed: 0, elapsed: Date.now() - start });
+      }
+
+      const allAccounts = await getAllAccounts() as any[];
+      const linkedinAccounts = allAccounts.filter(
+        (a: any) => a.platform === "linkedin" && a.accessToken && a.linkedinUrn
+      );
+      const facebookAccounts = allAccounts.filter(
+        (a: any) => a.platform === "facebook" && a.accessToken &&
+          (a.linkedinUrn?.startsWith("fb:page:") || a.linkedinUrn === "fb:personal")
+      );
+
+      let fbPublished = 0, liPublished = 0, igQueued = 0;
+
+      for (const post of ready) {
+        const media = await getPostMedia(post.id) as any[];
+        let imageUrl: string | undefined;
+        if (media?.[0]?.mediaUrl) {
+          const url = media[0].mediaUrl;
+          imageUrl = url.startsWith("/manus-storage/")
+            ? await storageGetSignedUrl(url.replace("/manus-storage/", ""))
+            : url;
+        }
+        const caption: string = post.caption || "";
+
+        // LinkedIn
+        if (!post.linkedinPublished) {
+          for (const liAcc of linkedinAccounts) {
+            try {
+              const r = await publishToLinkedIn({ accessToken: liAcc.accessToken, linkedinUrn: liAcc.linkedinUrn, caption, imageUrl });
+              await updatePost(post.id, { linkedinPublished: 1 });
+              liPublished++;
+              console.log(`[Heartbeat] Post ${post.id} → LinkedIn: ${r.postId}`);
+              notifyOwner({ title: "✅ LinkedIn (heartbeat)", content: `Post #${post.id} publicado no LinkedIn.` }).catch(() => {});
+            } catch (e: any) { console.error(`[Heartbeat] LinkedIn post ${post.id}:`, e.message); }
+          }
+        }
+
+        // Facebook
+        if (!post.facebookPublished) {
+          for (const fbAcc of facebookAccounts) {
+            const pageId = fbAcc.linkedinUrn.startsWith("fb:page:")
+              ? fbAcc.linkedinUrn.replace("fb:page:", "") : "me";
+            try {
+              const r = await publishToFacebook({ pageToken: fbAcc.accessToken, pageId, caption, imageUrl });
+              await updatePost(post.id, { facebookPublished: 1 });
+              fbPublished++;
+              console.log(`[Heartbeat] Post ${post.id} → Facebook: ${r.postId}`);
+              notifyOwner({ title: "✅ Facebook (heartbeat)", content: `Post #${post.id} publicado no Facebook.` }).catch(() => {});
+            } catch (e: any) { console.error(`[Heartbeat] Facebook post ${post.id}:`, e.message); }
+          }
+        }
+
+        // Instagram: marcar mcpPending=1 para o AGENT cron processar via MCP
+        if (!post.instagramPostId) {
+          await updatePost(post.id, { mcpPending: 1 });
+          igQueued++;
+        }
+      }
+
+      console.log(`[Heartbeat] Concluído em ${Date.now() - start}ms — promoted=${promoted} ig_queued=${igQueued} li=${liPublished} fb=${fbPublished}`);
+      return res.json({ ok: true, promoted, processed: ready.length, igQueued, liPublished, fbPublished, elapsed: Date.now() - start });
+    } catch (err: any) {
+      console.error("[Heartbeat] Erro:", err.message);
+      return res.status(500).json({ error: err.message, stack: err.stack, timestamp: new Date().toISOString() });
     }
   });
 

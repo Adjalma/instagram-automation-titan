@@ -161,3 +161,9 @@
 - [x] ActionPlan: rota /action-plan registrada no App.tsx
 - [x] DashboardLayout: item "Plano de Ação" adicionado ao menu
 - [x] schema: coluna autoPublish adicionada à tabela research_topics
+
+## Heartbeat HTTP Persistente 2026-05-23
+
+- [x] Endpoint POST /api/scheduled/heartbeat-publish criado (promove scheduled→approved, publica FB/LI inline, enfileira IG para AGENT cron)
+- [ ] Heartbeat criado via manus-heartbeat CLI (a cada 10 min)
+- [ ] task_uid salvo no banco para gerenciamento futuro
