@@ -1,0 +1,9 @@
+{
+  "query": "SELECT p.id, p.caption, pm.mediaUrl FROM posts p JOIN post_media pm ON pm.postId = p.id WHERE p.status = 'approved' AND p.mcpPending = 0 ORDER BY p.createdAt ASC LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3F5sJN7FajWtXbb.root --database 3LYkMyiPgdB2gzxf44Hk3M --execute SELECT p.id, p.caption, pm.mediaUrl FROM posts p JOIN post_media pm ON pm.postId = p.id WHERE p.status = 'approved' AND p.mcpPending = 0 ORDER BY p.createdAt ASC LIMIT 5;",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 346
+}

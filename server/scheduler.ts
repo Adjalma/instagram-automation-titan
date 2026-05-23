@@ -68,7 +68,7 @@ async function fetchNews(query: string, language: string): Promise<{ title: stri
   } catch (e: any) { console.error("[DailyResearch] Fetch error:", e.message); return []; }
 }
 
-async function runTopicResearch(topic: { id: number; name: string; query: string; language: string; accountId: number }) {
+async function runTopicResearch(topic: { id: number; name: string; query: string; language: string; accountId: number; autoPublish?: number }) {
   const db = await getDb();
   if (!db) return;
 
@@ -98,12 +98,15 @@ async function runTopicResearch(topic: { id: number; name: string; query: string
     });
     if (!imageUrl) throw new Error("Falha ao gerar imagem");
 
+    // autoPublish=1 → vai direto para fila do MCP sem aprovacao manual
+    const postStatus = topic.autoPublish === 1 ? 'approved' : 'pending';
     const [postResult] = await db.insert(posts).values({
       userId: 1,
       accountId: topic.accountId,
       caption,
       theme: `Pesquisa Diária: ${topic.name}`,
-      status: "pending",
+      status: postStatus,
+      mcpPending: 0,
     });
     const postId = (postResult as any).insertId as number;
 
@@ -114,7 +117,7 @@ async function runTopicResearch(topic: { id: number; name: string; query: string
       status: "success",
     });
 
-    console.log(`[DailyResearch] Tópico "${topic.name}" (${topic.id}): post ${postId} criado às ${getBrasiliaDateHour().hour}h Brasília.`);
+    console.log(`[DailyResearch] Tópico "${topic.name}" (${topic.id}): post ${postId} criado como ${postStatus} às ${getBrasiliaDateHour().hour}h Brasília.`);
   } catch (err: any) {
     const db2 = await getDb();
     if (db2) await db2.insert(researchRuns).values({ topicId: topic.id, status: "failed", error: err?.message });

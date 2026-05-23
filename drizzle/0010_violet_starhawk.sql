@@ -1,0 +1,1 @@
+ALTER TABLE `research_topics` ADD `autoPublish` int DEFAULT 0 NOT NULL;

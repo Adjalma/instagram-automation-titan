@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Loader2, Plus, Trash2, Play, Globe, Clock, CheckCircle2, XCircle, SkipForward, Newspaper, Sparkles } from "lucide-react";
+import { Loader2, Plus, Trash2, Play, Globe, Clock, CheckCircle2, XCircle, SkipForward, Newspaper, Sparkles, Zap } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
 function StatusBadge({ status }: { status: string }) {
@@ -113,7 +113,7 @@ export default function Research() {
     onSuccess: (data) => {
       utils.research.listRuns.invalidate();
       utils.research.listTopics.invalidate();
-      if (data.success) toast.success(`Post criado! ID: ${data.postId} — aguardando aprovação`);
+      if (data.success) toast.success(`Post criado! ID: ${data.postId}${data.autoPublished ? ' — publicado automaticamente!' : ' — aguardando aprovação'}`);
       else toast.warning(data.message);
     },
     onError: () => toast.error("Erro ao executar pesquisa"),
@@ -144,7 +144,7 @@ export default function Research() {
         <Sparkles className="h-5 w-5 text-cyan-400 shrink-0 mt-0.5" />
         <div className="text-sm">
           <p className="font-semibold text-cyan-300">Automação ativa — todo dia às 8h</p>
-          <p className="text-muted-foreground mt-0.5">Para cada tópico ativo, o sistema busca as 5 notícias mais recentes, gera uma legenda personalizada e uma imagem premium com IA, e envia o post para aprovação automaticamente.</p>
+          <p className="text-muted-foreground mt-0.5 text-sm">Para cada tópico ativo, o sistema busca as 5 notícias mais recentes, gera uma legenda personalizada e uma imagem premium com IA. Com <strong>Auto</strong> <Zap className="h-3 w-3 inline text-yellow-400" /> ativo, o post é publicado diretamente no Instagram sem aprovação manual.</p>
         </div>
       </div>
 
@@ -181,6 +181,9 @@ export default function Research() {
                         ) : (
                           <Badge variant="outline" className="text-xs shrink-0 text-muted-foreground">Pausado</Badge>
                         )}
+                        {(topic as any).autoPublish ? (
+                          <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30 text-xs shrink-0 gap-1"><Zap className="h-2.5 w-2.5" />Auto</Badge>
+                        ) : null}
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5 font-mono truncate">{topic.query}</p>
                     </div>
@@ -199,6 +202,14 @@ export default function Research() {
                         title={topic.active ? "Pausar" : "Ativar"}
                       >
                         <Clock className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        variant={(topic as any).autoPublish ? "default" : "outline"}
+                        size="icon" className="h-7 w-7"
+                        onClick={() => toggleTopic.mutate({ id: topic.id, autoPublish: (topic as any).autoPublish ? 0 : 1 })}
+                        title={(topic as any).autoPublish ? "Auto-publicar ativo (clique para desativar)" : "Ativar auto-publicar (sem aprovação manual)"}
+                      >
+                        <Zap className="h-3.5 w-3.5" />
                       </Button>
                       <Button
                         variant="outline" size="icon" className="h-7 w-7 text-destructive hover:text-destructive"

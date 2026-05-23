@@ -18,6 +18,7 @@ import Analytics from "@/pages/Analytics";
 import Research from "@/pages/Research";
 import Accounts from "@/pages/Accounts";
 import MarketIntel from "@/pages/MarketIntel";
+import ActionPlan from "@/pages/ActionPlan";
 import Privacy from "@/pages/Privacy";
 
 function Router() {
@@ -43,6 +44,7 @@ function Router() {
             <Route path={"/research"} component={Research} />
             <Route path={"/accounts"} component={Accounts} />
             <Route path={"/market-intel"} component={MarketIntel} />
+            <Route path={"/action-plan"} component={ActionPlan} />
             <Route path={"/404"} component={NotFound} />
             <Route component={NotFound} />
           </Switch>

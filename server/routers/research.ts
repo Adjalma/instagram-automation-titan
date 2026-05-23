@@ -97,11 +97,12 @@ export const researchRouter = router({
     query: z.string().min(1).max(512).optional(),
     language: z.enum(["pt", "en"]).optional(),
     active: z.number().min(0).max(1).optional(),
+    autoPublish: z.number().min(0).max(1).optional(),
   })).mutation(async ({ input }) => {
     const db = await getDb();
     if (!db) throw new Error("DB unavailable");
     const { id, ...values } = input;
-    await db.update(researchTopics).set(values).where(eq(researchTopics.id, id));
+    await db.update(researchTopics).set(values as any).where(eq(researchTopics.id, id));
     return { success: true };
   }),
 
@@ -154,12 +155,14 @@ export const researchRouter = router({
 
       // 4. Criar post no banco
       const userId = ctx.user.id;
+      const postStatus = (topic as any).autoPublish === 1 ? "approved" : "pending";
       const [postResult] = await db.insert(posts).values({
         userId,
         accountId: topic.accountId,
         caption,
         theme: `Pesquisa Diária: ${topic.name}`,
-        status: "pending",
+        status: postStatus,
+        mcpPending: 0,
       });
       const postId = (postResult as any).insertId as number;
 
@@ -179,7 +182,7 @@ export const researchRouter = router({
         status: "success",
       });
 
-      return { success: true, postId, message: `Post criado com sucesso! ID: ${postId}` };
+      return { success: true, postId, autoPublished: postStatus === 'approved', message: `Post criado com sucesso! ID: ${postId}` };
     } catch (err: any) {
       await db.insert(researchRuns).values({
         topicId: topic.id,
@@ -210,12 +213,14 @@ export const researchRouter = router({
         const caption = await generateCaption(topic.name, articles);
         const imageUrl = await generateArtForResearch(topic.name, articles.map(a => a.title));
 
+        const runAllStatus = (topic as any).autoPublish === 1 ? "approved" : "pending";
         const [postResult] = await db.insert(posts).values({
           userId: ctx.user.id,
           accountId: topic.accountId,
           caption,
           theme: `Pesquisa Diária: ${topic.name}`,
-          status: "pending",
+          status: runAllStatus,
+          mcpPending: 0,
         });
         const postId = (postResult as any).insertId as number;
 

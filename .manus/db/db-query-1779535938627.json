@@ -1,0 +1,46 @@
+{
+  "query": "SELECT id, handle, displayName, platform, accountType, accessToken IS NOT NULL as hasToken, linkedinUrn FROM instagram_accounts ORDER BY id;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3F5sJN7FajWtXbb.root --database 3LYkMyiPgdB2gzxf44Hk3M --execute SELECT id, handle, displayName, platform, accountType, accessToken IS NOT NULL as hasToken, linkedinUrn FROM instagram_accounts ORDER BY id;",
+  "rows": [
+    {
+      "id": "2",
+      "handle": "triarcsolutions",
+      "displayName": "Triarc Solutions",
+      "platform": "instagram",
+      "accountType": "business",
+      "hasToken": "0",
+      "linkedinUrn": "NULL"
+    },
+    {
+      "id": "30001",
+      "handle": "Triarcsolutions",
+      "displayName": "Triarc Solutions",
+      "platform": "facebook",
+      "accountType": "business",
+      "hasToken": "0",
+      "linkedinUrn": "NULL"
+    },
+    {
+      "id": "30002",
+      "handle": "triarcsolutions",
+      "displayName": "Triarc Solutions Brasil",
+      "platform": "linkedin",
+      "accountType": "business",
+      "hasToken": "1",
+      "linkedinUrn": "NULL"
+    },
+    {
+      "id": "60001",
+      "handle": "triacsolutions",
+      "displayName": "Triarc Solutions",
+      "platform": "tiktok",
+      "accountType": "business",
+      "hasToken": "0",
+      "linkedinUrn": "NULL"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\thandle\tdisplayName\tplatform\taccountType\thasToken\tlinkedinUrn\n2\ttriarcsolutions\tTriarc Solutions\tinstagram\tbusiness\t0\tNULL\n30001\tTriarcsolutions\tTriarc Solutions\tfacebook\tbusiness\t0\tNULL\n30002\ttriarcsolutions\tTriarc Solutions Brasil\tlinkedin\tbusiness\t1\tNULL\n60001\ttriacsolutions\tTriarc Solutions\ttiktok\tbusiness\t0\tNULL\n",
+  "stderr": "",
+  "execution_time_ms": 265
+}

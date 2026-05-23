@@ -1,0 +1,26 @@
+{
+  "query": "SELECT status, COUNT(*) as total FROM posts GROUP BY status ORDER BY total DESC;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3F5sJN7FajWtXbb.root --database 3LYkMyiPgdB2gzxf44Hk3M --execute SELECT status, COUNT(*) as total FROM posts GROUP BY status ORDER BY total DESC;",
+  "rows": [
+    {
+      "status": "scheduled",
+      "total": "36"
+    },
+    {
+      "status": "published",
+      "total": "19"
+    },
+    {
+      "status": "rejected",
+      "total": "10"
+    },
+    {
+      "status": "pending",
+      "total": "3"
+    }
+  ],
+  "messages": [],
+  "stdout": "status\ttotal\nscheduled\t36\npublished\t19\nrejected\t10\npending\t3\n",
+  "stderr": "",
+  "execution_time_ms": 273
+}

@@ -101,7 +101,7 @@ export async function createPost(data: { userId: number; accountId: number; capt
 
 const POST_COLS = `p.id, p.userId, p.accountId, p.caption, p.status, p.theme, p.scheduledAt, p.publishedAt,
   p.instagramPostId, p.instagramPermalink, p.likes, p.comments, p.createdAt, p.updatedAt,
-  p.mcpPending, p.retryCount, p.nextRetryAt,
+  p.mcpPending, p.retryCount, p.nextRetryAt, p.linkedinPublished, p.facebookPublished,
   (SELECT pm.mediaUrl FROM post_media pm WHERE pm.postId = p.id ORDER BY pm.sortOrder ASC LIMIT 1) AS mediaUrl`;
 
 async function queryPosts(db: ReturnType<typeof drizzle>, rawSql: ReturnType<typeof sql>): Promise<any[]> {

@@ -489,9 +489,35 @@ export const appRouter = router({
         likes: p.likes ?? 0,
         comments: p.comments ?? 0,
         theme: p.theme,
+        linkedinPublished: p.linkedinPublished ?? 0,
+        facebookPublished: p.facebookPublished ?? 0,
       }));
     }),
 
+    syncAllInsights: protectedProcedure.mutation(async () => {
+      const published = await getPostsByStatus('published');
+      const postsWithId = (published as any[]).filter((p: any) => p.instagramPostId);
+      let updated = 0;
+      const errors: string[] = [];
+      for (const post of postsWithId) {
+        try {
+          const port = process.env.PORT || 3000;
+          const res = await fetch(`http://localhost:${port}/api/scheduled/insights/${post.instagramPostId}`, {
+            headers: { 'x-internal-key': process.env.JWT_SECRET || 'internal' }
+          });
+          if (res.ok) {
+            const data = await res.json() as { likes?: number; comments?: number };
+            if (data.likes !== undefined || data.comments !== undefined) {
+              await updatePost(post.id, { likes: data.likes ?? (post as any).likes ?? 0, comments: data.comments ?? (post as any).comments ?? 0 });
+              updated++;
+            }
+          }
+        } catch (e: any) {
+          errors.push(`Post ${post.id}: ${e.message}`);
+        }
+      }
+      return { updated, total: postsWithId.length, errors };
+    }),
     getSummary: protectedProcedure.query(async () => {
       // Resumo geral: total posts, pendentes, aprovados, publicados
       const [all, pending, approved, published, scheduled] = await Promise.all([
@@ -558,6 +584,53 @@ export const appRouter = router({
     }),
   }),
 
+  actionPlan: router({
+    generate: protectedProcedure.input(z.object({
+      period: z.enum(['week', 'month']).default('week'),
+    })).mutation(async () => {
+      const published = await getPostsByStatus('published');
+      const publishedPosts = published as any[];
+      const totalLikes = publishedPosts.reduce((s: number, p: any) => s + (p.likes ?? 0), 0);
+      const totalComments = publishedPosts.reduce((s: number, p: any) => s + (p.comments ?? 0), 0);
+      const avgEngagement = publishedPosts.length > 0
+        ? ((totalLikes + totalComments) / publishedPosts.length).toFixed(1)
+        : '0';
+      const topPosts = publishedPosts
+        .sort((a: any, b: any) => ((b.likes ?? 0) + (b.comments ?? 0)) - ((a.likes ?? 0) + (a.comments ?? 0)))
+        .slice(0, 3)
+        .map((p: any) => ({ theme: p.theme || 'Sem tema', likes: p.likes ?? 0, comments: p.comments ?? 0 }));
+      const prompt = "Crie um plano de acao de marketing digital para a Triarc Solutions (empresa de tecnologia de Macae/RJ) baseado nos dados abaixo.\n\nDados de performance:\n- Posts publicados: " + publishedPosts.length + "\n- Total de curtidas: " + totalLikes + "\n- Total de comentarios: " + totalComments + "\n- Engajamento medio por post: " + avgEngagement + "\n- Top posts: " + JSON.stringify(topPosts) + "\n\nRetorne JSON com exatamente esta estrutura:\n{\n  \"diagnosis\": \"diagnostico da performance atual em 3-4 frases\",\n  \"score\": 75,\n  \"actions\": [{ \"priority\": \"alta\", \"title\": \"titulo\", \"description\": \"descricao\", \"metric\": \"metrica\", \"deadline\": \"prazo\" }],\n  \"contentCalendar\": [{ \"day\": \"Segunda\", \"type\": \"Educativo\", \"theme\": \"tema\", \"platform\": \"Instagram\" }],\n  \"kpis\": [{ \"name\": \"KPI\", \"current\": \"atual\", \"target\": \"meta\", \"period\": \"periodo\" }],\n  \"quickWins\": [\"acao 1\", \"acao 2\", \"acao 3\"]\n}";
+      const res = await invokeLLM({
+        messages: [
+          { role: 'system', content: 'Voce e um estrategista de marketing digital especializado em empresas de tecnologia B2B no Brasil. Responda SEMPRE em JSON valido sem markdown.' },
+          { role: 'user', content: prompt },
+        ],
+        response_format: {
+          type: 'json_schema',
+          json_schema: {
+            name: 'action_plan',
+            strict: true,
+            schema: {
+              type: 'object',
+              properties: {
+                diagnosis: { type: 'string' },
+                score: { type: 'number' },
+                actions: { type: 'array', items: { type: 'object', properties: { priority: { type: 'string' }, title: { type: 'string' }, description: { type: 'string' }, metric: { type: 'string' }, deadline: { type: 'string' } }, required: ['priority', 'title', 'description', 'metric', 'deadline'], additionalProperties: false } },
+                contentCalendar: { type: 'array', items: { type: 'object', properties: { day: { type: 'string' }, type: { type: 'string' }, theme: { type: 'string' }, platform: { type: 'string' } }, required: ['day', 'type', 'theme', 'platform'], additionalProperties: false } },
+                kpis: { type: 'array', items: { type: 'object', properties: { name: { type: 'string' }, current: { type: 'string' }, target: { type: 'string' }, period: { type: 'string' } }, required: ['name', 'current', 'target', 'period'], additionalProperties: false } },
+                quickWins: { type: 'array', items: { type: 'string' } },
+              },
+              required: ['diagnosis', 'score', 'actions', 'contentCalendar', 'kpis', 'quickWins'],
+              additionalProperties: false,
+            },
+          },
+        },
+      });
+      const raw = res.choices?.[0]?.message?.content;
+      if (!raw) throw new Error('LLM nao retornou resposta');
+      return JSON.parse(typeof raw === 'string' ? raw : JSON.stringify(raw));
+    }),
+  }),
   marketIntel: router({
     analyze: protectedProcedure.input(z.object({
       niche: z.string().min(1),

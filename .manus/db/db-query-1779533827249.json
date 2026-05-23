@@ -1,0 +1,230 @@
+{
+  "query": "SELECT id, status, mcpPending, retryCount, linkedinPublished, facebookPublished, scheduledAt, publishedAt, createdAt FROM posts WHERE status IN ('approved', 'published', 'scheduled') ORDER BY createdAt DESC LIMIT 20;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3F5sJN7FajWtXbb.root --database 3LYkMyiPgdB2gzxf44Hk3M --execute SELECT id, status, mcpPending, retryCount, linkedinPublished, facebookPublished, scheduledAt, publishedAt, createdAt FROM posts WHERE status IN ('approved', 'published', 'scheduled') ORDER BY createdAt DESC LIMIT 20;",
+  "rows": [
+    {
+      "id": "690028",
+      "status": "scheduled",
+      "mcpPending": "0",
+      "retryCount": "0",
+      "linkedinPublished": "0",
+      "facebookPublished": "0",
+      "scheduledAt": "2026-05-29 08:00:00",
+      "publishedAt": "NULL",
+      "createdAt": "2026-05-22 15:56:50"
+    },
+    {
+      "id": "690027",
+      "status": "scheduled",
+      "mcpPending": "0",
+      "retryCount": "0",
+      "linkedinPublished": "0",
+      "facebookPublished": "0",
+      "scheduledAt": "2026-05-29 12:30:00",
+      "publishedAt": "NULL",
+      "createdAt": "2026-05-22 15:56:05"
+    },
+    {
+      "id": "690026",
+      "status": "scheduled",
+      "mcpPending": "0",
+      "retryCount": "0",
+      "linkedinPublished": "0",
+      "facebookPublished": "0",
+      "scheduledAt": "2026-05-29 08:00:00",
+      "publishedAt": "NULL",
+      "createdAt": "2026-05-22 15:55:06"
+    },
+    {
+      "id": "690025",
+      "status": "scheduled",
+      "mcpPending": "0",
+      "retryCount": "0",
+      "linkedinPublished": "0",
+      "facebookPublished": "0",
+      "scheduledAt": "2026-05-29 12:30:00",
+      "publishedAt": "NULL",
+      "createdAt": "2026-05-22 15:54:18"
+    },
+    {
+      "id": "690024",
+      "status": "scheduled",
+      "mcpPending": "0",
+      "retryCount": "0",
+      "linkedinPublished": "0",
+      "facebookPublished": "0",
+      "scheduledAt": "2026-05-28 20:00:00",
+      "publishedAt": "NULL",
+      "createdAt": "2026-05-22 15:53:19"
+    },
+    {
+      "id": "690023",
+      "status": "scheduled",
+      "mcpPending": "0",
+      "retryCount": "0",
+      "linkedinPublished": "0",
+      "facebookPublished": "0",
+      "scheduledAt": "2026-05-28 08:00:00",
+      "publishedAt": "NULL",
+      "createdAt": "2026-05-22 15:52:34"
+    },
+    {
+      "id": "690022",
+      "status": "scheduled",
+      "mcpPending": "0",
+      "retryCount": "0",
+      "linkedinPublished": "0",
+      "facebookPublished": "0",
+      "scheduledAt": "2026-05-28 20:00:00",
+      "publishedAt": "NULL",
+      "createdAt": "2026-05-22 15:51:34"
+    },
+    {
+      "id": "690021",
+      "status": "scheduled",
+      "mcpPending": "0",
+      "retryCount": "0",
+      "linkedinPublished": "0",
+      "facebookPublished": "0",
+      "scheduledAt": "2026-05-28 08:00:00",
+      "publishedAt": "NULL",
+      "createdAt": "2026-05-22 15:50:47"
+    },
+    {
+      "id": "690020",
+      "status": "scheduled",
+      "mcpPending": "0",
+      "retryCount": "0",
+      "linkedinPublished": "0",
+      "facebookPublished": "0",
+      "scheduledAt": "2026-05-27 18:00:00",
+      "publishedAt": "NULL",
+      "createdAt": "2026-05-22 15:49:56"
+    },
+    {
+      "id": "690019",
+      "status": "scheduled",
+      "mcpPending": "0",
+      "retryCount": "0",
+      "linkedinPublished": "0",
+      "facebookPublished": "0",
+      "scheduledAt": "2026-05-27 20:00:00",
+      "publishedAt": "NULL",
+      "createdAt": "2026-05-22 15:48:54"
+    },
+    {
+      "id": "690018",
+      "status": "scheduled",
+      "mcpPending": "0",
+      "retryCount": "0",
+      "linkedinPublished": "0",
+      "facebookPublished": "0",
+      "scheduledAt": "2026-05-27 18:00:00",
+      "publishedAt": "NULL",
+      "createdAt": "2026-05-22 15:47:51"
+    },
+    {
+      "id": "690017",
+      "status": "scheduled",
+      "mcpPending": "0",
+      "retryCount": "0",
+      "linkedinPublished": "0",
+      "facebookPublished": "0",
+      "scheduledAt": "2026-05-27 20:00:00",
+      "publishedAt": "NULL",
+      "createdAt": "2026-05-22 15:47:00"
+    },
+    {
+      "id": "690016",
+      "status": "scheduled",
+      "mcpPending": "0",
+      "retryCount": "0",
+      "linkedinPublished": "0",
+      "facebookPublished": "0",
+      "scheduledAt": "2026-05-26 12:30:00",
+      "publishedAt": "NULL",
+      "createdAt": "2026-05-22 15:45:59"
+    },
+    {
+      "id": "690015",
+      "status": "scheduled",
+      "mcpPending": "0",
+      "retryCount": "0",
+      "linkedinPublished": "0",
+      "facebookPublished": "0",
+      "scheduledAt": "2026-05-26 18:00:00",
+      "publishedAt": "NULL",
+      "createdAt": "2026-05-22 15:44:59"
+    },
+    {
+      "id": "690014",
+      "status": "scheduled",
+      "mcpPending": "0",
+      "retryCount": "0",
+      "linkedinPublished": "0",
+      "facebookPublished": "0",
+      "scheduledAt": "2026-05-26 12:30:00",
+      "publishedAt": "NULL",
+      "createdAt": "2026-05-22 15:44:09"
+    },
+    {
+      "id": "690013",
+      "status": "scheduled",
+      "mcpPending": "0",
+      "retryCount": "0",
+      "linkedinPublished": "0",
+      "facebookPublished": "0",
+      "scheduledAt": "2026-05-26 18:00:00",
+      "publishedAt": "NULL",
+      "createdAt": "2026-05-22 15:43:14"
+    },
+    {
+      "id": "690012",
+      "status": "scheduled",
+      "mcpPending": "0",
+      "retryCount": "0",
+      "linkedinPublished": "0",
+      "facebookPublished": "0",
+      "scheduledAt": "2026-05-25 08:00:00",
+      "publishedAt": "NULL",
+      "createdAt": "2026-05-22 15:42:25"
+    },
+    {
+      "id": "690011",
+      "status": "scheduled",
+      "mcpPending": "0",
+      "retryCount": "0",
+      "linkedinPublished": "0",
+      "facebookPublished": "0",
+      "scheduledAt": "2026-05-25 12:30:00",
+      "publishedAt": "NULL",
+      "createdAt": "2026-05-22 15:42:11"
+    },
+    {
+      "id": "690010",
+      "status": "scheduled",
+      "mcpPending": "0",
+      "retryCount": "0",
+      "linkedinPublished": "0",
+      "facebookPublished": "0",
+      "scheduledAt": "2026-05-25 08:00:00",
+      "publishedAt": "NULL",
+      "createdAt": "2026-05-22 15:41:58"
+    },
+    {
+      "id": "690009",
+      "status": "scheduled",
+      "mcpPending": "0",
+      "retryCount": "0",
+      "linkedinPublished": "0",
+      "facebookPublished": "0",
+      "scheduledAt": "2026-05-25 12:30:00",
+      "publishedAt": "NULL",
+      "createdAt": "2026-05-22 15:41:43"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tstatus\tmcpPending\tretryCount\tlinkedinPublished\tfacebookPublished\tscheduledAt\tpublishedAt\tcreatedAt\n690028\tscheduled\t0\t0\t0\t0\t2026-05-29 08:00:00\tNULL\t2026-05-22 15:56:50\n690027\tscheduled\t0\t0\t0\t0\t2026-05-29 12:30:00\tNULL\t2026-05-22 15:56:05\n690026\tscheduled\t0\t0\t0\t0\t2026-05-29 08:00:00\tNULL\t2026-05-22 15:55:06\n690025\tscheduled\t0\t0\t0\t0\t2026-05-29 12:30:00\tNULL\t2026-05-22 15:54:18\n690024\tscheduled\t0\t0\t0\t0\t2026-05-28 20:00:00\tNULL\t2026-05-22 15:53:19\n690023\tscheduled\t0\t0\t0\t0\t2026-05-28 08:00:00\tNULL\t2026-05-22 15:52:34\n690022\tscheduled\t0\t0\t0\t0\t2026-05-28 20:00:00\tNULL\t2026-05-22 15:51:34\n690021\tscheduled\t0\t0\t0\t0\t2026-05-28 08:00:00\tNULL\t2026-05-22 15:50:47\n690020\tscheduled\t0\t0\t0\t0\t2026-05-27 18:00:00\tNULL\t2026-05-22 15:49:56\n690019\tscheduled\t0\t0\t0\t0\t2026-05-27 20:00:00\tNULL\t2026-05-22 15:48:54\n690018\tscheduled\t0\t0\t0\t0\t2026-05-27 18:00:00\tNULL\t2026-05-22 15:47:51\n690017\tscheduled\t0\t0\t0\t0\t2026-05-27 20:00:00\tNULL\t2026-05-22 15:47:00\n690016\tscheduled\t0\t0\t0\t0\t2026-05-26 12:30:00\tNULL\t2026-05-22 15:45:59\n690015\tscheduled\t0\t0\t0\t0\t2026-05-26 18:00:00\tNULL\t2026-05-22 15:44:59\n690014\tscheduled\t0\t0\t0\t0\t2026-05-26 12:30:00\tNULL\t2026-05-22 15:44:09\n690013\tscheduled\t0\t0\t0\t0\t2026-05-26 18:00:00\tNULL\t2026-05-22 15:43:14\n690012\tscheduled\t0\t0\t0\t0\t2026-05-25 08:00:00\tNULL\t2026-05-22 15:42:25\n690011\tscheduled\t0\t0\t0\t0\t2026-05-25 12:30:00\tNULL\t2026-05-22 15:42:11\n690010\tscheduled\t0\t0\t0\t0\t2026-05-25 08:00:00\tNULL\t2026-05-22 15:41:58\n690009\tscheduled\t0\t0\t0\t0\t2026-05-25 12:30:00\tNULL\t2026-05-22 15:41:43\n",
+  "stderr": "",
+  "execution_time_ms": 387
+}

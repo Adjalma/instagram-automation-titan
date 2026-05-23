@@ -1,0 +1,33 @@
+{
+  "query": "SELECT status, COUNT(*) as total FROM posts GROUP BY status; SELECT id, status, mcpPending, scheduledAt FROM posts WHERE status = 'approved' LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3F5sJN7FajWtXbb.root --database 3LYkMyiPgdB2gzxf44Hk3M --execute SELECT status, COUNT(*) as total FROM posts GROUP BY status; SELECT id, status, mcpPending, scheduledAt FROM posts WHERE status = 'approved' LIMIT 5;",
+  "rows": [
+    {
+      "status": "published",
+      "total": "15"
+    },
+    {
+      "status": "scheduled",
+      "total": "36"
+    },
+    {
+      "status": "rejected",
+      "total": "9"
+    },
+    {
+      "status": "approved",
+      "total": "5"
+    }
+  ],
+  "messages": [
+    "id\tstatus\tmcpPending\tscheduledAt",
+    "360051\tapproved\t0\t2026-05-22 08:00:00",
+    "360059\tapproved\t0\t2026-05-22 08:14:00",
+    "360081\tapproved\t0\t2026-05-22 08:00:00",
+    "660001\tapproved\t0\tNULL",
+    "660002\tapproved\t0\tNULL"
+  ],
+  "stdout": "status\ttotal\npublished\t15\nscheduled\t36\nrejected\t9\napproved\t5\nid\tstatus\tmcpPending\tscheduledAt\n360051\tapproved\t0\t2026-05-22 08:00:00\n360059\tapproved\t0\t2026-05-22 08:14:00\n360081\tapproved\t0\t2026-05-22 08:00:00\n660001\tapproved\t0\tNULL\n660002\tapproved\t0\tNULL\n",
+  "stderr": "",
+  "execution_time_ms": 425
+}

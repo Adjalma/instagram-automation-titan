@@ -2,16 +2,13 @@
  * Rotas para tarefas agendadas — chamadas pelo agente Manus via HTTP.
  *
  * Fluxo correto:
- * 1. GET /pending-posts → retorna posts aprovados para o agente publicar no Instagram via MCP
+ * 1. GET /pending-posts → retorna posts aprovados, marca mcpPending=1 para evitar duplicatas
  * 2. POST /publish-result → agente reporta sucesso/falha do Instagram
  *    → em caso de SUCESSO: publica automaticamente no LinkedIn e Facebook
- *
- * Isso garante que LinkedIn/Facebook só publicam após o Instagram confirmar,
- * e usa flags linkedinPublished/facebookPublished para evitar duplicatas.
  */
 import type { Express, Request, Response } from "express";
 import { sdk } from "./_core/sdk";
-import { updatePost, getPostsByStatus, getPostMedia, createPublicationLog, getPublicationLogsByPost, getAllAccounts } from "./db";
+import { updatePost, getPostsByStatus, getPostById, getPostMedia, createPublicationLog, getPublicationLogsByPost, getAllAccounts } from "./db";
 import { storageGetSignedUrl } from "./storage";
 import { notifyOwner } from "./_core/notification";
 import { publishToLinkedIn } from "./linkedin";
@@ -94,6 +91,8 @@ export function registerScheduledRoutes(app: Express) {
       const previousLogs = await getPublicationLogsByPost(postIdNum);
       const attempt = previousLogs.length + 1;
 
+      console.log(`[ScheduledRoutes] publish-result recebido: postId=${postIdNum} success=${success} instagramPostId=${instagramPostId}`);
+
       if (success && instagramPostId) {
         await updatePost(postIdNum, {
           status: "published",
@@ -121,8 +120,7 @@ export function registerScheduledRoutes(app: Express) {
 
         // Buscar dados do post para publicar nas outras plataformas
         try {
-          const posts = await getPostsByStatus("published") as any[];
-          const post = posts.find((p: any) => p.id === postIdNum);
+          const post = await getPostById(postIdNum);
           if (post) {
             const media = await getPostMedia(postIdNum) as any[];
             let imageUrl: string | undefined;
@@ -133,7 +131,7 @@ export function registerScheduledRoutes(app: Express) {
                 : url;
             }
             // Publicar no LinkedIn e Facebook (não bloqueia a resposta)
-            publishToOtherPlatforms(postIdNum, post.caption || "", imageUrl).catch((e) =>
+            publishToOtherPlatforms(postIdNum, (post as any).caption || "", imageUrl).catch((e) =>
               console.error("[ScheduledRoutes] Erro ao publicar em outras plataformas:", e.message)
             );
           }
@@ -175,6 +173,7 @@ export function registerScheduledRoutes(app: Express) {
   /**
    * GET /api/scheduled/pending-posts
    * Retorna posts aprovados com mcpPending=0 prontos para publicação no Instagram via MCP.
+   * Marca mcpPending=1 imediatamente para evitar publicação duplicada.
    * Não publica em LinkedIn/Facebook aqui — isso acontece em publish-result após sucesso.
    */
   app.get("/api/scheduled/pending-posts", async (req: Request, res: Response) => {
@@ -190,6 +189,15 @@ export function registerScheduledRoutes(app: Express) {
         if (p.nextRetryAt && new Date(p.nextRetryAt) > now) return false;
         return true;
       });
+
+      console.log(`[ScheduledRoutes] pending-posts: ${approved.length} aprovados, ${pendingPosts.length} prontos para publicar`);
+
+      if (pendingPosts.length === 0) {
+        return res.json({ posts: [] });
+      }
+
+      // Marcar mcpPending=1 ANTES de retornar para evitar duplicatas
+      await Promise.all(pendingPosts.map((p: any) => updatePost(p.id, { mcpPending: 1 })));
 
       const postsWithMedia = await Promise.all(
         pendingPosts.map(async (post: any) => {
@@ -208,9 +216,32 @@ export function registerScheduledRoutes(app: Express) {
         })
       );
 
+      console.log(`[ScheduledRoutes] Retornando ${postsWithMedia.length} post(s) para publicação`);
       return res.json({ posts: postsWithMedia });
     } catch (err: any) {
       console.error("[ScheduledRoutes] Erro ao buscar posts pendentes:", err.message);
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
+  /**
+   * GET /api/scheduled/insights/:instagramPostId
+   * Endpoint interno: retorna likes/comments do banco para um post do Instagram.
+   * Chamado pelo router analytics.syncAllInsights.
+   */
+  app.get("/api/scheduled/insights/:instagramPostId", async (req: Request, res: Response) => {
+    const internalKey = req.headers['x-internal-key'];
+    if (internalKey !== (process.env.JWT_SECRET || 'internal')) return res.status(401).json({ error: 'Unauthorized' });
+    try {
+      const { getDb } = await import('./db');
+      const { posts } = await import('../drizzle/schema');
+      const { eq } = await import('drizzle-orm');
+      const db = await getDb();
+      if (!db) return res.status(503).json({ error: 'DB unavailable' });
+      const [post] = await db.select().from(posts).where(eq(posts.instagramPostId, req.params.instagramPostId)).limit(1);
+      if (!post) return res.status(404).json({ error: 'Post not found' });
+      return res.json({ likes: post.likes ?? 0, comments: post.comments ?? 0 });
+    } catch (err: any) {
       return res.status(500).json({ error: err.message });
     }
   });

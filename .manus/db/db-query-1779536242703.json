@@ -1,0 +1,9 @@
+{
+  "query": "UPDATE posts SET status='published', publishedAt=NOW(), instagramPostId='Cp6BI2UDKFRuGbqzTJBfJ8', instagramPermalink='https://www.instagram.com/p/DYrgLG8oNoD/', mcpPending=0 WHERE id=360059;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3F5sJN7FajWtXbb.root --database 3LYkMyiPgdB2gzxf44Hk3M --execute UPDATE posts SET status='published', publishedAt=NOW(), instagramPostId='Cp6BI2UDKFRuGbqzTJBfJ8', instagramPermalink='https://www.instagram.com/p/DYrgLG8oNoD/', mcpPending=0 WHERE id=360059;",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 280
+}

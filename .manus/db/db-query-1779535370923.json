@@ -1,0 +1,35 @@
+{
+  "query": "SELECT pm.postId, pm.mediaUrl, pm.mediaType FROM post_media pm WHERE pm.postId IN (660001, 660002, 360081, 360059, 360051) ORDER BY pm.postId, pm.sortOrder;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3F5sJN7FajWtXbb.root --database 3LYkMyiPgdB2gzxf44Hk3M --execute SELECT pm.postId, pm.mediaUrl, pm.mediaType FROM post_media pm WHERE pm.postId IN (660001, 660002, 360081, 360059, 360051) ORDER BY pm.postId, pm.sortOrder;",
+  "rows": [
+    {
+      "postId": "360051",
+      "mediaUrl": "/manus-storage/generated/1779315144066_5120f374.png",
+      "mediaType": "image"
+    },
+    {
+      "postId": "360059",
+      "mediaUrl": "/manus-storage/generated/1779315279945_229efd61.png",
+      "mediaType": "image"
+    },
+    {
+      "postId": "360081",
+      "mediaUrl": "/manus-storage/generated/1779316615026_5be72f4e.png",
+      "mediaType": "image"
+    },
+    {
+      "postId": "660001",
+      "mediaUrl": "/manus-storage/generated/1779447618430_4b60ad6b.png",
+      "mediaType": "image"
+    },
+    {
+      "postId": "660002",
+      "mediaUrl": "/manus-storage/generated/1779447686999_110668e5.png",
+      "mediaType": "image"
+    }
+  ],
+  "messages": [],
+  "stdout": "postId\tmediaUrl\tmediaType\n360051\t/manus-storage/generated/1779315144066_5120f374.png\timage\n360059\t/manus-storage/generated/1779315279945_229efd61.png\timage\n360081\t/manus-storage/generated/1779316615026_5be72f4e.png\timage\n660001\t/manus-storage/generated/1779447618430_4b60ad6b.png\timage\n660002\t/manus-storage/generated/1779447686999_110668e5.png\timage\n",
+  "stderr": "",
+  "execution_time_ms": 264
+}

@@ -6,9 +6,10 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from "recharts";
 import {
-  Users, FileText, Heart, MessageCircle, CheckCircle2,
-  Clock, TrendingUp, ExternalLink, RefreshCw,
+  FileText, Heart, MessageCircle, CheckCircle2,
+  Clock, TrendingUp, ExternalLink, RefreshCw, Instagram, Linkedin, Facebook,
 } from "lucide-react";
+import { toast } from "sonner";
 
 function StatCard({
   icon: Icon,
@@ -47,6 +48,15 @@ export default function Analytics() {
   const posts = trpc.analytics.getPostsWithMetrics.useQuery();
   const utils = trpc.useUtils();
 
+  const syncInsights = trpc.analytics.syncAllInsights.useMutation({
+    onSuccess: (data) => {
+      toast.success(`Insights sincronizados: ${data.updated}/${data.total} posts atualizados`);
+      utils.analytics.getPostsWithMetrics.invalidate();
+      utils.analytics.getSummary.invalidate();
+    },
+    onError: (e) => toast.error(`Erro ao sincronizar: ${e.message}`),
+  });
+
   const isLoading = summary.isLoading || accountStats.isLoading || posts.isLoading;
 
   function handleRefresh() {
@@ -54,6 +64,11 @@ export default function Analytics() {
     utils.analytics.getAccountStats.invalidate();
     utils.analytics.getPostsWithMetrics.invalidate();
   }
+
+  const publishedPosts = posts.data ?? [];
+  const instagramCount = publishedPosts.filter((p) => p.instagramPostId).length;
+  const linkedinCount = publishedPosts.filter((p) => (p as any).linkedinPublished === 1).length;
+  const facebookCount = publishedPosts.filter((p) => (p as any).facebookPublished === 1).length;
 
   // Dados para gráfico de barras (últimos 9 posts publicados)
   const chartData = (posts.data ?? [])
@@ -75,37 +90,39 @@ export default function Analytics() {
             @triarcsolutions — desempenho dos conteúdos publicados
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isLoading}>
-          <RefreshCw size={14} className={isLoading ? "animate-spin" : ""} />
-          <span className="ml-1.5">Atualizar</span>
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline" size="sm"
+            onClick={() => syncInsights.mutate()}
+            disabled={syncInsights.isPending}
+            title="Sincronizar insights do Instagram"
+          >
+            <RefreshCw size={14} className={syncInsights.isPending ? "animate-spin" : ""} />
+            <span className="ml-1.5">Sincronizar</span>
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isLoading}>
+            <RefreshCw size={14} className={isLoading ? "animate-spin" : ""} />
+            <span className="ml-1.5">Atualizar</span>
+          </Button>
+        </div>
       </div>
 
-      {/* Conta Instagram */}
-      {accountStats.data && (
-        <Card className="bg-card border-border">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
-              Conta Instagram
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-4">
-              <div>
-                <p className="text-lg font-bold text-foreground">
-                  @{accountStats.data.account?.handle}
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  {accountStats.data.account?.name}
-                </p>
-              </div>
-              <Badge variant="secondary" className="ml-auto">
-                {accountStats.data.account?.accountType ?? "Business"}
-              </Badge>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* Plataformas */}
+      <div className="grid grid-cols-3 gap-3">
+        {[
+          { icon: Instagram, color: "text-pink-500", label: "Instagram", count: instagramCount },
+          { icon: Linkedin, color: "text-blue-600", label: "LinkedIn", count: linkedinCount },
+          { icon: Facebook, color: "text-blue-500", label: "Facebook", count: facebookCount },
+        ].map(({ icon: Icon, color, label, count }) => (
+          <Card key={label} className="text-center py-3">
+            <CardContent className="p-0">
+              <Icon className={`w-5 h-5 mx-auto mb-1 ${color}`} />
+              <p className="text-xl font-bold">{count}</p>
+              <p className="text-xs text-muted-foreground">{label}</p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
 
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -229,6 +246,17 @@ export default function Analytics() {
                       <span className="text-xs text-purple-400 flex items-center gap-1">
                         <MessageCircle size={11} /> {post.comments}
                       </span>
+                      <div className="flex items-center gap-1 ml-1">
+                        {post.instagramPostId && (
+                          <span title="Publicado no Instagram"><Instagram size={11} className="text-pink-500" /></span>
+                        )}
+                        {(post as any).linkedinPublished === 1 && (
+                          <span title="Publicado no LinkedIn"><Linkedin size={11} className="text-blue-600" /></span>
+                        )}
+                        {(post as any).facebookPublished === 1 && (
+                          <span title="Publicado no Facebook"><Facebook size={11} className="text-blue-500" /></span>
+                        )}
+                      </div>
                     </div>
                   </div>
                   {post.instagramPermalink && (
@@ -249,10 +277,8 @@ export default function Analytics() {
         </CardContent>
       </Card>
 
-      {/* Nota sobre métricas */}
       <p className="text-xs text-muted-foreground text-center pb-2">
-        Curtidas e comentários são sincronizados via botão "Publicar Agora" na tela de Aprovação.
-        Posts recém-publicados podem mostrar zero até a próxima sincronização.
+        Clique em "Sincronizar" para atualizar curtidas e comentários. Facebook e LinkedIn mostrarão dados após reautenticação nas Contas.
       </p>
     </div>
   );

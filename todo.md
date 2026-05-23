@@ -144,3 +144,20 @@
 - [x] Publicação no LinkedIn via API (UGC Posts endpoint)
 - [x] Botão "Conectar LinkedIn" na tela de Contas
 - [x] Publicação automática no LinkedIn junto com Instagram quando post for aprovado
+
+## Correções Críticas 2026-05-23
+
+- [x] AGENT cron de publicação reativado (estava pausado)
+- [x] POST_COLS corrigido: adicionar linkedinPublished e facebookPublished
+- [x] pending-posts marca mcpPending=1 ao retornar posts (evita duplicatas)
+- [x] 5 posts aprovados publicados manualmente no Instagram via MCP
+- [x] Analytics: botão Sincronizar insights do Instagram
+- [x] Analytics: contador de posts por plataforma (Instagram/LinkedIn/Facebook)
+- [x] Analytics: ícones de plataforma em cada post publicado
+- [x] Analytics: linkedinPublished e facebookPublished no getPostsWithMetrics
+- [x] Research: toggle autoPublish por tópico (publica sem aprovação manual)
+- [x] Research: badge Auto com ícone Zap quando autoPublish ativo
+- [x] ActionPlan: página criada com plano de ação por IA
+- [x] ActionPlan: rota /action-plan registrada no App.tsx
+- [x] DashboardLayout: item "Plano de Ação" adicionado ao menu
+- [x] schema: coluna autoPublish adicionada à tabela research_topics

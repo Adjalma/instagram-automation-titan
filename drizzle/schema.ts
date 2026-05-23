@@ -129,6 +129,7 @@ export const researchTopics = mysqlTable("research_topics", {
   language: varchar("language", { length: 8 }).default("pt").notNull(), // pt ou en
   active: int("active").default(1).notNull(), // 1 = ativo
   publishHour: int("publishHour").default(8).notNull(), // hora de publicação (0-23, Brasília)
+  autoPublish: int("autoPublish").default(0).notNull(), // 1 = publicar automaticamente sem aprovação manual
   sortOrder: int("sortOrder").default(0).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });

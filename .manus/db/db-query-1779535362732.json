@@ -1,0 +1,50 @@
+{
+  "query": "SELECT id, status, mcpPending, retryCount, scheduledAt, createdAt FROM posts WHERE status = 'approved' AND mcpPending = 0 ORDER BY createdAt DESC LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3F5sJN7FajWtXbb.root --database 3LYkMyiPgdB2gzxf44Hk3M --execute SELECT id, status, mcpPending, retryCount, scheduledAt, createdAt FROM posts WHERE status = 'approved' AND mcpPending = 0 ORDER BY createdAt DESC LIMIT 10;",
+  "rows": [
+    {
+      "id": "660002",
+      "status": "approved",
+      "mcpPending": "0",
+      "retryCount": "0",
+      "scheduledAt": "NULL",
+      "createdAt": "2026-05-22 11:01:40"
+    },
+    {
+      "id": "660001",
+      "status": "approved",
+      "mcpPending": "0",
+      "retryCount": "0",
+      "scheduledAt": "NULL",
+      "createdAt": "2026-05-22 11:00:18"
+    },
+    {
+      "id": "360081",
+      "status": "approved",
+      "mcpPending": "0",
+      "retryCount": "0",
+      "scheduledAt": "2026-05-22 08:00:00",
+      "createdAt": "2026-05-20 22:36:55"
+    },
+    {
+      "id": "360059",
+      "status": "approved",
+      "mcpPending": "0",
+      "retryCount": "0",
+      "scheduledAt": "2026-05-22 08:14:00",
+      "createdAt": "2026-05-20 22:14:40"
+    },
+    {
+      "id": "360051",
+      "status": "approved",
+      "mcpPending": "0",
+      "retryCount": "0",
+      "scheduledAt": "2026-05-22 08:00:00",
+      "createdAt": "2026-05-20 22:12:24"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tstatus\tmcpPending\tretryCount\tscheduledAt\tcreatedAt\n660002\tapproved\t0\t0\tNULL\t2026-05-22 11:01:40\n660001\tapproved\t0\t0\tNULL\t2026-05-22 11:00:18\n360081\tapproved\t0\t0\t2026-05-22 08:00:00\t2026-05-20 22:36:55\n360059\tapproved\t0\t0\t2026-05-22 08:14:00\t2026-05-20 22:14:40\n360051\tapproved\t0\t0\t2026-05-22 08:00:00\t2026-05-20 22:12:24\n",
+  "stderr": "",
+  "execution_time_ms": 263
+}
