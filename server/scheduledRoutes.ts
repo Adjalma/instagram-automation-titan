@@ -49,10 +49,13 @@ async function publishToOtherPlatforms(postId: number, caption: string, imageUrl
 
   // Facebook
   const facebookAccounts = allAccounts.filter(
-    (a: any) => a.platform === "facebook" && a.accessToken && a.linkedinUrn?.startsWith("fb:page:")
+    (a: any) => a.platform === "facebook" && a.accessToken && (a.linkedinUrn?.startsWith("fb:page:") || a.linkedinUrn === "fb:personal")
   );
   for (const fbAccount of facebookAccounts) {
-    const pageId = fbAccount.linkedinUrn.replace("fb:page:", "");
+    // fb:page:{id} → publica na Page; fb:personal → publica no feed pessoal (usa "me")
+    const pageId = fbAccount.linkedinUrn.startsWith("fb:page:")
+      ? fbAccount.linkedinUrn.replace("fb:page:", "")
+      : "me";
     try {
       const result = await publishToFacebook({
         pageToken: fbAccount.accessToken,

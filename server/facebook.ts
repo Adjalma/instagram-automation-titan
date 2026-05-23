@@ -123,27 +123,33 @@ export function registerFacebookRoutes(app: Express) {
 
       const userToken = tokenData.access_token;
 
-      // Busca o Page Access Token (longa duração) da página da Triarc
+      // Busca o Page Access Token da página da Triarc
       const page = await resolvePageToken(userToken);
-      if (!page) {
-        return res.redirect("/?facebook_error=page_not_found");
+
+      // Fallback: se não há Page, usa o próprio userToken para publicar no perfil/feed pessoal
+      let finalToken = userToken;
+      let pageRef = "fb:personal";
+      if (page) {
+        finalToken = page.pageToken;
+        pageRef = `fb:page:${page.pageId}`;
+        console.log(`[Facebook] Usando Page token: ${page.pageName} (${page.pageId})`);
+      } else {
+        console.warn("[Facebook] Nenhuma Page encontrada — usando token pessoal como fallback");
       }
 
-      // Page tokens do Graph API não expiram (long-lived) — sem tokenExpiresAt
-      const expiresAt = new Date(Date.now() + 60 * 24 * 3600 * 1000); // 60 dias como segurança
+      const expiresAt = new Date(Date.now() + 60 * 24 * 3600 * 1000); // 60 dias
 
       if (accountId) {
         const db = await getDb();
         if (!db) throw new Error("DB unavailable");
         await db.update(instagramAccounts)
           .set({
-            accessToken: page.pageToken,
+            accessToken: finalToken,
             tokenExpiresAt: expiresAt,
-            // Reutiliza linkedinUrn para guardar o Page ID (campo genérico de ID externo)
-            linkedinUrn: `fb:page:${page.pageId}`,
+            linkedinUrn: pageRef,
           })
           .where(eq(instagramAccounts.id, parseInt(accountId)));
-        console.log(`[Facebook] Token da página "${page.pageName}" salvo para conta ${accountId}`);
+        console.log(`[Facebook] Token salvo para conta ${accountId} (ref: ${pageRef})`);
       }
 
       res.redirect(`${origin}/accounts?facebook_connected=1`);

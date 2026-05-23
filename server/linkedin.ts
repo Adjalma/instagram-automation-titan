@@ -20,9 +20,9 @@ const LINKEDIN_UGC_URL = "https://api.linkedin.com/v2/ugcPosts";
 const LINKEDIN_ASSETS_URL = "https://api.linkedin.com/v2/assets?action=registerUpload";
 const LINKEDIN_ORG_VANITY = "triarc-solutions-brasil";
 
-// Produto "Share on LinkedIn" concede w_member_social + r_liteprofile
-// w_organization_social requer produto "Community Management API" (não aprovado)
-const SCOPES = "w_member_social r_liteprofile";
+// w_member_social: publicar posts (produto "Share on LinkedIn")
+// openid + profile: obter sub/URN via OIDC (padrão, sem produto extra)
+const SCOPES = "w_member_social openid profile";
 
 // URI fixa — deve bater exatamente com o cadastrado no LinkedIn Developer App
 const LINKEDIN_REDIRECT_URI = "https://tsm.triarcsolutions.com.br/auth/linkedin/callback";
@@ -144,14 +144,28 @@ export function registerLinkedInRoutes(app: Express) {
         console.warn("[LinkedIn] Organization URN não resolvido, buscando URN pessoal...");
         // Fallback: URN pessoal via /v2/me
         try {
-          const meRes = await fetch("https://api.linkedin.com/v2/me", {
+          // OIDC userinfo — funciona com openid+profile (sem r_liteprofile)
+          const uiRes = await fetch("https://api.linkedin.com/v2/userinfo", {
             headers: { Authorization: `Bearer ${access_token}` },
           });
-          if (meRes.ok) {
-            const me = await meRes.json() as any;
-            if (me?.id) {
-              linkedinUrn = `urn:li:person:${me.id}`;
-              console.log(`[LinkedIn] Usando URN pessoal: ${linkedinUrn}`);
+          if (uiRes.ok) {
+            const ui = await uiRes.json() as any;
+            if (ui?.sub) {
+              linkedinUrn = `urn:li:person:${ui.sub}`;
+              console.log(`[LinkedIn] URN via userinfo: ${linkedinUrn}`);
+            }
+          }
+          // Fallback legado: /v2/me
+          if (!linkedinUrn) {
+            const meRes = await fetch("https://api.linkedin.com/v2/me", {
+              headers: { Authorization: `Bearer ${access_token}` },
+            });
+            if (meRes.ok) {
+              const me = await meRes.json() as any;
+              if (me?.id) {
+                linkedinUrn = `urn:li:person:${me.id}`;
+                console.log(`[LinkedIn] URN via /v2/me: ${linkedinUrn}`);
+              }
             }
           }
         } catch (e) {
