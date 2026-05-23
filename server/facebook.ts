@@ -25,14 +25,11 @@ const FB_SCOPES = ["pages_show_list", "pages_read_engagement", "pages_manage_pos
 // Vanity name da página da Triarc Solutions no Facebook
 const FB_PAGE_VANITY = "Triarcsolutions";
 
-function getRedirectUri(origin: string): string {
-  if (origin.includes("tsm.triarcsolutions.com.br")) {
-    return "https://tsm.triarcsolutions.com.br/auth/facebook/callback";
-  }
-  if (origin.includes("triarcsolutions.com.br")) {
-    return "https://triarcsolutions.com.br/auth/facebook/callback";
-  }
-  return "http://localhost:3000/auth/facebook/callback";
+// URI fixa — deve bater exatamente com o cadastrado no Facebook Login
+const FACEBOOK_REDIRECT_URI = "https://tsm.triarcsolutions.com.br/auth/facebook/callback";
+
+function getRedirectUri(_origin: string): string {
+  return FACEBOOK_REDIRECT_URI;
 }
 
 /**

@@ -24,14 +24,11 @@ const LINKEDIN_ORG_VANITY = "triarc-solutions-brasil";
 // w_organization_social requer produto "Community Management API" (não aprovado)
 const SCOPES = "w_member_social r_liteprofile";
 
-function getRedirectUri(origin: string): string {
-  if (origin.includes("tsm.triarcsolutions.com.br")) {
-    return "https://tsm.triarcsolutions.com.br/auth/linkedin/callback";
-  }
-  if (origin.includes("triarcsolutions.com.br")) {
-    return "https://triarcsolutions.com.br/auth/linkedin/callback";
-  }
-  return "http://localhost:3000/auth/linkedin/callback";
+// URI fixa — deve bater exatamente com o cadastrado no LinkedIn Developer App
+const LINKEDIN_REDIRECT_URI = "https://tsm.triarcsolutions.com.br/auth/linkedin/callback";
+
+function getRedirectUri(_origin: string): string {
+  return LINKEDIN_REDIRECT_URI;
 }
 
 /**
