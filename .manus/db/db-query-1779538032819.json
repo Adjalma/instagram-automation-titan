@@ -1,0 +1,28 @@
+{
+  "query": "SELECT id, platform, handle, displayName, accessToken IS NOT NULL as hasToken, linkedinUrn, tokenExpiresAt FROM instagram_accounts WHERE platform IN ('linkedin','facebook') ORDER BY platform;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3F5sJN7FajWtXbb.root --database 3LYkMyiPgdB2gzxf44Hk3M --execute SELECT id, platform, handle, displayName, accessToken IS NOT NULL as hasToken, linkedinUrn, tokenExpiresAt FROM instagram_accounts WHERE platform IN ('linkedin','facebook') ORDER BY platform;",
+  "rows": [
+    {
+      "id": "30002",
+      "platform": "linkedin",
+      "handle": "triarcsolutions",
+      "displayName": "Triarc Solutions Brasil",
+      "hasToken": "1",
+      "linkedinUrn": "NULL",
+      "tokenExpiresAt": "2026-07-22 11:58:48"
+    },
+    {
+      "id": "30001",
+      "platform": "facebook",
+      "handle": "Triarcsolutions",
+      "displayName": "Triarc Solutions",
+      "hasToken": "0",
+      "linkedinUrn": "NULL",
+      "tokenExpiresAt": "NULL"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tplatform\thandle\tdisplayName\thasToken\tlinkedinUrn\ttokenExpiresAt\n30002\tlinkedin\ttriarcsolutions\tTriarc Solutions Brasil\t1\tNULL\t2026-07-22 11:58:48\n30001\tfacebook\tTriarcsolutions\tTriarc Solutions\t0\tNULL\tNULL\n",
+  "stderr": "",
+  "execution_time_ms": 264
+}

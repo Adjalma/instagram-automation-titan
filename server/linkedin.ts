@@ -20,9 +20,9 @@ const LINKEDIN_UGC_URL = "https://api.linkedin.com/v2/ugcPosts";
 const LINKEDIN_ASSETS_URL = "https://api.linkedin.com/v2/assets?action=registerUpload";
 const LINKEDIN_ORG_VANITY = "triarc-solutions-brasil";
 
-// Produto "Share on LinkedIn" concede APENAS w_member_social
+// Produto "Share on LinkedIn" concede w_member_social + r_liteprofile
 // w_organization_social requer produto "Community Management API" (não aprovado)
-const SCOPES = "w_member_social";
+const SCOPES = "w_member_social r_liteprofile";
 
 function getRedirectUri(origin: string): string {
   if (origin.includes("tsm.triarcsolutions.com.br")) {
@@ -141,11 +141,25 @@ export function registerLinkedInRoutes(app: Express) {
       const { access_token, expires_in } = tokenData;
       const expiresAt = new Date(Date.now() + (expires_in ?? 5184000) * 1000);
 
-      // Resolve o Organization URN da Company Page
-      // Sem escopo de leitura de perfil, não há fallback para perfil pessoal
-      const linkedinUrn: string | null = await resolveOrganizationUrn(access_token);
+      // Tenta resolver Organization URN (Company Page)
+      let linkedinUrn: string | null = await resolveOrganizationUrn(access_token);
       if (!linkedinUrn) {
-        console.warn("[LinkedIn] Não foi possível resolver Organization URN para triarc-solutions-brasil");
+        console.warn("[LinkedIn] Organization URN não resolvido, buscando URN pessoal...");
+        // Fallback: URN pessoal via /v2/me
+        try {
+          const meRes = await fetch("https://api.linkedin.com/v2/me", {
+            headers: { Authorization: `Bearer ${access_token}` },
+          });
+          if (meRes.ok) {
+            const me = await meRes.json() as any;
+            if (me?.id) {
+              linkedinUrn = `urn:li:person:${me.id}`;
+              console.log(`[LinkedIn] Usando URN pessoal: ${linkedinUrn}`);
+            }
+          }
+        } catch (e) {
+          console.warn("[LinkedIn] Falha ao buscar URN pessoal:", e);
+        }
       }
 
       if (accountId) {
