@@ -21,6 +21,13 @@ export const ENV = {
   // Instagram direct
   igUserId: process.env.IG_USER_ID ?? "",
   igUsername: process.env.IG_USERNAME ?? "",
+  igAccessToken: process.env.IG_ACCESS_TOKEN ?? "",
+  // Facebook
+  fbPageId: process.env.PAGE_ID ?? "",
+  fbPageToken: process.env.FB_PAGE_TOKEN ?? process.env.IG_ACCESS_TOKEN ?? "",
+  // LinkedIn
+  liAccessToken: process.env.LI_ACCESS_TOKEN ?? "",
+  liPersonUrn: process.env.LI_PERSON_URN ?? "",
   // Supabase storage
   supabaseUrl: process.env.SUPABASE_URL ?? "",
   supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY ?? "",

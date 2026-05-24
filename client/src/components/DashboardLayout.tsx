@@ -80,7 +80,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <div className="flex flex-col items-center gap-8 w-full max-w-sm">
           <div className="flex flex-col items-center gap-4">
             <img
-              src="/manus-storage/triarc-social-manager-logo_dd2d2325.png"
+              src="/logo.svg"
               alt="Triarc Social Manager"
               className="w-20 h-20 rounded-2xl object-cover shadow-lg"
             />
@@ -178,7 +178,7 @@ function DashboardLayoutContent({
               {!isCollapsed && (
                 <div className="flex items-center gap-2 min-w-0">
                   <img
-                    src="/manus-storage/triarc-social-manager-logo_dd2d2325.png"
+                    src="/logo.svg"
                     alt="Triarc"
                     className="h-7 w-7 rounded-full object-cover"
                   />
@@ -253,7 +253,7 @@ function DashboardLayoutContent({
             <SidebarTrigger className="h-9 w-9 rounded-lg" />
             <div className="flex items-center gap-2">
               <img
-                src="/manus-storage/triarc-social-manager-logo_dd2d2325.png"
+                src="/logo.svg"
                 alt="Triarc"
                 className="h-7 w-7 rounded-full object-cover"
               />

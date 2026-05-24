@@ -331,13 +331,13 @@ export async function runAutonomousAgent(): Promise<{
     const media = await getPostMedia(post.id) as any[];
     const imageUrl = media?.[0]?.mediaUrl || undefined;
 
-    // Encontra conta Instagram com token
+    // Encontra conta Instagram com token (banco ou env var)
     const igAccount = allAccounts.find(
       (a: any) => a.platform === "instagram" && a.accessToken && a.linkedinUrn?.includes(post.accountId?.toString())
     ) ?? allAccounts.find((a: any) => a.platform === "instagram" && a.accessToken);
 
-    if (!igAccount?.accessToken) {
-      // Sem token IG — tenta publicar em outras plataformas
+    const igToken = igAccount?.accessToken || ENV.igAccessToken;
+    if (!igToken) {
       console.warn(`[Agent] Post ${post.id}: sem token Instagram`);
       await updatePost(post.id, { mcpPending: 0 });
       continue;
@@ -348,8 +348,8 @@ export async function runAutonomousAgent(): Promise<{
 
     try {
       const igRes = await publishToInstagram({
-        igUserId: ENV.igUserId || igAccount.linkedinUrn?.replace("ig:", "") || igAccount.profileUrl || "",
-        accessToken: igAccount.accessToken,
+        igUserId: ENV.igUserId || igAccount?.linkedinUrn?.replace("ig:", "") || igAccount?.profileUrl || "",
+        accessToken: igToken,
         caption: post.caption ?? "",
         imageUrl,
       });
@@ -391,22 +391,32 @@ export async function runAutonomousAgent(): Promise<{
 
   // ── 2. Responder comentários ─────────────────────────────────
   const igAccount = allAccounts.find((a: any) => a.platform === "instagram" && a.accessToken);
-  if (igAccount?.accessToken && ENV.igUserId) {
+  const igToken = igAccount?.accessToken || ENV.igAccessToken;
+  if (igToken && ENV.igUserId) {
     try {
-      await autoReplyIgComments(ENV.igUserId, igAccount.accessToken, "Triarc Solutions");
+      await autoReplyIgComments(ENV.igUserId, igToken, "Triarc Solutions");
     } catch (e: any) {
       result.errors.push(`IG comments: ${e.message}`);
     }
   }
 
+  // Facebook — usa conta do banco ou env vars
   const fbAccounts = allAccounts.filter((a: any) => a.platform === "facebook" && a.accessToken && a.linkedinUrn);
-  for (const fbAcc of fbAccounts) {
-    const pageId = fbAcc.linkedinUrn.startsWith("fb:page:")
-      ? fbAcc.linkedinUrn.replace("fb:page:", "")
-      : null;
-    if (!pageId) continue;
+  if (fbAccounts.length > 0) {
+    for (const fbAcc of fbAccounts) {
+      const pageId = fbAcc.linkedinUrn.startsWith("fb:page:")
+        ? fbAcc.linkedinUrn.replace("fb:page:", "")
+        : null;
+      if (!pageId) continue;
+      try {
+        await autoReplyFbComments(pageId, fbAcc.accessToken);
+      } catch (e: any) {
+        result.errors.push(`FB comments: ${e.message}`);
+      }
+    }
+  } else if (ENV.fbPageToken && ENV.fbPageId) {
     try {
-      await autoReplyFbComments(pageId, fbAcc.accessToken);
+      await autoReplyFbComments(ENV.fbPageId, ENV.fbPageToken);
     } catch (e: any) {
       result.errors.push(`FB comments: ${e.message}`);
     }
@@ -414,9 +424,10 @@ export async function runAutonomousAgent(): Promise<{
 
   // ── 3. LinkedIn: aceitar convites e enviar solicitações ───────
   const liAccount = allAccounts.find((a: any) => a.platform === "linkedin" && a.accessToken);
-  if (liAccount?.accessToken) {
+  const liToken = liAccount?.accessToken || ENV.liAccessToken;
+  if (liToken) {
     try {
-      result.connectionsAccepted = await acceptLinkedInInvitations(liAccount.accessToken);
+      result.connectionsAccepted = await acceptLinkedInInvitations(liToken);
     } catch (e: any) {
       result.errors.push(`LI accept: ${e.message}`);
     }
@@ -424,7 +435,7 @@ export async function runAutonomousAgent(): Promise<{
     if (dailyConnectionsSent < 100) {
       try {
         const toSend = 100 - dailyConnectionsSent;
-        const sent = await sendLinkedInConnectionRequests(liAccount.accessToken, toSend);
+        const sent = await sendLinkedInConnectionRequests(liToken, toSend);
         dailyConnectionsSent += sent;
         result.connectionsSent = sent;
       } catch (e: any) {
