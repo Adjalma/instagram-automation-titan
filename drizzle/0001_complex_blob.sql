@@ -1,1 +1,0 @@
-ALTER TABLE `posts` ADD `mcpPending` int DEFAULT 0 NOT NULL;

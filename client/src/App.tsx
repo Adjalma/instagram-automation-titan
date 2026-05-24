@@ -20,11 +20,13 @@ import Accounts from "@/pages/Accounts";
 import MarketIntel from "@/pages/MarketIntel";
 import ActionPlan from "@/pages/ActionPlan";
 import Privacy from "@/pages/Privacy";
+import Login from "@/pages/Login";
 
 function Router() {
   return (
     <Switch>
       {/* Páginas públicas — sem DashboardLayout */}
+      <Route path="/login" component={Login} />
       <Route path="/privacidade" component={Privacy} />
 
       {/* Todas as demais rotas dentro do DashboardLayout */}

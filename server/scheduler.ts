@@ -12,6 +12,7 @@ import { eq } from "drizzle-orm";
 import { invokeLLM } from "./_core/llm";
 import { generateImage } from "./_core/imageGeneration";
 import { ENV } from "./_core/env";
+import { runAutonomousAgent } from "./autonomousAgent";
 
 const INTERVAL_MS = parseInt(process.env.SCHEDULER_INTERVAL_MS || "300000", 10);
 const TZ_OFFSET = -3; // America/Sao_Paulo (UTC-3)
@@ -98,17 +99,17 @@ async function runTopicResearch(topic: { id: number; name: string; query: string
     });
     if (!imageUrl) throw new Error("Falha ao gerar imagem");
 
-    // autoPublish=1 → vai direto para fila do MCP sem aprovacao manual
+    // autoPublish=1 → vai direto para fila do agente sem aprovacao manual
     const postStatus = topic.autoPublish === 1 ? 'approved' : 'pending';
     const [postResult] = await db.insert(posts).values({
       userId: 1,
       accountId: topic.accountId,
       caption,
       theme: `Pesquisa Diária: ${topic.name}`,
-      status: postStatus,
+      status: postStatus as any,
       mcpPending: 0,
-    });
-    const postId = (postResult as any).insertId as number;
+    }).returning({ id: posts.id });
+    const postId = postResult.id;
 
     await db.insert(postMedia).values({ postId, mediaUrl: imageUrl as string, mediaType: "image", sortOrder: 0 });
     await db.insert(researchRuns).values({
@@ -153,6 +154,11 @@ async function tick() {
   });
 
   await checkAndRunTopicsForHour(date, hour);
+
+  // Agente autônomo: publica posts, responde comentários, gerencia conexões LinkedIn
+  runAutonomousAgent().catch((err: any) =>
+    console.error("[Scheduler] Agente autônomo erro:", err?.message)
+  );
 }
 
 export function startScheduler() {

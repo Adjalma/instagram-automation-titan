@@ -1,5 +1,6 @@
 import "dotenv/config";
 import express from "express";
+import { sdk } from "./sdk";
 import { createServer } from "http";
 import net from "net";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
@@ -69,9 +70,11 @@ async function startServer() {
     console.log(`Port ${preferredPort} is busy, using port ${port} instead`);
   }
 
-  server.listen(port, () => {
+  server.listen(port, async () => {
     console.log(`Server running on http://localhost:${port}/`);
-    // Inicia o agendador periódico de publicações
+    // Cria usuário admin na primeira execução
+    await sdk.ensureAdminUser().catch(e => console.error("[Auth] Erro ao criar admin:", e));
+    // Inicia o agendador periódico + agente autônomo
     startScheduler();
     // Seed de serviços e projetos Triarc (idempotente)
     seedTriarcContent().catch(e => console.error("[Seed] Erro:", e));

@@ -1,92 +1,78 @@
-/**
- * Image generation helper using internal ImageService
- *
- * Example usage:
- *   const { url: imageUrl } = await generateImage({
- *     prompt: "A serene landscape with mountains"
- *   });
- *
- * For editing:
- *   const { url: imageUrl } = await generateImage({
- *     prompt: "Add a rainbow to this landscape",
- *     originalImages: [{
- *       url: "https://example.com/original.jpg",
- *       mimeType: "image/jpeg"
- *     }]
- *   });
- */
 import { storagePut } from "server/storage";
 import { ENV } from "./env";
 
 export type GenerateImageOptions = {
   prompt: string;
-  originalImages?: Array<{
-    url?: string;
-    b64Json?: string;
-    mimeType?: string;
-  }>;
+  originalImages?: Array<{ url?: string; b64Json?: string; mimeType?: string }>;
 };
 
-export type GenerateImageResponse = {
-  url?: string;
-};
+export type GenerateImageResponse = { url?: string };
 
 export async function generateImage(
   options: GenerateImageOptions
 ): Promise<GenerateImageResponse> {
-  if (!ENV.forgeApiUrl) {
-    throw new Error("BUILT_IN_FORGE_API_URL is not configured");
-  }
-  if (!ENV.forgeApiKey) {
-    throw new Error("BUILT_IN_FORGE_API_KEY is not configured");
+  if (!ENV.geminiApiKey) {
+    throw new Error("GEMINI_API_KEY is not configured");
   }
 
-  // Build the full URL by appending the service path to the base URL
-  const baseUrl = ENV.forgeApiUrl.endsWith("/")
-    ? ENV.forgeApiUrl
-    : `${ENV.forgeApiUrl}/`;
-  const fullUrl = new URL(
-    "images.v1.ImageService/GenerateImage",
-    baseUrl
-  ).toString();
+  const model = "gemini-2.0-flash-preview-image-generation";
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${ENV.geminiApiKey}`;
 
-  const response = await fetch(fullUrl, {
+  // Build contents — include reference images if provided
+  const parts: unknown[] = [{ text: options.prompt }];
+
+  for (const img of options.originalImages ?? []) {
+    if (img.b64Json) {
+      parts.push({
+        inlineData: { mimeType: img.mimeType ?? "image/jpeg", data: img.b64Json },
+      });
+    } else if (img.url) {
+      // Fetch remote image and embed as base64
+      try {
+        const imgRes = await fetch(img.url);
+        if (imgRes.ok) {
+          const buf = await imgRes.arrayBuffer();
+          const b64 = Buffer.from(buf).toString("base64");
+          const mimeType = imgRes.headers.get("content-type") ?? img.mimeType ?? "image/jpeg";
+          parts.push({ inlineData: { mimeType, data: b64 } });
+        }
+      } catch {
+        // skip unavailable reference images
+      }
+    }
+  }
+
+  const body = {
+    contents: [{ parts }],
+    generationConfig: { responseModalities: ["IMAGE", "TEXT"] },
+  };
+
+  const response = await fetch(endpoint, {
     method: "POST",
-    headers: {
-      accept: "application/json",
-      "content-type": "application/json",
-      "connect-protocol-version": "1",
-      authorization: `Bearer ${ENV.forgeApiKey}`,
-    },
-    body: JSON.stringify({
-      prompt: options.prompt,
-      original_images: options.originalImages || [],
-    }),
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
   });
 
   if (!response.ok) {
     const detail = await response.text().catch(() => "");
-    throw new Error(
-      `Image generation request failed (${response.status} ${response.statusText})${detail ? `: ${detail}` : ""}`
-    );
+    throw new Error(`Gemini image generation failed (${response.status}): ${detail}`);
   }
 
   const result = (await response.json()) as {
-    image: {
-      b64Json: string;
-      mimeType: string;
-    };
+    candidates?: Array<{
+      content?: { parts?: Array<{ inlineData?: { data: string; mimeType: string } }> };
+    }>;
   };
-  const base64Data = result.image.b64Json;
-  const buffer = Buffer.from(base64Data, "base64");
 
-  // Save to S3
-  const { url } = await storagePut(
-    `generated/${Date.now()}.png`,
-    buffer,
-    result.image.mimeType
-  );
-  return {
-    url,
-  };
+  const imagePart = result.candidates?.[0]?.content?.parts?.find((p) => p.inlineData);
+  if (!imagePart?.inlineData) {
+    throw new Error("Gemini did not return an image");
+  }
+
+  const { data: b64Data, mimeType } = imagePart.inlineData;
+  const buffer = Buffer.from(b64Data, "base64");
+  const ext = mimeType.split("/")[1] ?? "png";
+
+  const { url } = await storagePut(`generated/${Date.now()}.${ext}`, buffer, mimeType);
+  return { url };
 }
