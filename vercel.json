@@ -8,16 +8,5 @@
     { "source": "/manus-storage/:path*","destination": "/api/server" },
     { "source": "/oauth/:path*",        "destination": "/api/server" },
     { "source": "/:path*",              "destination": "/index.html" }
-  ],
-  "crons": [
-    {
-      "path": "/api/cron/tick",
-      "schedule": "*/5 * * * *"
-    }
-  ],
-  "functions": {
-    "api/server.ts": {
-      "maxDuration": 60
-    }
-  }
+  ]
 }
