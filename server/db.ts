@@ -8,36 +8,48 @@ import {
 import type { InsertPost } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
+let _lastError = "";
 
 export async function getDb() {
   if (_db) return _db;
 
-  const url = process.env.DATABASE_URL;
+  const url = process.env.DATABASE_URL
+    || process.env.POSTGRES_URL
+    || process.env.POSTGRES_PRISMA_URL
+    || process.env.SUPABASE_DB_URL;
   if (!url) {
-    console.error("[Database] DATABASE_URL env var is not set");
+    _lastError = "No database URL found. Checked: DATABASE_URL, POSTGRES_URL, POSTGRES_PRISMA_URL, SUPABASE_DB_URL";
+    console.error("[Database]", _lastError);
     return null;
   }
 
   try {
-    // postgres-js is lazy: the actual TCP connection happens on first query.
-    // We run SELECT 1 here so any connection error is caught and logged now.
+    const masked = url.replace(/:[^:@]+@/, ":***@");
+    console.log("[Database] Connecting to:", masked);
+
     const client = postgres(url, {
       max: 1,
-      ssl: { rejectUnauthorized: false },
+      ssl: "prefer",
       idle_timeout: 20,
-      connect_timeout: 10,
+      connect_timeout: 30,
       prepare: false,
     });
     const db = drizzle(client);
     await db.execute(sql`SELECT 1`);
     _db = db;
+    _lastError = "";
     console.log("[Database] Connected to PostgreSQL");
   } catch (error: any) {
-    console.error("[Database] Connection failed:", error?.message ?? String(error));
+    _lastError = error?.message ?? String(error);
+    console.error("[Database] Connection failed:", _lastError);
     _db = null;
   }
 
   return _db;
+}
+
+export function getLastDbError() {
+  return _lastError;
 }
 
 // ─── Users ───────────────────────────────────────────────────────

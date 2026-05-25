@@ -11,7 +11,7 @@ import {
   Loader2, Plus, Trash2, Play, Globe, Clock, CheckCircle2,
   XCircle, SkipForward, Newspaper, Sparkles, Zap, Pause,
 } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
 function StatusBadge({ status }: { status: string }) {
   if (status === "success")
@@ -53,7 +53,10 @@ function AddTopicDialog({ onCreated }: { onCreated: () => void }) {
         <Button className="gap-2"><Plus className="h-4 w-4" />Novo Tópico</Button>
       </DialogTrigger>
       <DialogContent className="max-w-md">
-        <DialogHeader><DialogTitle>Novo Tópico de Pesquisa</DialogTitle></DialogHeader>
+        <DialogHeader>
+          <DialogTitle>Novo Tópico de Pesquisa</DialogTitle>
+          <DialogDescription>Configure um tópico para pesquisa automática de notícias.</DialogDescription>
+        </DialogHeader>
         <div className="space-y-4 pt-2">
           <div>
             <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2 block">Nome do Tópico *</label>

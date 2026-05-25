@@ -3,7 +3,7 @@ import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Loader2, ChevronLeft, ChevronRight, X } from "lucide-react";
 
 const DAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
@@ -188,6 +188,7 @@ export default function CalendarView() {
             <DialogTitle>
               {selectedDay && `${selectedDay.day} de ${MONTHS[month]} de ${year}`} · {selectedDay?.posts.length} post{selectedDay?.posts.length !== 1 ? "s" : ""}
             </DialogTitle>
+            <DialogDescription>Posts agendados para este dia.</DialogDescription>
           </DialogHeader>
           <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
             {selectedDay?.posts.map((post: any) => {

@@ -11,31 +11,50 @@ import { registerFacebookRoutes } from "./facebook";
 import { runAutonomousAgent } from "./autonomousAgent";
 import { sdk } from "./_core/sdk";
 import { seedTriarcContent } from "./seed-triarc";
-import { getDb } from "./db";
+import { getDb, getLastDbError } from "./db";
 import { sql } from "drizzle-orm";
 
 const app = express();
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
-// Diagnóstico
 app.get("/api/health", async (_req, res) => {
   let dbOk = false;
   let dbError = "";
   try {
     const db = await getDb();
-    if (db) { dbOk = true; }
-    else { dbError = "getDb() returned null — check DATABASE_URL and Vercel logs"; }
-  } catch (e: any) { dbError = e.message; }
+    if (db) {
+      dbOk = true;
+    } else {
+      dbError = getLastDbError() || "getDb() returned null";
+    }
+  } catch (e: any) {
+    dbError = e.message;
+  }
+
+  const dbUrlCandidates = {
+    DATABASE_URL: process.env.DATABASE_URL ? "set (" + process.env.DATABASE_URL.length + " chars)" : "not set",
+    POSTGRES_URL: process.env.POSTGRES_URL ? "set (" + process.env.POSTGRES_URL.length + " chars)" : "not set",
+    POSTGRES_PRISMA_URL: process.env.POSTGRES_PRISMA_URL ? "set" : "not set",
+    SUPABASE_DB_URL: process.env.SUPABASE_DB_URL ? "set" : "not set",
+  };
+
+  const activeUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.POSTGRES_PRISMA_URL || process.env.SUPABASE_DB_URL || "";
+  const masked = activeUrl ? activeUrl.replace(/:[^:@]+@/, ":***@") : "(none found)";
+
   res.json({
     ok: dbOk,
     db: dbOk ? "connected" : `error: ${dbError}`,
     env: {
-      DATABASE_URL: process.env.DATABASE_URL ? process.env.DATABASE_URL.replace(/:[^:@]+@/, ":***@") : "(not set)",
+      dbUrlCandidates,
+      activeUrl: masked,
       JWT_SECRET: !!process.env.JWT_SECRET,
       ADMIN_EMAIL: process.env.ADMIN_EMAIL || "(não definido)",
       ADMIN_PASSWORD: !!process.env.ADMIN_PASSWORD,
-    }
+      NODE_ENV: process.env.NODE_ENV || "(not set)",
+      SUPABASE_URL: process.env.SUPABASE_URL ? "set" : "not set",
+    },
+    ts: new Date().toISOString(),
   });
 });
 

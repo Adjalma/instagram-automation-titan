@@ -85,7 +85,10 @@ export default function Accounts() {
             <Button size="sm" className="gap-2"><Plus className="w-4 h-4" /> Nova Conta</Button>
           </DialogTrigger>
           <DialogContent className="max-w-md">
-            <DialogHeader><DialogTitle>Adicionar Conta</DialogTitle></DialogHeader>
+            <DialogHeader>
+              <DialogTitle>Adicionar Conta</DialogTitle>
+              <DialogDescription>Preencha os dados para conectar uma nova rede social.</DialogDescription>
+            </DialogHeader>
             <div className="space-y-4 pt-2">
               <div className="space-y-1">
                 <Label>Rede Social</Label>

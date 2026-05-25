@@ -59,7 +59,7 @@ export const appRouter = router({
       profileUrl: z.string().optional(),
     })).mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) throw new Error("DB unavailable — configure DATABASE_URL no Vercel");
+      if (!db) throw new Error("Banco de dados indisponível. Verifique se DATABASE_URL está configurada nas variáveis de ambiente do Vercel.");
       const result = await db.insert(instagramAccounts).values({
         handle: input.handle,
         displayName: input.displayName,
@@ -73,7 +73,7 @@ export const appRouter = router({
     }),
     delete: protectedProcedure.input(z.object({ id: z.number() })).mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) throw new Error("DB unavailable");
+      if (!db) throw new Error("Banco de dados indisponível. Verifique se DATABASE_URL está configurada nas variáveis de ambiente do Vercel.");
       await db.delete(instagramAccounts).where(eq(instagramAccounts.id, input.id));
       return { success: true };
     }),
