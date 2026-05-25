@@ -19,7 +19,6 @@ import {
   SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
 import {
   LayoutDashboard, LogOut, PanelLeft, PenSquare, CheckCircle,
@@ -28,7 +27,6 @@ import {
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
-import { Button } from "./ui/button";
 
 // Itens principais na bottom-bar mobile (máx 5)
 const bottomBarItems = [
@@ -72,36 +70,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     localStorage.setItem(SIDEBAR_WIDTH_KEY, sidebarWidth.toString());
   }, [sidebarWidth]);
 
-  if (loading) return <DashboardLayoutSkeleton />;
+  useEffect(() => {
+    if (!loading && !user) {
+      window.location.replace("/login");
+    }
+  }, [loading, user]);
 
-  if (!user) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-background px-4">
-        <div className="flex flex-col items-center gap-8 w-full max-w-sm">
-          <div className="flex flex-col items-center gap-4">
-            <img
-              src="/logo.svg"
-              alt="Triarc Social Manager"
-              className="w-20 h-20 rounded-2xl object-cover shadow-lg"
-            />
-            <div className="text-center">
-              <h1 className="text-2xl font-bold tracking-tight">Triarc Social Manager</h1>
-              <p className="text-sm text-muted-foreground mt-2">
-                Faça login para acessar o painel de gerenciamento.
-              </p>
-            </div>
-          </div>
-          <Button
-            onClick={() => { window.location.href = getLoginUrl(); }}
-            size="lg"
-            className="w-full"
-          >
-            Entrar com Manus
-          </Button>
-        </div>
-      </div>
-    );
-  }
+  if (loading || !user) return <DashboardLayoutSkeleton />;
 
   return (
     <SidebarProvider

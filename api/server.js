@@ -525,7 +525,23 @@ var SDKServer = class {
     const session = await this.verifySession(sessionCookie);
     if (!session) throw ForbiddenError("Invalid session cookie");
     const user = await getUserByOpenId(session.openId);
-    if (!user) throw ForbiddenError("User not found");
+    if (!user) {
+      if (ENV.adminEmail && ENV.adminPassword && session.openId === `admin:${ENV.adminEmail}`) {
+        return {
+          id: 0,
+          openId: session.openId,
+          name: "Admin",
+          email: ENV.adminEmail,
+          passwordHash: null,
+          loginMethod: "local",
+          role: "admin",
+          createdAt: /* @__PURE__ */ new Date(),
+          updatedAt: /* @__PURE__ */ new Date(),
+          lastSignedIn: /* @__PURE__ */ new Date()
+        };
+      }
+      throw ForbiddenError("User not found");
+    }
     await upsertUser({ openId: user.openId, lastSignedIn: /* @__PURE__ */ new Date() });
     return user;
   }
@@ -536,7 +552,7 @@ var SDKServer = class {
     }
     const user = await getUserByEmail(email);
     if (!user && email === ENV.adminEmail && password === ENV.adminPassword && ENV.adminPassword) {
-      const openId = nanoid(21);
+      const openId = `admin:${ENV.adminEmail}`;
       return { id: 0, openId, name: "Admin", email, passwordHash: null, loginMethod: "local", role: "admin", createdAt: /* @__PURE__ */ new Date(), updatedAt: /* @__PURE__ */ new Date(), lastSignedIn: /* @__PURE__ */ new Date() };
     }
     if (!user || !user.passwordHash) return null;

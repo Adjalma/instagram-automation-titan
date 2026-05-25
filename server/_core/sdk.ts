@@ -84,7 +84,29 @@ class SDKServer {
     if (!session) throw ForbiddenError("Invalid session cookie");
 
     const user = await db.getUserByOpenId(session.openId);
-    if (!user) throw ForbiddenError("User not found");
+
+    if (!user) {
+      // Virtual admin session: DB unavailable but JWT openId matches stable admin id
+      if (
+        ENV.adminEmail &&
+        ENV.adminPassword &&
+        session.openId === `admin:${ENV.adminEmail}`
+      ) {
+        return {
+          id: 0,
+          openId: session.openId,
+          name: "Admin",
+          email: ENV.adminEmail,
+          passwordHash: null,
+          loginMethod: "local",
+          role: "admin",
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          lastSignedIn: new Date(),
+        } as any;
+      }
+      throw ForbiddenError("User not found");
+    }
 
     await db.upsertUser({ openId: user.openId, lastSignedIn: new Date() });
     return user;
@@ -102,8 +124,9 @@ class SDKServer {
     const user = await db.getUserByEmail(email);
 
     // Se banco indisponível mas credenciais batem com env vars, retorna admin virtual
+    // openId é estável (determinístico) para que authenticateRequest possa reconhecê-lo
     if (!user && email === ENV.adminEmail && password === ENV.adminPassword && ENV.adminPassword) {
-      const openId = nanoid(21);
+      const openId = `admin:${ENV.adminEmail}`;
       return { id: 0, openId, name: "Admin", email, passwordHash: null, loginMethod: "local", role: "admin", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() } as any;
     }
 
