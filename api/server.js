@@ -399,8 +399,6 @@ var init_db = __esm({
 // server/vercel.ts
 import "dotenv/config";
 import express from "express";
-import path from "path";
-import { fileURLToPath } from "url";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 
 // shared/const.ts
@@ -567,6 +565,10 @@ function registerOAuthRoutes(app2) {
       return res.status(400).json({ error: "Email e senha s\xE3o obrigat\xF3rios" });
     }
     try {
+      if (String(email) === process.env.ADMIN_EMAIL) {
+        await sdk.ensureAdminUser().catch(() => {
+        });
+      }
       const user = await sdk.loginWithPassword(String(email), String(password));
       if (!user) {
         return res.status(401).json({ error: "Email ou senha incorretos" });
@@ -2845,8 +2847,6 @@ async function publishToOtherPlatforms(postId, caption, imageUrl, allAccounts) {
 // server/vercel.ts
 init_db();
 import { sql as sql2 } from "drizzle-orm";
-var __dirname = path.dirname(fileURLToPath(import.meta.url));
-var publicPath = path.join(__dirname, "../dist/public");
 var app = express();
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
@@ -2890,8 +2890,6 @@ app.get("/api/cron/tick", async (req, res) => {
   }
 });
 app.use("/api/trpc", createExpressMiddleware({ router: appRouter, createContext }));
-app.use(express.static(publicPath));
-app.use("*", (_req, res) => res.sendFile(path.join(publicPath, "index.html")));
 sdk.ensureAdminUser().catch((e) => console.error("[Auth] Erro ao criar admin:", e));
 seedTriarcContent().catch((e) => console.error("[Seed] Erro:", e));
 var vercel_default = app;

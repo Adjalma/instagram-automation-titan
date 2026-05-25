@@ -1,7 +1,5 @@
 import "dotenv/config";
 import express from "express";
-import path from "path";
-import { fileURLToPath } from "url";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./_core/oauth";
 import { registerStorageProxy } from "./_core/storageProxy";
@@ -15,9 +13,6 @@ import { sdk } from "./_core/sdk";
 import { seedTriarcContent } from "./seed-triarc";
 import { getDb } from "./db";
 import { sql } from "drizzle-orm";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const publicPath = path.join(__dirname, "../dist/public");
 
 const app = express();
 app.use(express.json({ limit: "50mb" }));
@@ -62,10 +57,6 @@ app.get("/api/cron/tick", async (req, res) => {
 });
 
 app.use("/api/trpc", createExpressMiddleware({ router: appRouter, createContext }));
-
-// Serve arquivos estáticos do React
-app.use(express.static(publicPath));
-app.use("*", (_req, res) => res.sendFile(path.join(publicPath, "index.html")));
 
 // Inicialização no cold start
 sdk.ensureAdminUser().catch(e => console.error("[Auth] Erro ao criar admin:", e));

@@ -12,6 +12,11 @@ export function registerOAuthRoutes(app: Express) {
     }
 
     try {
+      // Garante que o admin existe (caso cold start tenha falhado silenciosamente)
+      if (String(email) === process.env.ADMIN_EMAIL) {
+        await sdk.ensureAdminUser().catch(() => {});
+      }
+
       const user = await sdk.loginWithPassword(String(email), String(password));
 
       if (!user) {

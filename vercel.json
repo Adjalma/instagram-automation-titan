@@ -1,7 +1,12 @@
 {
   "version": 2,
   "buildCommand": "pnpm build",
-  "rewrites": [
-    { "source": "/(.*)", "destination": "/api/server" }
+  "outputDirectory": "dist/public",
+  "routes": [
+    { "src": "/api/(.*)",           "dest": "/api/server" },
+    { "src": "/storage/(.*)",       "dest": "/api/server" },
+    { "src": "/manus-storage/(.*)", "dest": "/api/server" },
+    { "handle": "filesystem" },
+    { "src": "/(.*)",               "dest": "/index.html" }
   ]
 }
