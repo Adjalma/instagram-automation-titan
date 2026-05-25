@@ -49,21 +49,26 @@ export async function getDb() {
       username,
       password,
       max: 1,
-      ssl: "prefer",
+      ssl: "require",
       idle_timeout: 20,
       connect_timeout: 30,
       prepare: false,
     });
+
+    // Test raw connection before wrapping with Drizzle
+    await client`SELECT 1 AS ok`;
+    console.log("[Database] Raw connection OK");
+
     const db = drizzle(client);
-    await db.execute(sql`SELECT 1`);
     _db = db;
     _lastError = "";
     console.log("[Database] Connected to PostgreSQL");
   } catch (error: any) {
-    const msg = error?.message ?? String(error);
-    const code = error?.code ?? "";
+    const root = error?.cause ?? error;
+    const msg = root?.message ?? error?.message ?? String(error);
+    const code = root?.code ?? error?.code ?? "";
     _lastError = code ? `${code}: ${msg}` : msg;
-    console.error("[Database] Connection failed:", _lastError);
+    console.error("[Database] Connection failed:", _lastError, error);
     _db = null;
   }
 
