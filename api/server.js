@@ -200,14 +200,27 @@ import { eq, desc, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 async function getDb() {
-  if (!_db && process.env.DATABASE_URL) {
-    try {
-      const client = postgres(process.env.DATABASE_URL, { max: 1, ssl: { rejectUnauthorized: false }, idle_timeout: 20, connect_timeout: 10, prepare: false });
-      _db = drizzle(client);
-    } catch (error) {
-      console.warn("[Database] Failed to connect:", error);
-      _db = null;
-    }
+  if (_db) return _db;
+  const url = process.env.DATABASE_URL;
+  if (!url) {
+    console.error("[Database] DATABASE_URL env var is not set");
+    return null;
+  }
+  try {
+    const client = postgres(url, {
+      max: 1,
+      ssl: { rejectUnauthorized: false },
+      idle_timeout: 20,
+      connect_timeout: 10,
+      prepare: false
+    });
+    const db = drizzle(client);
+    await db.execute(sql`SELECT 1`);
+    _db = db;
+    console.log("[Database] Connected to PostgreSQL");
+  } catch (error) {
+    console.error("[Database] Connection failed:", error?.message ?? String(error));
+    _db = null;
   }
   return _db;
 }
@@ -2870,7 +2883,6 @@ async function publishToOtherPlatforms(postId, caption, imageUrl, allAccounts) {
 
 // server/vercel.ts
 init_db();
-import { sql as sql2 } from "drizzle-orm";
 var app = express();
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
@@ -2880,8 +2892,9 @@ app.get("/api/health", async (_req, res) => {
   try {
     const db = await getDb();
     if (db) {
-      await db.execute(sql2`SELECT 1`);
       dbOk = true;
+    } else {
+      dbError = "getDb() returned null \u2014 check DATABASE_URL and Vercel logs";
     }
   } catch (e) {
     dbError = e.message;
@@ -2890,7 +2903,7 @@ app.get("/api/health", async (_req, res) => {
     ok: dbOk,
     db: dbOk ? "connected" : `error: ${dbError}`,
     env: {
-      DATABASE_URL: !!process.env.DATABASE_URL,
+      DATABASE_URL: process.env.DATABASE_URL ? process.env.DATABASE_URL.replace(/:[^:@]+@/, ":***@") : "(not set)",
       JWT_SECRET: !!process.env.JWT_SECRET,
       ADMIN_EMAIL: process.env.ADMIN_EMAIL || "(n\xE3o definido)",
       ADMIN_PASSWORD: !!process.env.ADMIN_PASSWORD

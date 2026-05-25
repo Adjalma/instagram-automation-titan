@@ -24,13 +24,14 @@ app.get("/api/health", async (_req, res) => {
   let dbError = "";
   try {
     const db = await getDb();
-    if (db) { await db.execute(sql`SELECT 1`); dbOk = true; }
+    if (db) { dbOk = true; }
+    else { dbError = "getDb() returned null — check DATABASE_URL and Vercel logs"; }
   } catch (e: any) { dbError = e.message; }
   res.json({
     ok: dbOk,
     db: dbOk ? "connected" : `error: ${dbError}`,
     env: {
-      DATABASE_URL: !!process.env.DATABASE_URL,
+      DATABASE_URL: process.env.DATABASE_URL ? process.env.DATABASE_URL.replace(/:[^:@]+@/, ":***@") : "(not set)",
       JWT_SECRET: !!process.env.JWT_SECRET,
       ADMIN_EMAIL: process.env.ADMIN_EMAIL || "(não definido)",
       ADMIN_PASSWORD: !!process.env.ADMIN_PASSWORD,
