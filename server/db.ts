@@ -25,10 +25,29 @@ export async function getDb() {
   }
 
   try {
-    const masked = url.replace(/:[^:@]+@/, ":***@");
-    console.log("[Database] Connecting to:", masked);
+    let parsed: URL;
+    try {
+      parsed = new URL(url);
+    } catch {
+      _lastError = "Invalid database URL format";
+      console.error("[Database]", _lastError);
+      return null;
+    }
 
-    const client = postgres(url, {
+    const host = parsed.hostname;
+    const port = parseInt(parsed.port || "5432", 10);
+    const database = parsed.pathname.replace("/", "") || "postgres";
+    const username = decodeURIComponent(parsed.username || "postgres");
+    const password = decodeURIComponent(parsed.password || "");
+
+    console.log(`[Database] Connecting to ${host}:${port}/${database} as ${username}`);
+
+    const client = postgres({
+      host,
+      port,
+      database,
+      username,
+      password,
       max: 1,
       ssl: "prefer",
       idle_timeout: 20,
@@ -41,7 +60,9 @@ export async function getDb() {
     _lastError = "";
     console.log("[Database] Connected to PostgreSQL");
   } catch (error: any) {
-    _lastError = error?.message ?? String(error);
+    const msg = error?.message ?? String(error);
+    const code = error?.code ?? "";
+    _lastError = code ? `${code}: ${msg}` : msg;
     console.error("[Database] Connection failed:", _lastError);
     _db = null;
   }
