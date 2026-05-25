@@ -42,12 +42,18 @@ app.get("/api/health", async (_req, res) => {
   const activeUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.POSTGRES_PRISMA_URL || process.env.SUPABASE_DB_URL || "";
   const masked = activeUrl ? activeUrl.replace(/:[^:@]+@/, ":***@") : "(none found)";
 
+  const relevantKeys = Object.keys(process.env)
+    .filter(k => /^(DATABASE|POSTGRES|SUPABASE|DB_)/i.test(k))
+    .map(k => k);
+
   res.json({
     ok: dbOk,
     db: dbOk ? "connected" : `error: ${dbError}`,
     env: {
       dbUrlCandidates,
       activeUrl: masked,
+      allDbRelatedKeys: relevantKeys,
+      totalEnvKeys: Object.keys(process.env).length,
       JWT_SECRET: !!process.env.JWT_SECRET,
       ADMIN_EMAIL: process.env.ADMIN_EMAIL || "(não definido)",
       ADMIN_PASSWORD: !!process.env.ADMIN_PASSWORD,
