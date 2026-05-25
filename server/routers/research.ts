@@ -79,15 +79,15 @@ export const researchRouter = router({
   })).mutation(async ({ input }) => {
     const db = await getDb();
     if (!db) throw new Error("DB unavailable");
-    const [result] = await db.insert(researchTopics).values({
+    const result = await db.insert(researchTopics).values({
       accountId: input.accountId,
       name: input.name,
       query: input.query,
       language: input.language,
       publishHour: input.publishHour,
       active: 1,
-    });
-    return { id: (result as any).insertId };
+    }).returning({ id: researchTopics.id });
+    return { id: result[0].id };
   }),
 
   // Atualizar tópico (ativar/desativar, editar)
@@ -156,15 +156,15 @@ export const researchRouter = router({
       // 4. Criar post no banco
       const userId = ctx.user.id;
       const postStatus = (topic as any).autoPublish === 1 ? "approved" : "pending";
-      const [postResult] = await db.insert(posts).values({
+      const postResult = await db.insert(posts).values({
         userId,
         accountId: topic.accountId,
         caption,
         theme: `Pesquisa Diária: ${topic.name}`,
         status: postStatus,
         mcpPending: 0,
-      });
-      const postId = (postResult as any).insertId as number;
+      }).returning({ id: posts.id });
+      const postId = postResult[0].id;
 
       // 5. Salvar imagem como mídia do post
       await db.insert(postMedia).values({
@@ -214,15 +214,15 @@ export const researchRouter = router({
         const imageUrl = await generateArtForResearch(topic.name, articles.map(a => a.title));
 
         const runAllStatus = (topic as any).autoPublish === 1 ? "approved" : "pending";
-        const [postResult] = await db.insert(posts).values({
+        const postResult = await db.insert(posts).values({
           userId: ctx.user.id,
           accountId: topic.accountId,
           caption,
           theme: `Pesquisa Diária: ${topic.name}`,
           status: runAllStatus,
           mcpPending: 0,
-        });
-        const postId = (postResult as any).insertId as number;
+        }).returning({ id: posts.id });
+        const postId = postResult[0].id;
 
         await db.insert(postMedia).values({ postId, mediaUrl: imageUrl, mediaType: "image", sortOrder: 0 });
         await db.insert(researchRuns).values({

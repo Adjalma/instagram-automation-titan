@@ -59,8 +59,8 @@ export const appRouter = router({
       profileUrl: z.string().optional(),
     })).mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) throw new Error("DB unavailable");
-      const [result] = await db.insert(instagramAccounts).values({
+      if (!db) throw new Error("DB unavailable — configure DATABASE_URL no Vercel");
+      const result = await db.insert(instagramAccounts).values({
         handle: input.handle,
         displayName: input.displayName,
         platform: input.platform,
@@ -68,8 +68,8 @@ export const appRouter = router({
         tone: input.tone,
         bio: input.bio ?? null,
         profileUrl: input.profileUrl ?? null,
-      });
-      return { id: (result as any).insertId };
+      }).returning({ id: instagramAccounts.id });
+      return { id: result[0].id };
     }),
     delete: protectedProcedure.input(z.object({ id: z.number() })).mutation(async ({ input }) => {
       const db = await getDb();

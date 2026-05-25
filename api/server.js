@@ -1023,15 +1023,15 @@ var researchRouter = router({
   })).mutation(async ({ input }) => {
     const db = await getDb();
     if (!db) throw new Error("DB unavailable");
-    const [result] = await db.insert(researchTopics).values({
+    const result = await db.insert(researchTopics).values({
       accountId: input.accountId,
       name: input.name,
       query: input.query,
       language: input.language,
       publishHour: input.publishHour,
       active: 1
-    });
-    return { id: result.insertId };
+    }).returning({ id: researchTopics.id });
+    return { id: result[0].id };
   }),
   // Atualizar tópico (ativar/desativar, editar)
   updateTopic: protectedProcedure.input(z2.object({
@@ -1084,15 +1084,15 @@ var researchRouter = router({
       const imageUrl = await generateArtForResearch(topic.name, articles.map((a) => a.title));
       const userId = ctx.user.id;
       const postStatus = topic.autoPublish === 1 ? "approved" : "pending";
-      const [postResult] = await db.insert(posts).values({
+      const postResult = await db.insert(posts).values({
         userId,
         accountId: topic.accountId,
         caption,
         theme: `Pesquisa Di\xE1ria: ${topic.name}`,
         status: postStatus,
         mcpPending: 0
-      });
-      const postId = postResult.insertId;
+      }).returning({ id: posts.id });
+      const postId = postResult[0].id;
       await db.insert(postMedia).values({
         postId,
         mediaUrl: imageUrl,
@@ -1132,15 +1132,15 @@ var researchRouter = router({
         const caption = await generateCaption(topic.name, articles);
         const imageUrl = await generateArtForResearch(topic.name, articles.map((a) => a.title));
         const runAllStatus = topic.autoPublish === 1 ? "approved" : "pending";
-        const [postResult] = await db.insert(posts).values({
+        const postResult = await db.insert(posts).values({
           userId: ctx.user.id,
           accountId: topic.accountId,
           caption,
           theme: `Pesquisa Di\xE1ria: ${topic.name}`,
           status: runAllStatus,
           mcpPending: 0
-        });
-        const postId = postResult.insertId;
+        }).returning({ id: posts.id });
+        const postId = postResult[0].id;
         await db.insert(postMedia).values({ postId, mediaUrl: imageUrl, mediaType: "image", sortOrder: 0 });
         await db.insert(researchRuns).values({
           topicId: topic.id,
@@ -1329,8 +1329,8 @@ var appRouter = router({
       profileUrl: z3.string().optional()
     })).mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) throw new Error("DB unavailable");
-      const [result] = await db.insert(instagramAccounts).values({
+      if (!db) throw new Error("DB unavailable \u2014 configure DATABASE_URL no Vercel");
+      const result = await db.insert(instagramAccounts).values({
         handle: input.handle,
         displayName: input.displayName,
         platform: input.platform,
@@ -1338,8 +1338,8 @@ var appRouter = router({
         tone: input.tone,
         bio: input.bio ?? null,
         profileUrl: input.profileUrl ?? null
-      });
-      return { id: result.insertId };
+      }).returning({ id: instagramAccounts.id });
+      return { id: result[0].id };
     }),
     delete: protectedProcedure.input(z3.object({ id: z3.number() })).mutation(async ({ input }) => {
       const db = await getDb();
