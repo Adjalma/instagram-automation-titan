@@ -94,7 +94,19 @@ class SDKServer {
     email: string,
     password: string
   ): Promise<User | null> {
+    // Fallback direto: se credenciais batem com env vars, garante usuário e loga
+    if (email === ENV.adminEmail && password === ENV.adminPassword && ENV.adminPassword) {
+      await this.ensureAdminUser().catch(() => {});
+    }
+
     const user = await db.getUserByEmail(email);
+
+    // Se banco indisponível mas credenciais batem com env vars, retorna admin virtual
+    if (!user && email === ENV.adminEmail && password === ENV.adminPassword && ENV.adminPassword) {
+      const openId = nanoid(21);
+      return { id: 0, openId, name: "Admin", email, passwordHash: null, loginMethod: "local", role: "admin", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() } as any;
+    }
+
     if (!user || !(user as any).passwordHash) return null;
 
     const valid = await comparePassword(password, (user as any).passwordHash);

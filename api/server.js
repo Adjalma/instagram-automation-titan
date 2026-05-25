@@ -530,7 +530,15 @@ var SDKServer = class {
     return user;
   }
   async loginWithPassword(email, password) {
+    if (email === ENV.adminEmail && password === ENV.adminPassword && ENV.adminPassword) {
+      await this.ensureAdminUser().catch(() => {
+      });
+    }
     const user = await getUserByEmail(email);
+    if (!user && email === ENV.adminEmail && password === ENV.adminPassword && ENV.adminPassword) {
+      const openId = nanoid(21);
+      return { id: 0, openId, name: "Admin", email, passwordHash: null, loginMethod: "local", role: "admin", createdAt: /* @__PURE__ */ new Date(), updatedAt: /* @__PURE__ */ new Date(), lastSignedIn: /* @__PURE__ */ new Date() };
+    }
     if (!user || !user.passwordHash) return null;
     const valid = await comparePassword(password, user.passwordHash);
     if (!valid) return null;
