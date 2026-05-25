@@ -16,6 +16,31 @@ const app = express();
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
+// Diagnóstico — verifica DB e variáveis de ambiente
+app.get("/api/health", async (_req, res) => {
+  const { getDb } = await import("../server/db");
+  let dbOk = false;
+  let dbError = "";
+  try {
+    const db = await getDb();
+    if (db) {
+      const { sql } = await import("drizzle-orm");
+      await db.execute(sql`SELECT 1`);
+      dbOk = true;
+    }
+  } catch (e: any) { dbError = e.message; }
+  res.json({
+    ok: dbOk,
+    db: dbOk ? "connected" : `error: ${dbError}`,
+    env: {
+      DATABASE_URL: !!process.env.DATABASE_URL,
+      JWT_SECRET: !!process.env.JWT_SECRET,
+      ADMIN_EMAIL: process.env.ADMIN_EMAIL || "(não definido)",
+      ADMIN_PASSWORD: !!process.env.ADMIN_PASSWORD,
+    }
+  });
+});
+
 registerStorageProxy(app);
 registerOAuthRoutes(app);
 registerScheduledRoutes(app);
