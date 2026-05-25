@@ -14,11 +14,12 @@ export async function getDb() {
   if (_db) return _db;
 
   const url = process.env.DATABASE_URL
+    || process.env.DB_URL
     || process.env.POSTGRES_URL
     || process.env.POSTGRES_PRISMA_URL
     || process.env.SUPABASE_DB_URL;
   if (!url) {
-    _lastError = "No database URL found. Checked: DATABASE_URL, POSTGRES_URL, POSTGRES_PRISMA_URL, SUPABASE_DB_URL";
+    _lastError = "No database URL found. Checked: DATABASE_URL, DB_URL, POSTGRES_URL, SUPABASE_DB_URL";
     console.error("[Database]", _lastError);
     return null;
   }

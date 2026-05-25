@@ -34,12 +34,13 @@ app.get("/api/health", async (_req, res) => {
 
   const dbUrlCandidates = {
     DATABASE_URL: process.env.DATABASE_URL ? "set (" + process.env.DATABASE_URL.length + " chars)" : "not set",
+    DB_URL: process.env.DB_URL ? "set (" + process.env.DB_URL.length + " chars)" : "not set",
     POSTGRES_URL: process.env.POSTGRES_URL ? "set (" + process.env.POSTGRES_URL.length + " chars)" : "not set",
     POSTGRES_PRISMA_URL: process.env.POSTGRES_PRISMA_URL ? "set" : "not set",
     SUPABASE_DB_URL: process.env.SUPABASE_DB_URL ? "set" : "not set",
   };
 
-  const activeUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.POSTGRES_PRISMA_URL || process.env.SUPABASE_DB_URL || "";
+  const activeUrl = process.env.DATABASE_URL || process.env.DB_URL || process.env.POSTGRES_URL || process.env.POSTGRES_PRISMA_URL || process.env.SUPABASE_DB_URL || "";
   const masked = activeUrl ? activeUrl.replace(/:[^:@]+@/, ":***@") : "(none found)";
 
   const relevantKeys = Object.keys(process.env)
