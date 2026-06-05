@@ -3,7 +3,7 @@
   "short_name": "TriarcSM",
   "description": "Gerenciamento de conteúdo Instagram da Triarc Solutions",
   "start_url": "/",
-  "display": "standalone",
+  "display": "browser",
   "background_color": "#ffffff",
   "theme_color": "#ffffff",
   "orientation": "portrait-primary",

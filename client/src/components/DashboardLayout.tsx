@@ -26,6 +26,8 @@ import {
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
+import { Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
 
 // Itens principais na bottom-bar mobile (máx 5)
@@ -64,7 +66,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     const saved = localStorage.getItem(SIDEBAR_WIDTH_KEY);
     return saved ? parseInt(saved, 10) : DEFAULT_WIDTH;
   });
-  const { loading, user } = useAuth();
+  const { loading, user, error, refresh } = useAuth();
+  const [authTimedOut, setAuthTimedOut] = useState(false);
 
   useEffect(() => {
     localStorage.setItem(SIDEBAR_WIDTH_KEY, sidebarWidth.toString());
@@ -75,6 +78,37 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       window.location.replace("/login");
     }
   }, [loading, user]);
+
+  useEffect(() => {
+    if (!loading || user) {
+      setAuthTimedOut(false);
+      return;
+    }
+    const timer = window.setTimeout(() => setAuthTimedOut(true), 12_000);
+    return () => window.clearTimeout(timer);
+  }, [loading, user]);
+
+  if (authTimedOut && loading && !user) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 p-6 text-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <p className="text-sm text-muted-foreground max-w-md">
+          A sessão está demorando para carregar. Verifique sua conexão ou tente novamente.
+        </p>
+        {error && (
+          <p className="text-xs text-destructive max-w-md">{error.message}</p>
+        )}
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => { setAuthTimedOut(false); void refresh(); }}>
+            Tentar novamente
+          </Button>
+          <Button onClick={() => { window.location.href = "/login"; }}>
+            Ir para login
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   if (loading || !user) return <DashboardLayoutSkeleton />;
 

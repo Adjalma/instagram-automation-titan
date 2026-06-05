@@ -1,27 +1,24 @@
-// Triarc Social Manager — Service Worker
-const CACHE = "triarc-sm-v2";
-const OFFLINE_URL = "/";
+// Service Worker desativado — remove caches antigos e se auto-desregistra.
+const CACHE = "triarc-sm-disabled-v3";
 
-self.addEventListener("install", (e) => {
-  e.waitUntil(
-    caches.open(CACHE).then((c) => c.addAll([OFFLINE_URL]))
-  );
+self.addEventListener("install", (event) => {
   self.skipWaiting();
+  event.waitUntil(
+    caches.keys().then((keys) => Promise.all(keys.map((key) => caches.delete(key))))
+  );
 });
 
-self.addEventListener("activate", (e) => {
-  e.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))
-    )
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    caches
+      .keys()
+      .then((keys) => Promise.all(keys.map((key) => caches.delete(key))))
+      .then(() => self.registration.unregister())
+      .then(() => self.clients.matchAll({ type: "window" }))
+      .then((clients) => clients.forEach((client) => client.navigate(client.url)))
   );
-  self.clients.claim();
 });
 
-self.addEventListener("fetch", (e) => {
-  // Só intercepta navegação (GET de páginas)
-  if (e.request.mode !== "navigate") return;
-  e.respondWith(
-    fetch(e.request).catch(() => caches.match(OFFLINE_URL))
-  );
+self.addEventListener("fetch", () => {
+  // Não intercepta requisições — rede direta.
 });

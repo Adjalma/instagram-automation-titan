@@ -11,10 +11,17 @@ import "./index.css";
 // Override browser tab title
 document.title = "Triarc Social Manager";
 
-// Registrar Service Worker para PWA
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(() => {});
+// Remove service workers legados que cacheavam HTML/JS quebrado (Manus/Umami).
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    void navigator.serviceWorker.getRegistrations().then((regs) =>
+      Promise.all(regs.map((r) => r.unregister()))
+    );
+    if ("caches" in window) {
+      void caches.keys().then((keys) =>
+        Promise.all(keys.map((key) => caches.delete(key)))
+      );
+    }
   });
 }
 
@@ -53,10 +60,15 @@ const trpcClient = trpc.createClient({
       url: "/api/trpc",
       transformer: superjson,
       fetch(input, init) {
-        return globalThis.fetch(input, {
-          ...(init ?? {}),
-          credentials: "include",
-        });
+        const controller = new AbortController();
+        const timeout = window.setTimeout(() => controller.abort(), 30_000);
+        return globalThis
+          .fetch(input, {
+            ...(init ?? {}),
+            credentials: "include",
+            signal: controller.signal,
+          })
+          .finally(() => window.clearTimeout(timeout));
       },
     }),
   ],

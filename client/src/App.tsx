@@ -1,55 +1,93 @@
+import { lazy, Suspense } from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
 import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
+import PageLoader from "./components/PageLoader";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import DashboardLayout from "./components/DashboardLayout";
-import Home from "./pages/Home";
-import CreatePost from "./pages/CreatePost";
-import Approval from "./pages/Approval";
-import CalendarView from "./pages/CalendarView";
-import Themes from "./pages/Themes";
-import HistoryView from "./pages/HistoryView";
-import Assets from "./pages/Assets";
-import Automation from "./pages/Automation";
-import PublicationLogs from "@/pages/PublicationLogs";
-import Analytics from "@/pages/Analytics";
-import Research from "@/pages/Research";
-import Accounts from "@/pages/Accounts";
-import MarketIntel from "@/pages/MarketIntel";
-import ActionPlan from "@/pages/ActionPlan";
-import Privacy from "@/pages/Privacy";
-import Login from "@/pages/Login";
+import Login from "./pages/Login";
+import Privacy from "./pages/Privacy";
+
+const Home = lazy(() => import("./pages/Home"));
+const CreatePost = lazy(() => import("./pages/CreatePost"));
+const Approval = lazy(() => import("./pages/Approval"));
+const CalendarView = lazy(() => import("./pages/CalendarView"));
+const Themes = lazy(() => import("./pages/Themes"));
+const HistoryView = lazy(() => import("./pages/HistoryView"));
+const Assets = lazy(() => import("./pages/Assets"));
+const Automation = lazy(() => import("./pages/Automation"));
+const PublicationLogs = lazy(() => import("@/pages/PublicationLogs"));
+const Analytics = lazy(() => import("@/pages/Analytics"));
+const Research = lazy(() => import("@/pages/Research"));
+const Accounts = lazy(() => import("@/pages/Accounts"));
+const MarketIntel = lazy(() => import("@/pages/MarketIntel"));
+const ActionPlan = lazy(() => import("@/pages/ActionPlan"));
+
+function LazyPage({ children }: { children: React.ReactNode }) {
+  return <Suspense fallback={<PageLoader />}>{children}</Suspense>;
+}
+
+function DashboardRoutes() {
+  return (
+    <Switch>
+      <Route path="/">
+        <LazyPage><Home /></LazyPage>
+      </Route>
+      <Route path="/create">
+        <LazyPage><CreatePost /></LazyPage>
+      </Route>
+      <Route path="/approval">
+        <LazyPage><Approval /></LazyPage>
+      </Route>
+      <Route path="/calendar">
+        <LazyPage><CalendarView /></LazyPage>
+      </Route>
+      <Route path="/themes">
+        <LazyPage><Themes /></LazyPage>
+      </Route>
+      <Route path="/history">
+        <LazyPage><HistoryView /></LazyPage>
+      </Route>
+      <Route path="/automation">
+        <LazyPage><Automation /></LazyPage>
+      </Route>
+      <Route path="/assets">
+        <LazyPage><Assets /></LazyPage>
+      </Route>
+      <Route path="/logs">
+        <LazyPage><PublicationLogs /></LazyPage>
+      </Route>
+      <Route path="/analytics">
+        <LazyPage><Analytics /></LazyPage>
+      </Route>
+      <Route path="/research">
+        <LazyPage><Research /></LazyPage>
+      </Route>
+      <Route path="/accounts">
+        <LazyPage><Accounts /></LazyPage>
+      </Route>
+      <Route path="/market-intel">
+        <LazyPage><MarketIntel /></LazyPage>
+      </Route>
+      <Route path="/action-plan">
+        <LazyPage><ActionPlan /></LazyPage>
+      </Route>
+      <Route path="/404" component={NotFound} />
+      <Route component={NotFound} />
+    </Switch>
+  );
+}
 
 function Router() {
   return (
     <Switch>
-      {/* Páginas públicas — sem DashboardLayout */}
       <Route path="/login" component={Login} />
       <Route path="/privacidade" component={Privacy} />
-
-      {/* Todas as demais rotas dentro do DashboardLayout */}
-      <Route>
+      <Route nest path="/">
         <DashboardLayout>
-          <Switch>
-            <Route path={"/"} component={Home} />
-            <Route path={"/create"} component={CreatePost} />
-            <Route path={"/approval"} component={Approval} />
-            <Route path={"/calendar"} component={CalendarView} />
-            <Route path={"/themes"} component={Themes} />
-            <Route path={"/history"} component={HistoryView} />
-            <Route path={"/automation"} component={Automation} />
-            <Route path={"/assets"} component={Assets} />
-            <Route path={"/logs"} component={PublicationLogs} />
-            <Route path={"/analytics"} component={Analytics} />
-            <Route path={"/research"} component={Research} />
-            <Route path={"/accounts"} component={Accounts} />
-            <Route path={"/market-intel"} component={MarketIntel} />
-            <Route path={"/action-plan"} component={ActionPlan} />
-            <Route path={"/404"} component={NotFound} />
-            <Route component={NotFound} />
-          </Switch>
+          <DashboardRoutes />
         </DashboardLayout>
       </Route>
     </Switch>
