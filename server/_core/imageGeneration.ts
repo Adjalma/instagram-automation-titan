@@ -8,6 +8,17 @@ export type GenerateImageOptions = {
 
 export type GenerateImageResponse = { url?: string };
 
+/** Modelos de imagem erram muito texto em PT — proibir texto na arte. */
+const IMAGE_NO_TEXT_RULES = `CRITICAL RULES: Do NOT render any text, letters, words, numbers, typography, headlines, titles or captions inside the image. No Portuguese or English visible. Convey the topic only through abstract visuals, icons, symbols, colors and composition. All readable text belongs in the Instagram caption, not in the image.`;
+
+const TRIARC_VISUAL_STYLE =
+  "Modern premium tech aesthetic, cyan (#00BFFF) and dark navy (#0A1628), minimalist corporate design, subtle circuit patterns and holographic glow. Place the Triarc Solutions logo emblem (circular tech badge with gears) in the bottom-right corner. 1080x1080 square, magazine quality.";
+
+/** Prompt padronizado: visual puro, sem texto na imagem. */
+export function buildTriarcImagePrompt(topic: string): string {
+  return `Premium Instagram visual for Triarc Solutions, a Brazilian tech company. Visual mood inspired by the concept: "${topic}". ${TRIARC_VISUAL_STYLE} ${IMAGE_NO_TEXT_RULES}`;
+}
+
 export async function generateImage(
   options: GenerateImageOptions
 ): Promise<GenerateImageResponse> {
@@ -18,8 +29,12 @@ export async function generateImage(
   const model = "gemini-2.0-flash-preview-image-generation";
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${ENV.geminiApiKey}`;
 
+  const prompt = options.prompt.includes("Do NOT render any text")
+    ? options.prompt
+    : `${options.prompt}\n\n${IMAGE_NO_TEXT_RULES}`;
+
   // Build contents — include reference images if provided
-  const parts: unknown[] = [{ text: options.prompt }];
+  const parts: unknown[] = [{ text: prompt }];
 
   for (const img of options.originalImages ?? []) {
     if (img.b64Json) {

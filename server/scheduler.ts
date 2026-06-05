@@ -10,7 +10,7 @@ import { getPostsByStatus, updatePost, getDb } from "./db";
 import { researchTopics, researchRuns, posts, postMedia } from "../drizzle/schema";
 import { eq } from "drizzle-orm";
 import { invokeLLM } from "./_core/llm";
-import { generateImage } from "./_core/imageGeneration";
+import { generateImage, buildTriarcImagePrompt } from "./_core/imageGeneration";
 import { ENV } from "./_core/env";
 import { TRIARC_LOGO_URL } from "@shared/const";
 import { runAutonomousAgent } from "./autonomousAgent";
@@ -93,9 +93,8 @@ async function runTopicResearch(topic: { id: number; name: string; query: string
       ? llmRes.choices[0].message.content
       : `Novidades em ${topic.name}! Acompanhe as tendências com a Triarc Solutions. triarcsolutions.com.br`;
 
-    const prompt = `Premium Instagram post for Triarc Solutions tech company. Topic: "${topic.name}". Headline: "${articles[0].title}". Ultra-modern tech aesthetic, deep navy blue (#0A1628) background with electric cyan (#00BFFF) and neon purple (#7B2FBE) accents. Futuristic data visualization, glowing circuit patterns, holographic overlays. Bold typography with topic name. Place the Triarc Solutions logo (circular tech emblem with gears and code symbols, navy blue, gray and green) prominently in the bottom-right corner. 1080x1080 square, magazine quality.`;
     const { url: imageUrl } = await generateImage({
-      prompt,
+      prompt: buildTriarcImagePrompt(topic.name),
       originalImages: [{ url: TRIARC_LOGO_URL, mimeType: "image/jpeg" }],
     });
     if (!imageUrl) throw new Error("Falha ao gerar imagem");

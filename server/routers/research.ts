@@ -4,7 +4,7 @@ import { getDb } from "../db";
 import { researchTopics, researchRuns, posts, postMedia } from "../../drizzle/schema";
 import { eq, desc, and } from "drizzle-orm";
 import { invokeLLM } from "../_core/llm";
-import { generateImage } from "../_core/imageGeneration";
+import { generateImage, buildTriarcImagePrompt } from "../_core/imageGeneration";
 import { getAllAccounts } from "../db";
 import { TRIARC_LOGO_URL } from "@shared/const";
 
@@ -29,7 +29,7 @@ async function generateCaption(topicName: string, articles: { title: string; des
   const headlines = articles.map((a, i) => `${i + 1}. ${a.title}: ${a.description}`).join("\n");
   const response = await invokeLLM({
     messages: [
-      { role: "system", content: `${APP_CONTEXT}\n${TRIARC_TONE}\nVocê é especialista em marketing digital para Instagram.` },
+      { role: "system", content: `${APP_CONTEXT}\n${TRIARC_TONE}\nVocê é especialista em marketing digital para Instagram.\nREGRAS DE PORTUGUÊS: português brasileiro correto, acentuação perfeita, zero erros de ortografia ou digitação.` },
       {
         role: "user" as const,
         content: `Crie uma legenda impactante para o Instagram da @triarcsolutions sobre o tema: "${topicName}".
@@ -51,11 +51,9 @@ Requisitos:
 }
 
 // Gera imagem premium para o post
-async function generateArtForResearch(topicName: string, headlines: string[]): Promise<string> {
-  const topHeadline = headlines[0] ?? topicName;
-  const prompt = `Premium Instagram post for Triarc Solutions tech company. Topic: "${topicName}". Headline: "${topHeadline}". Style: ultra-modern tech aesthetic, deep navy blue (#0A1628) background with electric cyan (#00BFFF) and neon purple (#7B2FBE) accents. Futuristic data visualization elements, glowing circuit patterns, holographic overlays. Bold typography with the topic name prominently displayed. Place the Triarc Solutions logo (circular tech emblem with gears and code symbols, navy blue, gray and green) prominently in the bottom-right corner. Professional social media design, 1080x1080 square format, magazine quality.`;
+async function generateArtForResearch(topicName: string, _headlines: string[]): Promise<string> {
   const { url } = await generateImage({
-    prompt,
+    prompt: buildTriarcImagePrompt(topicName),
     originalImages: [{ url: TRIARC_LOGO_URL, mimeType: "image/jpeg" }],
   });
   if (!url) throw new Error("Falha ao gerar imagem");

@@ -14,7 +14,7 @@ import {
   getPublicationLogs, getPublicationLogsByPost, createPublicationLog,
 } from "./db";
 import { invokeLLM } from "./_core/llm";
-import { generateImage } from "./_core/imageGeneration";
+import { generateImage, buildTriarcImagePrompt } from "./_core/imageGeneration";
 import { notifyOwner } from "./_core/notification";
 import { storagePut } from "./storage";
 import { processScheduledPosts, fetchPostInsights } from "./instagram";
@@ -27,6 +27,12 @@ import { getDb } from "./db";
 const APP_CONTEXT = `A Triarc Solutions é uma empresa de tecnologia e inovação com sede em Macaé/RJ. Site oficial: triarcsolutions.com.br. Pilares: Gestão, Treinamento e Tecnologia. Serviços: desenvolvimento de software sob encomenda, IA e automação, gestão empresarial, suporte técnico em TI, automação industrial, treinamento profissional, licenciamento de software e data science. Projetos em destaque: TopFlow.ai (SEO com IA), COPE (plataforma de conexão de profissionais), SS-Milhas (gestão de milhas), TransCarga (logística inteligente), TRIARC CRM, NutriSystem, Grupo Conecta e mais de 36 projetos entregues. O Triarc Social Manager é a plataforma interna de automação de conteúdo para Instagram da Triarc Solutions.`;
 
 const TRIARC_TONE = `Use um tom corporativo profissional, moderno e acessível. Posicione a Triarc Solutions como referência em tecnologia e inovação. Destaque expertise técnica, resultados concretos e valor para o cliente. Sempre inclua CTA direcionando para triarcsolutions.com.br. Use hashtags do nicho tech/inovação/negócios.`;
+
+const CAPTION_PT_RULES = `REGRAS DE PORTUGUÊS (obrigatório):
+- Português brasileiro correto, com acentuação perfeita (ção, ã, ões, etc.)
+- Zero erros de ortografia ou digitação
+- Frases completas e gramaticalmente corretas
+- Não invente palavras nem use anglicismos desnecessários`;
 
 export const appRouter = router({
   system: systemRouter,
@@ -276,7 +282,7 @@ export const appRouter = router({
               messages: [
                 {
                   role: "system",
-                  content: `Você é um especialista em marketing de conteúdo para Instagram. ${APP_CONTEXT}\n\n${toneInstruction}\n\nA legenda deve incluir:\n- Texto envolvente e relevante ao tema/projeto/serviço\n- Hashtags estratégicas (8-15 hashtags do nicho tech, inovação, negócios)\n- CTA claro direcionando para triarcsolutions.com.br\n- Emojis moderados e profissionais\n\nResponda APENAS com a legenda pronta.`,
+                  content: `Você é um especialista em marketing de conteúdo para Instagram. ${APP_CONTEXT}\n\n${toneInstruction}\n\n${CAPTION_PT_RULES}\n\nA legenda deve incluir:\n- Texto envolvente e relevante ao tema/projeto/serviço\n- Hashtags estratégicas (8-15 hashtags do nicho tech, inovação, negócios)\n- CTA claro direcionando para triarcsolutions.com.br\n- Emojis moderados e profissionais\n\nResponda APENAS com a legenda pronta.`,
                 },
                 {
                   role: "user",
@@ -293,9 +299,8 @@ export const appRouter = router({
           // Generate art with AI
           let mediaUrl = "";
           try {
-            const style = "Design moderno e limpo com elementos tech, cores azul ciano (#00BFFF) e cinza escuro, estilo corporativo premium, minimalista e sofisticado";
             const artResult = await generateImage({
-              prompt: `Instagram post for Triarc Solutions tech company. Topic: ${theme.name}. ${style}. Place the Triarc Solutions logo (circular tech emblem with gears and code symbols, navy blue, gray and green) prominently in the bottom-right corner. Professional social media design, 1080x1080 square.`,
+              prompt: buildTriarcImagePrompt(theme.name),
               originalImages: [{ url: TRIARC_LOGO_URL, mimeType: "image/jpeg" }],
             });
             mediaUrl = artResult.url ?? "";
@@ -354,7 +359,7 @@ export const appRouter = router({
             messages: [
               {
                 role: "system",
-                content: `Você é um especialista em marketing para Instagram. ${APP_CONTEXT}\n\n${toneInstruction}\n\nInclua hashtags estratégicas do nicho tech/inovação, CTA claro para triarcsolutions.com.br. Responda APENAS com a legenda.`,
+                content: `Você é um especialista em marketing para Instagram. ${APP_CONTEXT}\n\n${toneInstruction}\n\n${CAPTION_PT_RULES}\n\nInclua hashtags estratégicas do nicho tech/inovação, CTA claro para triarcsolutions.com.br. Responda APENAS com a legenda.`,
               },
               { role: "user", content: `Legenda para @triarcsolutions. Tema/Projeto: ${theme}. Destaque o impacto e valor para o cliente.` },
             ],
@@ -367,9 +372,8 @@ export const appRouter = router({
 
         let mediaUrl = "";
         try {
-          const style = "Design moderno tech, cores azul ciano (#00BFFF) e cinza escuro, estilo corporativo premium";
           const artResult = await generateImage({
-            prompt: `Instagram post for Triarc Solutions tech company. Topic: ${theme}. ${style}. Place the Triarc Solutions logo (circular tech emblem with gears and code symbols, navy blue, gray and green) prominently in the bottom-right corner. 1080x1080 square.`,
+            prompt: buildTriarcImagePrompt(theme),
             originalImages: [{ url: TRIARC_LOGO_URL, mimeType: "image/jpeg" }],
           });
           mediaUrl = artResult.url ?? "";
@@ -597,7 +601,7 @@ export const appRouter = router({
         messages: [
           {
             role: "system",
-            content: `Você é um especialista em marketing de conteúdo para Instagram. ${APP_CONTEXT}\n\n${toneInstruction}\n\nA legenda deve incluir:\n- Texto envolvente e relevante ao tema/projeto/serviço\n- Hashtags estratégicas (8-15 hashtags do nicho tech, inovação, negócios)\n- CTA claro para triarcsolutions.com.br\n- Emojis moderados e profissionais\n\nResponda APENAS com a legenda pronta, sem explicações adicionais.`,
+            content: `Você é um especialista em marketing de conteúdo para Instagram. ${APP_CONTEXT}\n\n${toneInstruction}\n\n${CAPTION_PT_RULES}\n\nA legenda deve incluir:\n- Texto envolvente e relevante ao tema/projeto/serviço\n- Hashtags estratégicas (8-15 hashtags do nicho tech, inovação, negócios)\n- CTA claro para triarcsolutions.com.br\n- Emojis moderados e profissionais\n\nResponda APENAS com a legenda pronta, sem explicações adicionais.`,
           },
           {
             role: "user",
@@ -616,10 +620,8 @@ export const appRouter = router({
     })).mutation(async ({ input }) => {
       const account = await getAccountById(input.accountId);
       if (!account) throw new Error("Account not found");
-      const style = "Design moderno e limpo com elementos tech, cores azul ciano (#00BFFF) e cinza escuro, estilo corporativo premium, minimalista e sofisticado";
-      const prompt = `Instagram post image for Triarc Solutions tech company. Topic: ${input.theme}. ${style}. ${input.description ?? ""}. Place the Triarc Solutions logo (circular tech emblem with gears and code symbols, navy blue, gray and green) prominently in the bottom-right corner. Professional social media design, 1080x1080 square format.`;
       const { url } = await generateImage({
-        prompt,
+        prompt: buildTriarcImagePrompt(input.theme),
         originalImages: [{ url: TRIARC_LOGO_URL, mimeType: "image/jpeg" }],
       });
       return { url };
