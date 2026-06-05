@@ -18,8 +18,24 @@ import {
 } from "./db";
 import { publishToLinkedIn } from "./linkedin";
 import { publishToFacebook } from "./facebook";
+import { storageGetSignedUrl } from "./storage";
 
 const IG_GRAPH = "https://graph.facebook.com/v19.0";
+
+async function resolveMediaUrl(mediaUrl: string): Promise<string> {
+  if (mediaUrl.startsWith("/manus-storage/") || mediaUrl.startsWith("/storage/")) {
+    const appUrl = ENV.appUrl.replace(/\/$/, "");
+    try {
+      return await storageGetSignedUrl(mediaUrl);
+    } catch {
+      return `${appUrl}${mediaUrl}`;
+    }
+  }
+  if (mediaUrl.startsWith("/")) {
+    return `${ENV.appUrl.replace(/\/$/, "")}${mediaUrl}`;
+  }
+  return mediaUrl;
+}
 const LI_API = "https://api.linkedin.com/v2";
 
 // ─── Instagram Graph API ─────────────────────────────────────────────────────
@@ -318,6 +334,19 @@ export async function runAutonomousAgent(): Promise<{
   // ── 1. Publicar posts aprovados ───────────────────────────────
   const approved = await getPostsByStatus("approved") as any[];
   const now = new Date();
+
+  // Libera posts travados com mcpPending=1 (legado Manus/MCP)
+  for (const post of approved) {
+    if (post.mcpPending && post.updatedAt) {
+      const stuckMs = now.getTime() - new Date(post.updatedAt).getTime();
+      if (stuckMs > 5 * 60 * 1000) {
+        await updatePost(post.id, { mcpPending: 0 });
+        post.mcpPending = 0;
+        console.log(`[Agent] Post ${post.id}: mcpPending resetado (travado há ${Math.round(stuckMs / 60000)}min)`);
+      }
+    }
+  }
+
   const readyPosts = approved.filter((p: any) => {
     if (p.mcpPending) return false;
     if ((p.retryCount ?? 0) >= MAX_RETRIES) return false;
@@ -329,17 +358,30 @@ export async function runAutonomousAgent(): Promise<{
     await updatePost(post.id, { mcpPending: 1 });
 
     const media = await getPostMedia(post.id) as any[];
-    const imageUrl = media?.[0]?.mediaUrl || undefined;
+    const rawImageUrl = media?.[0]?.mediaUrl || undefined;
+    const imageUrl = rawImageUrl ? await resolveMediaUrl(rawImageUrl) : undefined;
 
-    // Encontra conta Instagram com token (banco ou env var)
+    // Encontra conta Instagram vinculada ao post (banco ou env var)
     const igAccount = allAccounts.find(
-      (a: any) => a.platform === "instagram" && a.accessToken && a.linkedinUrn?.includes(post.accountId?.toString())
+      (a: any) => a.id === post.accountId && a.platform === "instagram" && a.accessToken
     ) ?? allAccounts.find((a: any) => a.platform === "instagram" && a.accessToken);
 
     const igToken = igAccount?.accessToken || ENV.igAccessToken;
     if (!igToken) {
-      console.warn(`[Agent] Post ${post.id}: sem token Instagram`);
+      console.warn(`[Agent] Post ${post.id}: sem token Instagram — configure IG_ACCESS_TOKEN ou conecte em Contas`);
       await updatePost(post.id, { mcpPending: 0 });
+      result.errors.push(`Post ${post.id}: sem token Instagram`);
+      continue;
+    }
+
+    const igUserId = igAccount?.linkedinUrn?.startsWith("ig:")
+      ? igAccount.linkedinUrn.replace("ig:", "")
+      : ENV.igUserId;
+
+    if (!igUserId) {
+      console.warn(`[Agent] Post ${post.id}: IG_USER_ID não configurado`);
+      await updatePost(post.id, { mcpPending: 0 });
+      result.errors.push(`Post ${post.id}: IG_USER_ID não configurado`);
       continue;
     }
 
@@ -348,7 +390,7 @@ export async function runAutonomousAgent(): Promise<{
 
     try {
       const igRes = await publishToInstagram({
-        igUserId: ENV.igUserId || igAccount?.linkedinUrn?.replace("ig:", "") || igAccount?.profileUrl || "",
+        igUserId,
         accessToken: igToken,
         caption: post.caption ?? "",
         imageUrl,

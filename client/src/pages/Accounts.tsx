@@ -200,6 +200,22 @@ export default function Accounts() {
                     {account.bio && <p className="text-xs text-muted-foreground mt-1 truncate">{account.bio}</p>}
                   </div>
                   <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+                    {platform === "instagram" && (
+                      account.accessToken && account.linkedinUrn?.startsWith("ig:") ? (
+                        <div className="flex items-center gap-1">
+                          <Badge className="bg-pink-600 text-white text-xs">📸 Conectado</Badge>
+                          <Button variant="ghost" size="sm" className="text-xs text-pink-700 h-6 px-2"
+                            onClick={() => { window.location.href = `/api/facebook/auth?origin=${encodeURIComponent(window.location.origin)}&accountId=${account.id}`; }}>
+                            Reconectar
+                          </Button>
+                        </div>
+                      ) : (
+                        <Button variant="outline" size="sm" className="text-pink-600 border-pink-600 hover:bg-pink-50"
+                          onClick={() => { window.location.href = `/api/facebook/auth?origin=${encodeURIComponent(window.location.origin)}&accountId=${account.id}`; }}>
+                          <Instagram className="w-3 h-3 mr-1" /> Conectar
+                        </Button>
+                      )
+                    )}
                     {platform === "facebook" && (
                       account.accessToken && account.linkedinUrn?.startsWith("fb:page:") ? (
                         <div className="flex items-center gap-1">
@@ -285,9 +301,9 @@ export default function Accounts() {
           <CardTitle className="text-sm text-muted-foreground">Publicação Automática</CardTitle>
         </CardHeader>
         <CardContent className="text-xs text-muted-foreground space-y-1">
-          <p>✅ <strong>Instagram</strong> — publicação automática via MCP ativa</p>
-          <p>🔄 <strong>LinkedIn</strong> — OAuth configurado. Ao conectar, publica automaticamente na Company Page</p>
-          <p>🔄 <strong>Facebook</strong> — OAuth configurado. Ao conectar, publica automaticamente na Página da empresa</p>
+          <p>✅ <strong>Instagram</strong> — conecte via Facebook OAuth ou configure IG_ACCESS_TOKEN no Vercel</p>
+          <p>✅ <strong>LinkedIn</strong> — OAuth configurado. Ao conectar, publica automaticamente na Company Page</p>
+          <p>✅ <strong>Facebook</strong> — OAuth configurado. Ao conectar, publica automaticamente na Página da empresa</p>
           <p>🔜 <strong>TikTok</strong> — em desenvolvimento</p>
           <p>🔜 <strong>YouTube</strong> — em desenvolvimento</p>
         </CardContent>

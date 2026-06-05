@@ -183,9 +183,13 @@ export default function Approval() {
   });
 
   const publishNow = trpc.automation.publishNow.useMutation({
-    onSuccess: () => {
+    onSuccess: (data) => {
       invalidateAll();
-      toast.info("🚀 Publicando no Instagram...", { description: "Aguarde a confirmação no card do Manus." });
+      if (data.published) {
+        toast.success("✅ Post publicado!", { description: data.message });
+      } else {
+        toast.info("Post na fila", { description: data.message });
+      }
     },
     onError: (err) => toast.error("Erro ao publicar", { description: err.message }),
   });

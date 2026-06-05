@@ -1,4 +1,4 @@
-import { COOKIE_NAME } from "@shared/const";
+import { COOKIE_NAME, TRIARC_LOGO_URL } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
@@ -18,6 +18,7 @@ import { generateImage } from "./_core/imageGeneration";
 import { notifyOwner } from "./_core/notification";
 import { storagePut } from "./storage";
 import { processScheduledPosts, fetchPostInsights } from "./instagram";
+import { runAutonomousAgent } from "./autonomousAgent";
 import { researchRouter } from "./routers/research";
 import { seedTriarcContent, TRIARC_SERVICES, TRIARC_PROJECTS } from "./seed-triarc";
 import { triacContent, TriacContent } from "../drizzle/schema";
@@ -86,19 +87,29 @@ export const appRouter = router({
       theme: z.string().optional(),
       scheduledAt: z.string().optional(),
       mediaUrls: z.array(z.string()).optional(),
+      mediaUrl: z.string().optional(),
     })).mutation(async ({ ctx, input }) => {
+      const scheduledDate = input.scheduledAt ? new Date(input.scheduledAt) : undefined;
+      const isFutureSchedule = scheduledDate && scheduledDate > new Date();
       const { id } = await createPost({
         userId: ctx.user.id,
         accountId: input.accountId,
         caption: input.caption,
         theme: input.theme,
-        scheduledAt: input.scheduledAt ? new Date(input.scheduledAt) : undefined,
-        status: "draft",
+        scheduledAt: scheduledDate,
+        status: isFutureSchedule ? "scheduled" : "pending",
+        mcpPending: 0,
       });
-      if (input.mediaUrls) {
-        for (let i = 0; i < input.mediaUrls.length; i++) {
-          await addPostMedia(id, input.mediaUrls[i], "image", i);
-        }
+      const urls = input.mediaUrls ?? (input.mediaUrl ? [input.mediaUrl] : []);
+      for (let i = 0; i < urls.length; i++) {
+        await addPostMedia(id, urls[i], "image", i);
+      }
+      if (!isFutureSchedule) {
+        const account = await getAccountById(input.accountId);
+        await notifyOwner({
+          title: "Novo post pronto para aprovação",
+          content: `Um post para @${account?.handle ?? "desconhecido"} está aguardando sua aprovação. Tema: ${input.theme ?? "Sem tema"}`,
+        });
       }
       return { id };
     }),
@@ -285,7 +296,7 @@ export const appRouter = router({
             const style = "Design moderno e limpo com elementos tech, cores azul ciano (#00BFFF) e cinza escuro, estilo corporativo premium, minimalista e sofisticado";
             const artResult = await generateImage({
               prompt: `Instagram post for Triarc Solutions tech company. Topic: ${theme.name}. ${style}. Place the Triarc Solutions logo (circular tech emblem with gears and code symbols, navy blue, gray and green) prominently in the bottom-right corner. Professional social media design, 1080x1080 square.`,
-              originalImages: [{ url: "https://tsm.triarcsolutions.com.br/manus-storage/triarc-logo_4d0b8405.jpeg", mimeType: "image/jpeg" }],
+              originalImages: [{ url: TRIARC_LOGO_URL, mimeType: "image/jpeg" }],
             });
             mediaUrl = artResult.url ?? "";
           } catch (e) {
@@ -359,7 +370,7 @@ export const appRouter = router({
           const style = "Design moderno tech, cores azul ciano (#00BFFF) e cinza escuro, estilo corporativo premium";
           const artResult = await generateImage({
             prompt: `Instagram post for Triarc Solutions tech company. Topic: ${theme}. ${style}. Place the Triarc Solutions logo (circular tech emblem with gears and code symbols, navy blue, gray and green) prominently in the bottom-right corner. 1080x1080 square.`,
-            originalImages: [{ url: "https://tsm.triarcsolutions.com.br/manus-storage/triarc-logo_4d0b8405.jpeg", mimeType: "image/jpeg" }],
+            originalImages: [{ url: TRIARC_LOGO_URL, mimeType: "image/jpeg" }],
           });
           mediaUrl = artResult.url ?? "";
         } catch (e) { /* continue without media */ }
@@ -422,12 +433,43 @@ export const appRouter = router({
       return processScheduledPosts();
     }),
 
-    publishNow: protectedProcedure.input(z.object({ postId: z.number() })).mutation(async ({ input }) => {
-      // Marca o post como approved e mcpPending=0 para que o agente o publique na próxima execução
+    publishNow: protectedProcedure.input(z.object({
+      postId: z.number(),
+      approveFirst: z.boolean().optional(),
+    })).mutation(async ({ input }) => {
       const post = await getPostById(input.postId);
-      if (!post) throw new Error("Post not found");
-      await updatePost(input.postId, { status: "approved", mcpPending: 0, retryCount: 0 });
-      return { success: true, message: "Post adicionado à fila de publicação imediata. O agente publicará em breve." };
+      if (!post) throw new Error("Post não encontrado");
+
+      if (input.approveFirst && post.status === "pending") {
+        await updatePost(input.postId, { status: "approved", mcpPending: 0 });
+      } else {
+        await updatePost(input.postId, { status: "approved", mcpPending: 0, retryCount: 0 });
+      }
+
+      const result = await runAutonomousAgent();
+      const published = result.postsPublished > 0;
+      const refreshed = await getPostById(input.postId);
+
+      if (refreshed?.status === "published") {
+        return {
+          success: true,
+          published: true,
+          permalink: (refreshed as any).instagramPermalink,
+          message: "Post publicado no Instagram com sucesso!",
+        };
+      }
+
+      if (result.errors.length > 0) {
+        throw new Error(result.errors[0]);
+      }
+
+      return {
+        success: true,
+        published,
+        message: published
+          ? "Post publicado com sucesso!"
+          : "Post aprovado. Verifique se IG_ACCESS_TOKEN está configurado ou conecte o Instagram em Contas.",
+      };
     }),
 
     getLogs: protectedProcedure.query(async () => {
@@ -578,7 +620,7 @@ export const appRouter = router({
       const prompt = `Instagram post image for Triarc Solutions tech company. Topic: ${input.theme}. ${style}. ${input.description ?? ""}. Place the Triarc Solutions logo (circular tech emblem with gears and code symbols, navy blue, gray and green) prominently in the bottom-right corner. Professional social media design, 1080x1080 square format.`;
       const { url } = await generateImage({
         prompt,
-        originalImages: [{ url: "https://tsm.triarcsolutions.com.br/manus-storage/triarc-logo_4d0b8405.jpeg", mimeType: "image/jpeg" }],
+        originalImages: [{ url: TRIARC_LOGO_URL, mimeType: "image/jpeg" }],
       });
       return { url };
     }),

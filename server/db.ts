@@ -150,7 +150,7 @@ export async function getAccountStats(accountId: number) {
 // ─── Posts ───────────────────────────────────────────────────────
 export async function createPost(data: {
   userId: number; accountId: number; caption?: string;
-  theme?: string; scheduledAt?: Date; status?: string;
+  theme?: string; scheduledAt?: Date; status?: string; mcpPending?: number;
 }) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
@@ -161,6 +161,7 @@ export async function createPost(data: {
     theme: data.theme ?? null,
     scheduledAt: data.scheduledAt ?? null,
     status: (data.status ?? "draft") as any,
+    mcpPending: data.mcpPending ?? 0,
   }).returning({ id: posts.id });
   return { id: result[0].id };
 }

@@ -38,7 +38,7 @@ export default function CreatePost() {
     onError: (e) => toast.error("Erro ao criar post", { description: e.message }),
   });
 
-  const generateCaption = trpc.posts.generateCaption.useMutation({
+  const generateCaption = trpc.ai.generateCaption.useMutation({
     onSuccess: (data) => {
       setCaption(data.caption);
       toast.success("Legenda gerada!");
@@ -46,12 +46,12 @@ export default function CreatePost() {
     onError: (e) => toast.error("Erro ao gerar legenda", { description: e.message }),
   });
 
-  const generateImage = trpc.posts.generateImage?.useMutation({
-    onSuccess: (data: any) => {
-      setMediaUrl(data.url);
+  const generateImage = trpc.ai.generateArt.useMutation({
+    onSuccess: (data) => {
+      if (data.url) setMediaUrl(data.url);
       toast.success("Imagem gerada!");
     },
-    onError: (e: any) => toast.error("Erro ao gerar imagem", { description: e.message }),
+    onError: (e) => toast.error("Erro ao gerar imagem", { description: e.message }),
   });
 
   const handleGenerateCaption = useCallback(async () => {
@@ -66,9 +66,14 @@ export default function CreatePost() {
   }, [accountId, theme, generateCaption]);
 
   const handleGenerateImage = useCallback(async () => {
+    if (!accountId) { toast.error("Selecione uma conta"); return; }
     if (!theme) { toast.error("Informe o tema para gerar a imagem"); return; }
-    await generateImage?.mutateAsync({ theme, caption });
-  }, [theme, caption, generateImage]);
+    await generateImage.mutateAsync({
+      accountId: Number(accountId),
+      theme,
+      description: caption || undefined,
+    });
+  }, [accountId, theme, caption, generateImage]);
 
   const handleSubmit = useCallback(() => {
     if (!accountId) { toast.error("Selecione uma conta"); return; }
@@ -83,7 +88,7 @@ export default function CreatePost() {
       accountId: Number(accountId),
       theme: theme || undefined,
       caption: caption.trim(),
-      mediaUrl: mediaUrl || undefined,
+      mediaUrls: mediaUrl ? [mediaUrl] : undefined,
       scheduledAt: scheduledAt || undefined,
     });
   }, [accountId, caption, theme, mediaUrl, scheduledAt, createPost]);
@@ -195,17 +200,15 @@ export default function CreatePost() {
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">URL da Imagem</label>
-              {generateImage && (
-                <Button
-                  variant="outline" size="sm"
-                  onClick={handleGenerateImage}
-                  disabled={generateImage.isPending || !theme}
-                  className="gap-1.5 h-7 text-xs"
-                >
-                  {generateImage.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Image className="h-3 w-3" />}
-                  Gerar Imagem
-                </Button>
-              )}
+              <Button
+                variant="outline" size="sm"
+                onClick={handleGenerateImage}
+                disabled={generateImage.isPending || !theme || !accountId}
+                className="gap-1.5 h-7 text-xs"
+              >
+                {generateImage.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Image className="h-3 w-3" />}
+                Gerar Imagem
+              </Button>
             </div>
             <Input
               placeholder="https://... (opcional, gerado automaticamente)"

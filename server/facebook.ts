@@ -19,8 +19,11 @@ const FB_AUTH_URL = "https://www.facebook.com/v19.0/dialog/oauth";
 const FB_TOKEN_URL = "https://graph.facebook.com/v19.0/oauth/access_token";
 const FB_GRAPH_URL = "https://graph.facebook.com/v19.0";
 
-// Permissões mínimas para publicar em Pages
-const FB_SCOPES = ["pages_show_list", "pages_read_engagement", "pages_manage_posts"].join(",");
+// Permissões para publicar em Pages e Instagram Business
+const FB_SCOPES = [
+  "pages_show_list", "pages_read_engagement", "pages_manage_posts",
+  "instagram_basic", "instagram_content_publish",
+].join(",");
 
 // Vanity name da página da Triarc Solutions no Facebook
 const FB_PAGE_VANITY = "Triarcsolutions";
@@ -142,14 +145,39 @@ export function registerFacebookRoutes(app: Express) {
       if (accountId) {
         const db = await getDb();
         if (!db) throw new Error("DB unavailable");
+
+        const [account] = await db.select()
+          .from(instagramAccounts)
+          .where(eq(instagramAccounts.id, parseInt(accountId)))
+          .limit(1);
+
+        let accountRef = pageRef;
+        if (account?.platform === "instagram" && page) {
+          try {
+            const igRes = await fetch(
+              `${FB_GRAPH_URL}/${page.pageId}?fields=instagram_business_account&access_token=${page.pageToken}`
+            );
+            if (igRes.ok) {
+              const igData = await igRes.json() as any;
+              const igUserId = igData?.instagram_business_account?.id;
+              if (igUserId) {
+                accountRef = `ig:${igUserId}`;
+                console.log(`[Facebook] Instagram Business Account: ${igUserId}`);
+              }
+            }
+          } catch (err) {
+            console.warn("[Facebook] Não foi possível obter conta Instagram Business:", err);
+          }
+        }
+
         await db.update(instagramAccounts)
           .set({
-            accessToken: finalToken,
+            accessToken: page ? page.pageToken : finalToken,
             tokenExpiresAt: expiresAt,
-            linkedinUrn: pageRef,
+            linkedinUrn: accountRef,
           })
           .where(eq(instagramAccounts.id, parseInt(accountId)));
-        console.log(`[Facebook] Token salvo para conta ${accountId} (ref: ${pageRef})`);
+        console.log(`[Facebook] Token salvo para conta ${accountId} (ref: ${accountRef})`);
       }
 
       res.redirect(`${origin}/accounts?facebook_connected=1`);
