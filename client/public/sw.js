@@ -1,5 +1,5 @@
 // Triarc Social Manager — Service Worker
-const CACHE = "triarc-sm-v1";
+const CACHE = "triarc-sm-v2";
 const OFFLINE_URL = "/";
 
 self.addEventListener("install", (e) => {
