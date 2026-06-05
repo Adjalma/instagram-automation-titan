@@ -4,6 +4,7 @@
   "outputDirectory": "dist/public",
   "routes": [
     { "src": "/api/(.*)",           "dest": "/api/server" },
+    { "src": "/auth/(.*)",          "dest": "/api/server" },
     { "src": "/storage/(.*)",       "dest": "/api/server" },
     { "src": "/manus-storage/(.*)", "dest": "/api/server" },
     { "handle": "filesystem" },

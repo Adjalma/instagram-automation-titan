@@ -13,6 +13,7 @@ import { ENV } from "./_core/env";
 import { getDb } from "./db";
 import { instagramAccounts } from "../drizzle/schema";
 import { eq } from "drizzle-orm";
+import { buildOAuthState, finishOAuth, parseOAuthState } from "./_core/oauthFinish";
 
 const LINKEDIN_AUTH_URL = "https://www.linkedin.com/oauth/v2/authorization";
 const LINKEDIN_TOKEN_URL = "https://www.linkedin.com/oauth/v2/accessToken";
@@ -80,8 +81,9 @@ export function registerLinkedInRoutes(app: Express) {
   app.get("/api/linkedin/auth", (req: Request, res: Response) => {
     const origin = req.query.origin as string || "http://localhost:3000";
     const accountId = req.query.accountId as string;
+    const popup = req.query.popup === "1" || req.query.popup === "true";
     const redirectUri = getRedirectUri(origin);
-    const state = Buffer.from(JSON.stringify({ origin, accountId })).toString("base64url");
+    const state = buildOAuthState(origin, accountId, popup);
 
     const params = new URLSearchParams({
       response_type: "code",
@@ -97,20 +99,12 @@ export function registerLinkedInRoutes(app: Express) {
   // Step 2: Callback — troca code por token, resolve org URN, salva no banco
   app.get("/auth/linkedin/callback", async (req: Request, res: Response) => {
     const { code, state, error } = req.query as Record<string, string>;
+    const fallbackOrigin = "https://tsm.triarcsolutions.com.br";
+    const { origin, accountId, popup } = parseOAuthState(state, fallbackOrigin);
 
     if (error) {
       console.error("[LinkedIn] OAuth error:", error);
-      return res.redirect("/?linkedin_error=" + encodeURIComponent(error));
-    }
-
-    let origin = "http://localhost:3000";
-    let accountId: string | undefined;
-    try {
-      const decoded = JSON.parse(Buffer.from(state, "base64url").toString());
-      origin = decoded.origin;
-      accountId = decoded.accountId;
-    } catch {
-      console.warn("[LinkedIn] Could not parse state");
+      return finishOAuth(res, { origin, popup, provider: "linkedin", success: false, error });
     }
 
     const redirectUri = getRedirectUri(origin);
@@ -132,7 +126,7 @@ export function registerLinkedInRoutes(app: Express) {
       const tokenData = await tokenRes.json() as any;
       if (!tokenData.access_token) {
         console.error("[LinkedIn] Token exchange failed:", tokenData);
-        return res.redirect("/?linkedin_error=token_exchange_failed");
+        return finishOAuth(res, { origin, popup, provider: "linkedin", success: false, error: "token_exchange_failed" });
       }
 
       const { access_token, expires_in } = tokenData;
@@ -186,10 +180,10 @@ export function registerLinkedInRoutes(app: Express) {
         console.log(`[LinkedIn] Token salvo para conta ${accountId}, URN: ${linkedinUrn}`);
       }
 
-      res.redirect(`${origin}/accounts?linkedin_connected=1`);
+      finishOAuth(res, { origin, popup, provider: "linkedin", success: true });
     } catch (err) {
       console.error("[LinkedIn] Callback error:", err);
-      res.redirect("/?linkedin_error=callback_failed");
+      finishOAuth(res, { origin, popup, provider: "linkedin", success: false, error: "callback_failed" });
     }
   });
 }

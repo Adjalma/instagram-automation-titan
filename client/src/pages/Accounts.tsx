@@ -1,5 +1,6 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
+import { openOAuthConnect } from "@/lib/oauthConnect";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -65,6 +66,40 @@ export default function Accounts() {
   const confirmDelete = useCallback(() => {
     if (deleteId !== null) deleteAccount.mutate({ id: deleteId });
   }, [deleteId, deleteAccount]);
+
+  const handleOAuthConnect = useCallback((provider: "facebook" | "linkedin", accountId: number) => {
+    const ok = openOAuthConnect(provider, accountId, () => {
+      refetch();
+      toast.success(provider === "facebook" ? "Conta Facebook/Instagram conectada!" : "LinkedIn conectado!");
+    });
+    if (!ok) {
+      toast.error("Permita popups neste site para conectar a conta (ícone ao lado da barra de endereço).");
+    }
+  }, [refetch]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("facebook_connected") === "1") {
+      toast.success("Conta Facebook/Instagram conectada!");
+      refetch();
+      window.history.replaceState({}, "", "/accounts");
+    }
+    if (params.get("linkedin_connected") === "1") {
+      toast.success("LinkedIn conectado!");
+      refetch();
+      window.history.replaceState({}, "", "/accounts");
+    }
+    const fbErr = params.get("facebook_error");
+    const liErr = params.get("linkedin_error");
+    if (fbErr) {
+      toast.error(`Erro ao conectar Facebook: ${fbErr}`);
+      window.history.replaceState({}, "", "/accounts");
+    }
+    if (liErr) {
+      toast.error(`Erro ao conectar LinkedIn: ${liErr}`);
+      window.history.replaceState({}, "", "/accounts");
+    }
+  }, [refetch]);
 
   // Ordena plataformas: com contas primeiro
   const platformEntries = Object.entries(PLATFORM_CONFIG).sort(([keyA], [keyB]) => {
@@ -205,13 +240,13 @@ export default function Accounts() {
                         <div className="flex items-center gap-1">
                           <Badge className="bg-pink-600 text-white text-xs">📸 Conectado</Badge>
                           <Button variant="ghost" size="sm" className="text-xs text-pink-700 h-6 px-2"
-                            onClick={() => { window.location.href = `/api/facebook/auth?origin=${encodeURIComponent(window.location.origin)}&accountId=${account.id}`; }}>
+                            onClick={() => handleOAuthConnect("facebook", account.id)}>
                             Reconectar
                           </Button>
                         </div>
                       ) : (
                         <Button variant="outline" size="sm" className="text-pink-600 border-pink-600 hover:bg-pink-50"
-                          onClick={() => { window.location.href = `/api/facebook/auth?origin=${encodeURIComponent(window.location.origin)}&accountId=${account.id}`; }}>
+                          onClick={() => handleOAuthConnect("facebook", account.id)}>
                           <Instagram className="w-3 h-3 mr-1" /> Conectar
                         </Button>
                       )
@@ -221,13 +256,13 @@ export default function Accounts() {
                         <div className="flex items-center gap-1">
                           <Badge className="bg-blue-600 text-white text-xs">📰 Page Conectada</Badge>
                           <Button variant="ghost" size="sm" className="text-xs text-blue-700 h-6 px-2"
-                            onClick={() => { window.location.href = `/api/facebook/auth?origin=${encodeURIComponent(window.location.origin)}&accountId=${account.id}`; }}>
+                            onClick={() => handleOAuthConnect("facebook", account.id)}>
                             Reconectar
                           </Button>
                         </div>
                       ) : (
                         <Button variant="outline" size="sm" className="text-blue-600 border-blue-600 hover:bg-blue-50"
-                          onClick={() => { window.location.href = `/api/facebook/auth?origin=${encodeURIComponent(window.location.origin)}&accountId=${account.id}`; }}>
+                          onClick={() => handleOAuthConnect("facebook", account.id)}>
                           <Facebook className="w-3 h-3 mr-1" /> Conectar
                         </Button>
                       )
@@ -239,13 +274,13 @@ export default function Accounts() {
                             {account.linkedinUrn?.startsWith("urn:li:organization:") ? "🏢 Company" : "👤 Perfil"}
                           </Badge>
                           <Button variant="ghost" size="sm" className="text-xs text-blue-700 h-6 px-2"
-                            onClick={() => { window.location.href = `/api/linkedin/auth?origin=${encodeURIComponent(window.location.origin)}&accountId=${account.id}`; }}>
+                            onClick={() => handleOAuthConnect("linkedin", account.id)}>
                             Reconectar
                           </Button>
                         </div>
                       ) : (
                         <Button variant="outline" size="sm" className="text-blue-700 border-blue-700 hover:bg-blue-50"
-                          onClick={() => { window.location.href = `/api/linkedin/auth?origin=${encodeURIComponent(window.location.origin)}&accountId=${account.id}`; }}>
+                          onClick={() => handleOAuthConnect("linkedin", account.id)}>
                           <Linkedin className="w-3 h-3 mr-1" /> Conectar
                         </Button>
                       )

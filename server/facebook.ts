@@ -14,6 +14,7 @@ import { ENV } from "./_core/env";
 import { getDb } from "./db";
 import { instagramAccounts } from "../drizzle/schema";
 import { eq } from "drizzle-orm";
+import { buildOAuthState, finishOAuth, parseOAuthState } from "./_core/oauthFinish";
 
 const FB_AUTH_URL = "https://www.facebook.com/v19.0/dialog/oauth";
 const FB_TOKEN_URL = "https://graph.facebook.com/v19.0/oauth/access_token";
@@ -77,8 +78,9 @@ export function registerFacebookRoutes(app: Express) {
   app.get("/api/facebook/auth", (req: Request, res: Response) => {
     const origin = (req.query.origin as string) || "http://localhost:3000";
     const accountId = req.query.accountId as string;
+    const popup = req.query.popup === "1" || req.query.popup === "true";
     const redirectUri = getRedirectUri(origin);
-    const state = Buffer.from(JSON.stringify({ origin, accountId })).toString("base64url");
+    const state = buildOAuthState(origin, accountId, popup);
 
     const params = new URLSearchParams({
       client_id: ENV.facebookAppId,
@@ -94,20 +96,12 @@ export function registerFacebookRoutes(app: Express) {
   // Step 2: Callback — troca code por token, busca Page token, salva no banco
   app.get("/auth/facebook/callback", async (req: Request, res: Response) => {
     const { code, state, error } = req.query as Record<string, string>;
+    const fallbackOrigin = "https://tsm.triarcsolutions.com.br";
+    const { origin, accountId, popup } = parseOAuthState(state, fallbackOrigin);
 
     if (error) {
       console.error("[Facebook] OAuth error:", error);
-      return res.redirect("/?facebook_error=" + encodeURIComponent(error));
-    }
-
-    let origin = "http://localhost:3000";
-    let accountId: string | undefined;
-    try {
-      const decoded = JSON.parse(Buffer.from(state, "base64url").toString());
-      origin = decoded.origin;
-      accountId = decoded.accountId;
-    } catch {
-      console.warn("[Facebook] Could not parse state");
+      return finishOAuth(res, { origin, popup, provider: "facebook", success: false, error });
     }
 
     const redirectUri = getRedirectUri(origin);
@@ -121,7 +115,7 @@ export function registerFacebookRoutes(app: Express) {
 
       if (!tokenData.access_token) {
         console.error("[Facebook] Token exchange failed:", tokenData);
-        return res.redirect("/?facebook_error=token_exchange_failed");
+        return finishOAuth(res, { origin, popup, provider: "facebook", success: false, error: "token_exchange_failed" });
       }
 
       const userToken = tokenData.access_token;
@@ -180,10 +174,10 @@ export function registerFacebookRoutes(app: Express) {
         console.log(`[Facebook] Token salvo para conta ${accountId} (ref: ${accountRef})`);
       }
 
-      res.redirect(`${origin}/accounts?facebook_connected=1`);
+      finishOAuth(res, { origin, popup, provider: "facebook", success: true });
     } catch (err) {
       console.error("[Facebook] Callback error:", err);
-      res.redirect("/?facebook_error=callback_failed");
+      finishOAuth(res, { origin, popup, provider: "facebook", success: false, error: "callback_failed" });
     }
   });
 }
