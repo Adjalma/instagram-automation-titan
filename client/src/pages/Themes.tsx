@@ -2,13 +2,14 @@ import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Hammer, Zap, Camera, Shield, Users } from "lucide-react";
+import QueryError from "@/components/QueryError";
 
 const iconMap: Record<string, any> = {
   Hammer, Zap, Camera, Shield, Users,
 };
 
 export default function Themes() {
-  const { data: themes, isLoading } = trpc.themes.list.useQuery();
+  const { data: themes, isLoading, isError, error, refetch } = trpc.themes.list.useQuery();
 
   if (isLoading) {
     return (
@@ -16,6 +17,10 @@ export default function Themes() {
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
+  }
+
+  if (isError) {
+    return <QueryError message={error?.message} onRetry={() => refetch()} />;
   }
 
   return (

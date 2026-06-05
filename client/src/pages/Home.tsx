@@ -10,6 +10,7 @@ import {
 import { useLocation } from "wouter";
 import { useEffect } from "react";
 import React from "react";
+import QueryError from "@/components/QueryError";
 
 const PLATFORM_CONFIG: Record<string, { label: string; icon: React.ElementType; color: string; bg: string; badge: string }> = {
   instagram: { label: "Instagram", icon: Instagram, color: "text-pink-600", bg: "bg-pink-100", badge: "border-pink-300 text-pink-700" },
@@ -26,13 +27,25 @@ export default function Home() {
     document.title = "Triarc Social Manager — Automação Instagram";
   }, []);
 
-  const { data: accounts, isLoading: loadingAccounts } = trpc.accounts.list.useQuery();
+  const {
+    data: accounts,
+    isLoading: loadingAccounts,
+    isError: accountsError,
+    error: accountsErr,
+    refetch: refetchAccounts,
+  } = trpc.accounts.list.useQuery();
 
   // Pega a conta principal (Instagram) para os stats gerais
   const triarc = accounts?.find((a: any) => a.platform === "instagram" || !a.platform) ?? accounts?.[0];
   const triacId = triarc?.id ?? 0;
 
-  const { data: stats, isLoading: loadingStats } = trpc.accounts.stats.useQuery(
+  const {
+    data: stats,
+    isLoading: loadingStats,
+    isError: statsError,
+    error: statsErr,
+    refetch: refetchStats,
+  } = trpc.accounts.stats.useQuery(
     { accountId: triacId },
     { enabled: !!triacId }
   );
@@ -40,7 +53,15 @@ export default function Home() {
   const { data: pendingPosts } = trpc.posts.list.useQuery({ status: "pending" });
   const { data: approvedPosts } = trpc.posts.list.useQuery({ status: "approved" });
 
-  const isLoading = loadingAccounts || loadingStats;
+  const isLoading = loadingAccounts || (!!triacId && loadingStats);
+
+  if (accountsError) {
+    return <QueryError message={accountsErr?.message} onRetry={() => refetchAccounts()} />;
+  }
+
+  if (statsError && triacId) {
+    return <QueryError message={statsErr?.message} onRetry={() => refetchStats()} />;
+  }
 
   if (isLoading) {
     return (

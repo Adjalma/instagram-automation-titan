@@ -24,6 +24,7 @@ app.get("/api/health", async (_req, res) => {
   try {
     const db = await getDb();
     if (db) {
+      await db.execute(sql`SELECT 1 AS ok`);
       dbOk = true;
     } else {
       dbError = getLastDbError() || "getDb() returned null";

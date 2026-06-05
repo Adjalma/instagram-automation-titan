@@ -9,6 +9,7 @@ import {
   Loader2, CheckCircle, XCircle, Clock, Instagram,
   Send, Zap, Rocket, RefreshCw, AlertCircle,
 } from "lucide-react";
+import QueryError from "@/components/QueryError";
 
 const PostCard = memo(function PostCard({
   post,
@@ -145,11 +146,13 @@ function SkeletonCard() {
 export default function Approval() {
   const utils = trpc.useUtils();
 
-  const { data: pendingPosts, isLoading: loadingPending } = trpc.posts.list.useQuery({ status: "pending" });
-  const { data: approvedPosts, isLoading: loadingApproved } = trpc.posts.list.useQuery({ status: "approved" });
+  const { data: pendingPosts, isLoading: loadingPending, isError: pendingError, error: pendingErr, refetch: refetchPending } = trpc.posts.list.useQuery({ status: "pending" });
+  const { data: approvedPosts, isLoading: loadingApproved, isError: approvedError, error: approvedErr, refetch: refetchApproved } = trpc.posts.list.useQuery({ status: "approved" });
   const { data: accounts } = trpc.accounts.list.useQuery();
 
   const isLoading = loadingPending || loadingApproved;
+  const listError = pendingError || approvedError;
+  const listErrMsg = pendingErr?.message ?? approvedErr?.message;
 
   const invalidateAll = useCallback(() => {
     utils.posts.list.invalidate();
@@ -235,7 +238,12 @@ export default function Approval() {
         </div>
       </div>
 
-      {isLoading ? (
+      {listError ? (
+        <QueryError
+          message={listErrMsg}
+          onRetry={() => { void refetchPending(); void refetchApproved(); }}
+        />
+      ) : isLoading ? (
         <div className="grid gap-4 md:grid-cols-2">
           {Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)}
         </div>
