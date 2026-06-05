@@ -19,17 +19,31 @@ export default function Login() {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "content-type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ email, password }),
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
         setError(data.error ?? "Erro ao fazer login");
         return;
       }
 
-      window.location.href = "/";
+      // Confirma que a sessão foi gravada antes de ir ao dashboard
+      const sessionCheck = await fetch(
+        "/api/trpc/auth.me?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%7D%7D",
+        { credentials: "include" }
+      );
+      const sessionData = await sessionCheck.json().catch(() => null);
+      const user = sessionData?.[0]?.result?.data?.json;
+
+      if (!user) {
+        setError("Login ok, mas sessão não persistiu. Limpe cookies do site e tente de novo.");
+        return;
+      }
+
+      window.location.replace("/");
     } catch {
       setError("Erro de conexão. Tente novamente.");
     } finally {

@@ -11,18 +11,16 @@ import "./index.css";
 // Override browser tab title
 document.title = "Triarc Social Manager";
 
-// Remove service workers legados que cacheavam HTML/JS quebrado (Manus/Umami).
+// Remove service workers legados imediatamente (não esperar load).
 if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => {
-    void navigator.serviceWorker.getRegistrations().then((regs) =>
-      Promise.all(regs.map((r) => r.unregister()))
+  void navigator.serviceWorker.getRegistrations().then((regs) =>
+    Promise.all(regs.map((r) => r.unregister()))
+  );
+  if ("caches" in window) {
+    void caches.keys().then((keys) =>
+      Promise.all(keys.map((key) => caches.delete(key)))
     );
-    if ("caches" in window) {
-      void caches.keys().then((keys) =>
-        Promise.all(keys.map((key) => caches.delete(key)))
-      );
-    }
-  });
+  }
 }
 
 const queryClient = new QueryClient();
@@ -30,9 +28,9 @@ const queryClient = new QueryClient();
 const redirectToLoginIfUnauthorized = (error: unknown) => {
   if (!(error instanceof TRPCClientError)) return;
   if (typeof window === "undefined") return;
+  if (window.location.pathname === "/login") return;
 
   const isUnauthorized = error.message === UNAUTHED_ERR_MSG;
-
   if (!isUnauthorized) return;
 
   window.location.href = getLoginUrl();
@@ -60,15 +58,10 @@ const trpcClient = trpc.createClient({
       url: "/api/trpc",
       transformer: superjson,
       fetch(input, init) {
-        const controller = new AbortController();
-        const timeout = window.setTimeout(() => controller.abort(), 30_000);
-        return globalThis
-          .fetch(input, {
-            ...(init ?? {}),
-            credentials: "include",
-            signal: controller.signal,
-          })
-          .finally(() => window.clearTimeout(timeout));
+        return globalThis.fetch(input, {
+          ...(init ?? {}),
+          credentials: "include",
+        });
       },
     }),
   ],

@@ -66,51 +66,31 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     const saved = localStorage.getItem(SIDEBAR_WIDTH_KEY);
     return saved ? parseInt(saved, 10) : DEFAULT_WIDTH;
   });
-  const { loading, user, error, refresh } = useAuth();
-  const [authTimedOut, setAuthTimedOut] = useState(false);
+  const { loading, user, isAuthenticated } = useAuth();
 
   useEffect(() => {
     localStorage.setItem(SIDEBAR_WIDTH_KEY, sidebarWidth.toString());
   }, [sidebarWidth]);
 
   useEffect(() => {
-    if (!loading && !user) {
-      window.location.replace("/login");
-    }
-  }, [loading, user]);
+    if (loading) return;
+    if (isAuthenticated) return;
+    window.location.replace("/login");
+  }, [loading, isAuthenticated]);
 
-  useEffect(() => {
-    if (!loading || user) {
-      setAuthTimedOut(false);
-      return;
-    }
-    const timer = window.setTimeout(() => setAuthTimedOut(true), 12_000);
-    return () => window.clearTimeout(timer);
-  }, [loading, user]);
+  if (loading) return <DashboardLayoutSkeleton />;
 
-  if (authTimedOut && loading && !user) {
+  if (!user) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 p-6 text-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <p className="text-sm text-muted-foreground max-w-md">
-          A sessão está demorando para carregar. Verifique sua conexão ou tente novamente.
-        </p>
-        {error && (
-          <p className="text-xs text-destructive max-w-md">{error.message}</p>
-        )}
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => { setAuthTimedOut(false); void refresh(); }}>
-            Tentar novamente
-          </Button>
-          <Button onClick={() => { window.location.href = "/login"; }}>
-            Ir para login
-          </Button>
-        </div>
+        <p className="text-sm text-muted-foreground">Redirecionando para login...</p>
+        <Button variant="outline" onClick={() => { window.location.href = "/login"; }}>
+          Ir para login
+        </Button>
       </div>
     );
   }
-
-  if (loading || !user) return <DashboardLayoutSkeleton />;
 
   return (
     <SidebarProvider

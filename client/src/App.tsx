@@ -85,7 +85,7 @@ function Router() {
     <Switch>
       <Route path="/login" component={Login} />
       <Route path="/privacidade" component={Privacy} />
-      <Route nest path="/">
+      <Route>
         <DashboardLayout>
           <DashboardRoutes />
         </DashboardLayout>
