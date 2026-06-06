@@ -10,7 +10,7 @@ import { registerLinkedInRoutes } from "./linkedin";
 import { registerFacebookRoutes } from "./facebook";
 import { runAutonomousAgent } from "./autonomousAgent";
 import { sdk } from "./_core/sdk";
-import { seedTriarcContent } from "./seed-triarc";
+import { seedTriarcContent, seedContentThemes } from "./seed-triarc";
 import { getDb, getLastDbError } from "./db";
 import { sql } from "drizzle-orm";
 
@@ -88,6 +88,7 @@ app.use("/api/trpc", createExpressMiddleware({ router: appRouter, createContext 
 
 // Inicialização no cold start
 sdk.ensureAdminUser().catch(e => console.error("[Auth] Erro ao criar admin:", e));
-seedTriarcContent().catch(e => console.error("[Seed] Erro:", e));
+seedTriarcContent().catch(e => console.error("[Seed] Erro triac_content:", e));
+seedContentThemes().catch(e => console.error("[Seed] Erro content_themes:", e));
 
 export default app;

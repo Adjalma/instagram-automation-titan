@@ -1,5 +1,6 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
+import { getAccountConnectionStatus } from "@/lib/accountStatus";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import QueryError from "@/components/QueryError";
 import {
   Loader2, Sparkles, Send, Image, CalendarClock, AlertCircle, CheckCircle,
 } from "lucide-react";
@@ -15,14 +17,17 @@ const CAPTION_LIMIT = 2200;
 
 export default function CreatePost() {
   const [accountId, setAccountId] = useState("");
-  const [theme, setTheme] = useState("");
+  const [selectedTheme, setSelectedTheme] = useState("");
+  const [customTheme, setCustomTheme] = useState("");
   const [caption, setCaption] = useState("");
   const [scheduledAt, setScheduledAt] = useState("");
   const [mediaUrl, setMediaUrl] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
 
+  const theme = customTheme.trim() || selectedTheme;
+
   const { data: accounts } = trpc.accounts.list.useQuery();
-  const { data: themes } = trpc.themes.list.useQuery();
+  const { data: themes, isLoading: themesLoading, isError: themesError, error: themesErr, refetch: refetchThemes } = trpc.themes.list.useQuery();
   const utils = trpc.useUtils();
 
   const createPost = trpc.posts.create.useMutation({
@@ -31,7 +36,8 @@ export default function CreatePost() {
       setCaption("");
       setMediaUrl("");
       setScheduledAt("");
-      setTheme("");
+      setSelectedTheme("");
+      setCustomTheme("");
       utils.posts.list.invalidate();
       utils.analytics.getSummary.invalidate();
     },
@@ -94,11 +100,18 @@ export default function CreatePost() {
   }, [accountId, caption, theme, mediaUrl, scheduledAt, createPost]);
 
   const selectedAccount = accounts?.find((a: any) => String(a.id) === accountId);
+  const selectedAccountStatus = selectedAccount ? getAccountConnectionStatus(selectedAccount) : null;
+
+  const accountsSummary = useMemo(() => {
+    if (!accounts?.length) return { total: 0, connected: 0 };
+    const connected = accounts.filter((a: any) => getAccountConnectionStatus(a).connected).length;
+    return { total: accounts.length, connected };
+  }, [accounts]);
+
   const captionLength = caption.length;
   const captionOverLimit = captionLength > CAPTION_LIMIT;
   const captionWarning = captionLength > CAPTION_LIMIT * 0.9;
 
-  // Data mínima: agora + 5 minutos
   const minDateTime = new Date(Date.now() + 5 * 60 * 1000)
     .toISOString()
     .slice(0, 16);
@@ -109,6 +122,37 @@ export default function CreatePost() {
         <h1 className="text-2xl font-bold text-foreground">Criar Post</h1>
         <p className="text-sm text-muted-foreground mt-1">Crie um post manual ou use IA para gerar a legenda e a imagem</p>
       </div>
+
+      {/* Status das contas */}
+      {accounts && accounts.length > 0 && (
+        <Card className="border-dashed">
+          <CardContent className="py-3 px-4 flex flex-wrap items-center gap-2 text-xs">
+            <span className="text-muted-foreground">Contas OAuth:</span>
+            {accounts.map((a: any) => {
+              const st = getAccountConnectionStatus(a);
+              return (
+                <Badge
+                  key={a.id}
+                  variant="outline"
+                  className={
+                    st.level === "full" ? "border-green-500 text-green-700" :
+                    st.level === "partial" ? "border-amber-500 text-amber-700" :
+                    "border-gray-300 text-muted-foreground"
+                  }
+                >
+                  @{a.handle} — {st.label}
+                </Badge>
+              );
+            })}
+            {accountsSummary.connected < accountsSummary.total && (
+              <span className="text-amber-600 flex items-center gap-1">
+                <AlertCircle className="h-3 w-3" />
+                {accountsSummary.total - accountsSummary.connected} sem token — conecte em Contas
+              </span>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader className="pb-4">
@@ -123,37 +167,80 @@ export default function CreatePost() {
                 <SelectValue placeholder="Selecionar conta" />
               </SelectTrigger>
               <SelectContent>
-                {accounts?.map((a: any) => (
-                  <SelectItem key={a.id} value={String(a.id)}>@{a.handle}</SelectItem>
-                ))}
+                {accounts?.map((a: any) => {
+                  const st = getAccountConnectionStatus(a);
+                  return (
+                    <SelectItem key={a.id} value={String(a.id)}>
+                      @{a.handle} {st.connected ? `(${st.label})` : "(desconectado)"}
+                    </SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
             {selectedAccount && (
-              <p className="text-xs text-muted-foreground">{selectedAccount.displayName} · {selectedAccount.platform ?? "instagram"}</p>
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="text-xs text-muted-foreground">{selectedAccount.displayName} · {selectedAccount.platform ?? "instagram"}</p>
+                {selectedAccountStatus?.connected ? (
+                  <Badge variant="outline" className="text-[10px] border-green-500 text-green-700">
+                    <CheckCircle className="h-3 w-3 mr-1" />{selectedAccountStatus.label}
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="text-[10px] border-amber-500 text-amber-700">
+                    <AlertCircle className="h-3 w-3 mr-1" />Conecte em Contas antes de publicar
+                  </Badge>
+                )}
+              </div>
             )}
           </div>
 
           {/* Tema */}
           <div className="space-y-2">
             <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Tema</label>
-            <div className="flex gap-2">
-              <Select value={theme} onValueChange={setTheme}>
-                <SelectTrigger className="flex-1">
-                  <SelectValue placeholder="Selecionar tema" />
-                </SelectTrigger>
-                <SelectContent>
+            {themesLoading ? (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
+                <Loader2 className="h-4 w-4 animate-spin" /> Carregando temas...
+              </div>
+            ) : themesError ? (
+              <QueryError message={themesErr?.message} onRetry={() => refetchThemes()} />
+            ) : (
+              <>
+                <div className="flex flex-wrap gap-2">
                   {themes?.map((t: any) => (
-                    <SelectItem key={t.id} value={t.name}>{t.name}</SelectItem>
+                    <Button
+                      key={t.id}
+                      type="button"
+                      variant={selectedTheme === t.name && !customTheme ? "default" : "outline"}
+                      size="sm"
+                      className="text-xs"
+                      onClick={() => {
+                        setSelectedTheme(t.name);
+                        setCustomTheme("");
+                      }}
+                    >
+                      {t.name}
+                    </Button>
                   ))}
-                </SelectContent>
-              </Select>
-              <Input
-                placeholder="Ou digitar tema customizado"
-                value={theme}
-                onChange={(e) => setTheme(e.target.value)}
-                className="flex-1 text-sm"
-              />
-            </div>
+                </div>
+                {(!themes || themes.length === 0) && (
+                  <p className="text-xs text-amber-600 flex items-center gap-1">
+                    <AlertCircle className="h-3 w-3" />
+                    Nenhum tema no banco — use o campo abaixo ou acesse Cronograma após o deploy.
+                  </p>
+                )}
+                <Input
+                  placeholder="Ou digite um tema customizado"
+                  value={customTheme}
+                  onChange={(e) => {
+                    setCustomTheme(e.target.value);
+                    if (e.target.value) setSelectedTheme("");
+                  }}
+                  className="text-sm"
+                />
+                {theme && (
+                  <p className="text-xs text-muted-foreground">Tema selecionado: <strong>{theme}</strong></p>
+                )}
+              </>
+            )}
           </div>
 
           {/* Legenda */}

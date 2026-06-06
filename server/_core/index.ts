@@ -13,7 +13,7 @@ import { startScheduler } from "../scheduler";
 import { registerScheduledRoutes } from "../scheduledRoutes";
 import { registerLinkedInRoutes } from "../linkedin";
 import { registerFacebookRoutes } from "../facebook";
-import { seedTriarcContent } from "../seed-triarc";
+import { seedTriarcContent, seedContentThemes } from "../seed-triarc";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -77,7 +77,8 @@ async function startServer() {
     // Inicia o agendador periódico + agente autônomo
     startScheduler();
     // Seed de serviços e projetos Triarc (idempotente)
-    seedTriarcContent().catch(e => console.error("[Seed] Erro:", e));
+    seedTriarcContent().catch(e => console.error("[Seed] Erro triac_content:", e));
+    seedContentThemes().catch(e => console.error("[Seed] Erro content_themes:", e));
   });
 }
 

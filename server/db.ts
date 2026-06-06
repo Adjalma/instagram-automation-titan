@@ -304,9 +304,8 @@ export async function getPublicationLogsByPost(postId: number) {
 
 // ─── Content Themes ──────────────────────────────────────────────
 export async function getAllThemes() {
-  const db = await getDb();
-  if (!db) return [];
-  return db.select().from(contentThemes);
+  const { ensureContentThemes } = await import("./seed-triarc");
+  return ensureContentThemes();
 }
 
 export async function getThemeBySlug(slug: string) {

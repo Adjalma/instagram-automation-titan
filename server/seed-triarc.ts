@@ -1,6 +1,34 @@
 // Seed: serviços e projetos reais da Triarc Solutions
 import { getDb } from "./db";
-import { triacContent } from "../drizzle/schema";
+import { triacContent, contentThemes } from "../drizzle/schema";
+
+/** Temas fixos de conteúdo (página Cronograma + Criar Post). */
+export const DEFAULT_CONTENT_THEMES = [
+  { name: "Build in Public", slug: "build-in-public", description: "Compartilhar a jornada de desenvolvimento de forma transparente", icon: "Hammer", color: "#06b6d4" },
+  { name: "Funcionalidade em Foco", slug: "funcionalidade-em-foco", description: "Destacar funcionalidades e soluções com detalhes técnicos", icon: "Zap", color: "#8b5cf6" },
+  { name: "Bastidores", slug: "bastidores", description: "Mostrar os bastidores do desenvolvimento e da equipe Triarc", icon: "Camera", color: "#f59e0b" },
+  { name: "Dicas de Segurança", slug: "dicas-de-seguranca", description: "Dicas de segurança e boas práticas para empresas", icon: "Shield", color: "#ef4444" },
+  { name: "Desafio Collab", slug: "desafio-collab", description: "Posts colaborativos e parcerias da Triarc", icon: "Users", color: "#ec4899" },
+] as const;
+
+export async function seedContentThemes() {
+  const db = await getDb();
+  if (!db) return;
+  await db.insert(contentThemes)
+    .values([...DEFAULT_CONTENT_THEMES])
+    .onConflictDoNothing({ target: contentThemes.slug });
+  console.log(`[Seed] ${DEFAULT_CONTENT_THEMES.length} temas de conteúdo garantidos`);
+}
+
+export async function ensureContentThemes() {
+  const db = await getDb();
+  if (!db) return [];
+  const existing = await db.select({ id: contentThemes.id }).from(contentThemes).limit(1);
+  if (existing.length === 0) {
+    await seedContentThemes();
+  }
+  return db.select().from(contentThemes);
+}
 
 export const TRIARC_SERVICES = [
   {

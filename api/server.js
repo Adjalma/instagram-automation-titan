@@ -167,6 +167,178 @@ var init_schema = __esm({
   }
 });
 
+// server/seed-triarc.ts
+var seed_triarc_exports = {};
+__export(seed_triarc_exports, {
+  DEFAULT_CONTENT_THEMES: () => DEFAULT_CONTENT_THEMES,
+  TRIARC_PROJECTS: () => TRIARC_PROJECTS,
+  TRIARC_SERVICES: () => TRIARC_SERVICES,
+  ensureContentThemes: () => ensureContentThemes,
+  seedContentThemes: () => seedContentThemes,
+  seedTriarcContent: () => seedTriarcContent
+});
+async function seedContentThemes() {
+  const db = await getDb();
+  if (!db) return;
+  await db.insert(contentThemes).values([...DEFAULT_CONTENT_THEMES]).onConflictDoNothing({ target: contentThemes.slug });
+  console.log(`[Seed] ${DEFAULT_CONTENT_THEMES.length} temas de conte\xFAdo garantidos`);
+}
+async function ensureContentThemes() {
+  const db = await getDb();
+  if (!db) return [];
+  const existing = await db.select({ id: contentThemes.id }).from(contentThemes).limit(1);
+  if (existing.length === 0) {
+    await seedContentThemes();
+  }
+  return db.select().from(contentThemes);
+}
+async function seedTriarcContent() {
+  const db = await getDb();
+  if (!db) return;
+  const existing = await db.select({ id: triacContent.id }).from(triacContent).limit(1);
+  if (existing.length > 0) return;
+  const allItems = [
+    ...TRIARC_SERVICES,
+    ...TRIARC_PROJECTS.map((p) => ({ ...p, type: "projeto" }))
+  ];
+  await db.insert(triacContent).values(allItems);
+  console.log(`[Seed] ${allItems.length} itens Triarc inseridos (${TRIARC_SERVICES.length} servi\xE7os + ${TRIARC_PROJECTS.length} projetos)`);
+}
+var DEFAULT_CONTENT_THEMES, TRIARC_SERVICES, TRIARC_PROJECTS;
+var init_seed_triarc = __esm({
+  "server/seed-triarc.ts"() {
+    "use strict";
+    init_db();
+    init_schema();
+    DEFAULT_CONTENT_THEMES = [
+      { name: "Build in Public", slug: "build-in-public", description: "Compartilhar a jornada de desenvolvimento de forma transparente", icon: "Hammer", color: "#06b6d4" },
+      { name: "Funcionalidade em Foco", slug: "funcionalidade-em-foco", description: "Destacar funcionalidades e solu\xE7\xF5es com detalhes t\xE9cnicos", icon: "Zap", color: "#8b5cf6" },
+      { name: "Bastidores", slug: "bastidores", description: "Mostrar os bastidores do desenvolvimento e da equipe Triarc", icon: "Camera", color: "#f59e0b" },
+      { name: "Dicas de Seguran\xE7a", slug: "dicas-de-seguranca", description: "Dicas de seguran\xE7a e boas pr\xE1ticas para empresas", icon: "Shield", color: "#ef4444" },
+      { name: "Desafio Collab", slug: "desafio-collab", description: "Posts colaborativos e parcerias da Triarc", icon: "Users", color: "#ec4899" }
+    ];
+    TRIARC_SERVICES = [
+      {
+        type: "servico",
+        name: "Gest\xE3o Empresarial",
+        subtitle: "Consultoria em Gest\xE3o",
+        description: "Consultoria em gest\xE3o empresarial para otimiza\xE7\xE3o de processos e estrat\xE9gias. An\xE1lise de processos, planejamento estrat\xE9gico, otimiza\xE7\xE3o de opera\xE7\xF5es, gest\xE3o de projetos, compliance e negocia\xE7\xE3o estrat\xE9gica.",
+        category: "Gest\xE3o",
+        technologies: JSON.stringify(["Gest\xE3o de Projetos", "MS Project", "Compliance", "Planejamento Estrat\xE9gico"]),
+        highlights: JSON.stringify(["Planejamento estrat\xE9gico", "Otimiza\xE7\xE3o de opera\xE7\xF5es", "Gest\xE3o de fornecedores", "Auditoria de contratos"]),
+        status: "ativo"
+      },
+      {
+        type: "servico",
+        name: "Suporte T\xE9cnico em TI",
+        subtitle: "Manuten\xE7\xE3o e Infraestrutura",
+        description: "Suporte t\xE9cnico, manuten\xE7\xE3o preditiva e servi\xE7os especializados em tecnologia da informa\xE7\xE3o. Monitoramento de infraestrutura, gest\xE3o de problemas, suporte remoto e presencial.",
+        category: "TI",
+        technologies: JSON.stringify(["Manuten\xE7\xE3o Preditiva", "Monitoramento", "Suporte Remoto", "An\xE1lise de Performance"]),
+        highlights: JSON.stringify(["Manuten\xE7\xE3o preditiva", "Suporte 24/7", "Monitoramento cont\xEDnuo", "An\xE1lise de falhas"]),
+        status: "ativo"
+      },
+      {
+        type: "servico",
+        name: "Desenvolvimento Sob Encomenda",
+        subtitle: "Software Personalizado",
+        description: "Desenvolvimento de sistemas web, aplica\xE7\xF5es mobile e sistemas de gest\xE3o personalizados. Cria\xE7\xE3o de IAs, agentes especialistas e automa\xE7\xF5es sob medida para sua empresa.",
+        category: "Desenvolvimento",
+        technologies: JSON.stringify(["React", "TypeScript", "Node.js", "PostgreSQL", "IA/ML", "Mobile"]),
+        highlights: JSON.stringify(["Sistemas web personalizados", "Apps mobile", "Cria\xE7\xE3o de IAs", "Agentes especialistas"]),
+        status: "ativo"
+      },
+      {
+        type: "servico",
+        name: "Intelig\xEAncia Artificial e Automa\xE7\xE3o",
+        subtitle: "IA Aplicada ao Neg\xF3cio",
+        description: "Solu\xE7\xF5es avan\xE7adas em IA, automa\xE7\xE3o e agentes especialistas. Machine Learning aplicado, processamento de linguagem natural, sistemas de recomenda\xE7\xE3o e automa\xE7\xE3o de fluxos de trabalho.",
+        category: "IA & Automa\xE7\xE3o",
+        technologies: JSON.stringify(["OpenAI API", "Machine Learning", "NLP", "Automa\xE7\xE3o", "Agentes IA"]),
+        highlights: JSON.stringify(["IAs personalizadas", "Agentes especialistas", "Automa\xE7\xE3o de fluxos", "ML aplicado"]),
+        status: "ativo"
+      },
+      {
+        type: "servico",
+        name: "Automa\xE7\xE3o Industrial",
+        subtitle: "Processos Industriais Inteligentes",
+        description: "Solu\xE7\xF5es de automa\xE7\xE3o para processos industriais e operacionais. Sistemas SCADA, integra\xE7\xE3o de equipamentos, monitoramento industrial e otimiza\xE7\xE3o de produ\xE7\xE3o.",
+        category: "Industrial",
+        technologies: JSON.stringify(["SCADA", "Automa\xE7\xE3o Industrial", "Controle de Processos", "IoT", "N8N"]),
+        highlights: JSON.stringify(["Automa\xE7\xE3o de processos", "Sistemas SCADA", "Integra\xE7\xE3o de equipamentos", "Otimiza\xE7\xE3o de produ\xE7\xE3o"]),
+        status: "ativo"
+      },
+      {
+        type: "servico",
+        name: "Treinamento Profissional",
+        subtitle: "Capacita\xE7\xE3o e Desenvolvimento",
+        description: "Treinamento em desenvolvimento profissional e gerencial. Capacita\xE7\xE3o t\xE9cnica, workshops especializados, programas de mentoria e desenvolvimento de lideran\xE7as.",
+        category: "Treinamento",
+        technologies: JSON.stringify(["E-learning", "Workshops", "Mentoria", "Capacita\xE7\xE3o T\xE9cnica"]),
+        highlights: JSON.stringify(["Capacita\xE7\xE3o t\xE9cnica", "Desenvolvimento gerencial", "Workshops especializados", "Programas de mentoria"]),
+        status: "ativo"
+      },
+      {
+        type: "servico",
+        name: "Licenciamento de Software",
+        subtitle: "Software Propriet\xE1rio",
+        description: "Desenvolvimento e licenciamento de programas de computador. Software propriet\xE1rio, distribui\xE7\xE3o, atualiza\xE7\xF5es, suporte t\xE9cnico especializado e auditoria de licen\xE7as.",
+        category: "Software",
+        technologies: JSON.stringify(["Software Propriet\xE1rio", "SaaS", "Licenciamento", "Distribui\xE7\xE3o"]),
+        highlights: JSON.stringify(["Software propriet\xE1rio", "Receita recorrente", "Suporte especializado", "Auditoria de licen\xE7as"]),
+        status: "ativo"
+      },
+      {
+        type: "servico",
+        name: "Data Science e Analytics",
+        subtitle: "Intelig\xEAncia de Dados",
+        description: "An\xE1lise de dados, Business Intelligence e visualiza\xE7\xF5es estrat\xE9gicas. Dashboards interativos, relat\xF3rios automatizados e insights acion\xE1veis para tomada de decis\xE3o.",
+        category: "Dados",
+        technologies: JSON.stringify(["Python", "Power BI", "SQL", "Machine Learning", "Visualiza\xE7\xE3o de Dados"]),
+        highlights: JSON.stringify(["Dashboards interativos", "Relat\xF3rios automatizados", "Insights acion\xE1veis", "BI estrat\xE9gico"]),
+        status: "ativo"
+      }
+    ];
+    TRIARC_PROJECTS = [
+      { name: "Sistema de Presen\xE7a de Eventos", subtitle: "Controle de Presen\xE7as em Eventos", description: "Plataforma para gest\xE3o e controle de presen\xE7a em eventos. Interface r\xE1pida e intuitiva para gerenciamento e acompanhamento de participantes com dashboard de m\xE9tricas.", category: "Plataformas", technologies: JSON.stringify(["React", "TypeScript", "Vite", "shadcn-ui", "Tailwind CSS"]), highlights: JSON.stringify(["Gest\xE3o \xE1gil de eventos", "Controle pr\xE1tico de presen\xE7a", "Design moderno e intuitivo", "Alta performance"]), status: "ativo" },
+      { name: "Conex\xE3o Pessoas (COPE)", subtitle: "Plataforma de Conex\xE3o de Profissionais", description: "Plataforma inovadora de troca de habilidades entre profissionais. Sistema completo com gest\xE3o de usu\xE1rios, trades, assinaturas premium e monitoramento de receitas em tempo real. 1000+ usu\xE1rios, 5000+ trades.", category: "Plataformas", technologies: JSON.stringify(["React", "TypeScript", "Node.js", "PostgreSQL", "Supabase"]), highlights: JSON.stringify(["Plataforma SaaS completa", "Receita recorrente mensal", "Sistema de matching inteligente", "API RESTful documentada"]), status: "ativo" },
+      { name: "SS-Milhas", subtitle: "Smart Management System de Milhas", description: "Sistema inteligente de gest\xE3o de milhas e pontos a\xE9reos. Gerenciamento de programas de fidelidade, rastreamento de milhas acumuladas e otimiza\xE7\xE3o de resgates. 500+ usu\xE1rios, 1M+ milhas gerenciadas.", category: "Plataformas", technologies: JSON.stringify(["React", "TypeScript", "Node.js", "MongoDB", "Real-time Sync"]), highlights: JSON.stringify(["Gest\xE3o inteligente de milhas", "Interface moderna", "Integra\xE7\xE3o com APIs de fidelidade", "Otimiza\xE7\xE3o autom\xE1tica"]), status: "ativo" },
+      { name: "TopFlow.ai", subtitle: "Invisible SEO - Alavanque seu site", description: "Plataforma completa de SEO invis\xEDvel e automa\xE7\xE3o de marketing digital com IA. Otimiza\xE7\xE3o de sites, gera\xE7\xE3o de conte\xFAdo, gest\xE3o de campanhas em redes sociais e integra\xE7\xE3o com Instagram e Facebook Ads. 50+ sites, 1000+ otimiza\xE7\xF5es.", category: "IA & Automa\xE7\xE3o", technologies: JSON.stringify(["React 18", "TypeScript", "Supabase", "OpenAI API", "AI/ML"]), highlights: JSON.stringify(["SEO invis\xEDvel e automatizado", "IA de \xFAltima gera\xE7\xE3o", "Integra\xE7\xE3o com redes sociais", "Resultados mensur\xE1veis"]), status: "ativo" },
+      { name: "CB Integrativa", subtitle: "Assistente Virtual de Sa\xFAde Integrativa", description: "Sistema completo de cuidado integrativo com bot inteligente para sa\xFAde. Gest\xE3o de cuidados integrativos, agendamento e acompanhamento com assistente virtual especializado em medicina integrativa e hol\xEDstica.", category: "Sa\xFAde", technologies: JSON.stringify(["React", "TypeScript", "Node.js", "OpenAI API", "PostgreSQL"]), highlights: JSON.stringify(["IA especializada em sa\xFAde", "Cuidado hol\xEDstico completo", "Telemedicina integrada", "Conformidade com LGPD"]), status: "ativo" },
+      { name: "Grupo Conecta", subtitle: "Sistema de Ponto e Comunica\xE7\xE3o Empresarial", description: "Sistema completo de controle de ponto com geolocaliza\xE7\xE3o e comunica\xE7\xE3o empresarial. Agente de voz IA com ElevenLabs, mensageria em tempo real, gest\xE3o de funcion\xE1rios e app mobile nativo para Android e iOS.", category: "Gest\xE3o", technologies: JSON.stringify(["React 19", "TypeScript", "Supabase", "Capacitor", "ElevenLabs AI", "N8N"]), highlights: JSON.stringify(["Ponto digital com geolocaliza\xE7\xE3o", "Agente de voz IA", "App mobile nativo", "Automa\xE7\xE3o com N8N"]), status: "ativo" },
+      { name: "Legend\xE1rios Maca\xE9", subtitle: "Plataforma Oficial do Movimento", description: "Plataforma web oficial para o movimento Legend\xE1rios Maca\xE9. Integra\xE7\xF5es autom\xE1ticas com portais Legend\xE1rios Global e Rio, sincroniza\xE7\xE3o em tempo real e timeline interativa. 1000+ visitantes, 50+ eventos.", category: "Plataformas", technologies: JSON.stringify(["React", "TypeScript", "Vite", "WordPress REST API", "React Query"]), highlights: JSON.stringify(["Plataforma oficial do movimento", "Integra\xE7\xF5es autom\xE1ticas", "Sincroniza\xE7\xE3o em tempo real", "Design responsivo"]), status: "ativo" },
+      { name: "Sentinela", subtitle: "Plataforma de Conex\xE3o e Comunica\xE7\xE3o", description: "Plataforma de comunica\xE7\xE3o e conex\xE3o para o movimento Legend\xE1rios. Conecta membros, facilita comunica\xE7\xE3o, compartilha eventos e fortalece a comunidade com interface moderna.", category: "Plataformas", technologies: JSON.stringify(["React", "TypeScript", "Node.js", "PostgreSQL", "WebSocket"]), highlights: JSON.stringify(["Comunica\xE7\xE3o em tempo real", "Conex\xE3o comunit\xE1ria", "Interface moderna", "Fortalecimento da comunidade"]), status: "ativo" },
+      { name: "TransCarga", subtitle: "Logistics Hub - Plataforma de Log\xEDstica", description: "Plataforma completa de log\xEDstica que conecta empresas e caminhoneiros. Rastreamento GPS em tempo real, geofencing, negocia\xE7\xF5es inteligentes, verifica\xE7\xE3o de documentos e assistente IA.", category: "Plataformas", technologies: JSON.stringify(["React 18", "TypeScript", "Supabase", "Leaflet Maps", "AI/ML"]), highlights: JSON.stringify(["Rastreamento em tempo real", "IA integrada", "Geofencing inteligente", "Plataforma completa"]), status: "ativo" },
+      { name: "Logos", subtitle: "Reuni\xF5es gravadas, transcritas e resumidas", description: "Plataforma para gravar reuni\xF5es, gerar transcri\xE7\xE3o autom\xE1tica e produzir resumos acion\xE1veis. Centraliza o hist\xF3rico de encontros e facilita a busca no que foi dito.", category: "IA & Automa\xE7\xE3o", technologies: JSON.stringify(["React", "TypeScript", "Vite", "IA", "Speech-to-Text"]), highlights: JSON.stringify(["Gravar e transcrever", "Resumos com IA", "Busca nas reuni\xF5es", "Pronto para uso"]), status: "ativo" },
+      { name: "Farol das Escrituras", subtitle: "Estudo e leitura das Escrituras", description: "Plataforma para aprofundamento b\xEDblico, leitura guiada e recursos que apoiam o estudo das Escrituras de forma clara e acess\xEDvel. Anota\xE7\xF5es, favoritos e busca de refer\xEAncias.", category: "Plataformas", technologies: JSON.stringify(["React", "TypeScript", "Vite", "Tailwind CSS"]), highlights: JSON.stringify(["Estudo b\xEDblico", "UX limpa", "Multi-dispositivo", "Pronto para uso"]), status: "ativo" },
+      { name: "Mir Maca\xE9", subtitle: "An\xE1lise e captura de dados da congrega\xE7\xE3o", description: "Plataforma da congrega\xE7\xE3o Mir Maca\xE9 para reunir, validar e visualizar dados operacionais e pastorais. Automatiza coleta de dados, reduz trabalho manual e oferece pain\xE9is claros.", category: "Gest\xE3o", technologies: JSON.stringify(["React", "TypeScript", "Vite", "TanStack Query", "API REST", "Automa\xE7\xE3o"]), highlights: JSON.stringify(["Dados da Mir Maca\xE9", "Captura automatizada", "An\xE1lise e pain\xE9is", "Menos planilha manual"]), status: "ativo" },
+      { name: "Triarc Key Generator", subtitle: "Gera\xE7\xE3o segura de chaves criptogr\xE1ficas", description: "Ferramenta para gera\xE7\xE3o, valida\xE7\xE3o e gest\xE3o de chaves criptogr\xE1ficas e secrets no ecossistema TRIARC, com boas pr\xE1ticas de seguran\xE7a.", category: "Sistemas", technologies: JSON.stringify(["TypeScript", "Node.js", "Web Crypto API", "CLI"]), highlights: JSON.stringify(["Seguran\xE7a first", "Developer experience", "Chaves e secrets", "TRIARC tooling"]), status: "ativo" },
+      { name: "Axis", subtitle: "Dashboards interativos e configur\xE1veis", description: "Plataforma para montar dashboards totalmente interativos e sob medida. Arraste widgets, ligue fontes de dados, defina filtros e compartilhe vis\xF5es claras com a equipe.", category: "Gest\xE3o", technologies: JSON.stringify(["React", "TypeScript", "Vite", "TanStack Query", "Visualiza\xE7\xE3o de dados"]), highlights: JSON.stringify(["100% configur\xE1vel", "Altamente interativo", "Dados conectados", "Pronto para uso"]), status: "ativo" },
+      { name: "Sintaxe", subtitle: "Programa\xE7\xE3o para crian\xE7as e adolescentes", description: "Plataforma de aprendizagem de programa\xE7\xE3o para o p\xFAblico jovem. Linguagem clara, passos curtos e desafios gamificados que ensinam l\xF3gica, sintaxe e resolu\xE7\xE3o de problemas.", category: "Plataformas", technologies: JSON.stringify(["React", "TypeScript", "Vite", "Gamifica\xE7\xE3o"]), highlights: JSON.stringify(["Ensino de programa\xE7\xE3o", "Gamificado", "Para jovens", "Aprendizado pr\xE1tico"]), status: "ativo" },
+      { name: "NutriSystem", subtitle: "Sistema Completo de Gest\xE3o Nutricional", description: "Plataforma completa para gest\xE3o nutricional e acompanhamento de pacientes. Planos alimentares, c\xE1lculo autom\xE1tico de macronutrientes, acompanhamento de evolu\xE7\xE3o e relat\xF3rios.", category: "Sa\xFAde", technologies: JSON.stringify(["React", "TypeScript", "Node.js", "PostgreSQL", "Supabase"]), highlights: JSON.stringify(["Sistema completo de nutri\xE7\xE3o", "Interface moderna", "Gest\xE3o profissional", "Tecnologia de ponta"]), status: "em_desenvolvimento" },
+      { name: "TRIARC CRM", subtitle: "Sistema de Gest\xE3o de Relacionamento com Cliente", description: "CRM completo com IA integrada, pipeline de vendas drag-and-drop, gera\xE7\xE3o de faturas, relat\xF3rios inteligentes e integra\xE7\xE3o com TopFlow AI. Dashboard anal\xEDtico completo.", category: "Gest\xE3o", technologies: JSON.stringify(["React 18", "TypeScript", "Supabase", "AI/ML", "DnD Kit", "PWA"]), highlights: JSON.stringify(["CRM completo", "IA para insights", "Pipeline de vendas inteligente", "Integra\xE7\xE3o com TopFlow AI"]), status: "em_desenvolvimento" },
+      { name: "SS Finan\xE7as", subtitle: "Sistema de Gest\xE3o Financeira Pessoal", description: "Plataforma completa para gest\xE3o financeira pessoal com controle de receitas, despesas, investimentos e metas. Categoriza\xE7\xE3o autom\xE1tica por IA e dashboard visual interativo.", category: "Gest\xE3o", technologies: JSON.stringify(["React", "TypeScript", "Supabase", "AI/ML", "Chart.js"]), highlights: JSON.stringify(["Gest\xE3o financeira completa", "IA para categoriza\xE7\xE3o", "Dashboard visual", "Metas e investimentos"]), status: "em_desenvolvimento" },
+      { name: "Jarvis", subtitle: "Assistente de IA em evolu\xE7\xE3o", description: "Assistente inteligente conversacional em evolu\xE7\xE3o cont\xEDnua, com foco em automa\xE7\xE3o de tarefas, respostas contextuais e extensibilidade via plugins.", category: "IA & Automa\xE7\xE3o", technologies: JSON.stringify(["React", "TypeScript", "Node.js", "OpenAI API", "AI/ML"]), highlights: JSON.stringify(["IA conversacional", "Arquitetura evolutiva", "Automa\xE7\xE3o", "Open source"]), status: "em_desenvolvimento" },
+      { name: "KryptoStudio", subtitle: "Do conte\xFAdo a slides, infogr\xE1ficos e v\xEDdeo", description: "Plataforma estilo Notebook LM: adicione documentos e PDFs como fonte \xFAnica de verdade e a IA gera apresenta\xE7\xF5es, infogr\xE1ficos e v\xEDdeos. Ideal para estudar, ensinar ou comunicar.", category: "IA & Automa\xE7\xE3o", technologies: JSON.stringify(["React", "TypeScript", "IA generativa", "Busca sem\xE2ntica", "Multim\xEDdia"]), highlights: JSON.stringify(["Inspirado no Notebook LM", "Slides e infogr\xE1ficos", "V\xEDdeo a partir do conte\xFAdo", "IA nas suas fontes"]), status: "em_desenvolvimento" },
+      { name: "Era das Alian\xE7as", subtitle: "Jogo de estrat\xE9gia e alian\xE7as", description: "Jogo digital onde jogadores negociam alian\xE7as, expandem influ\xEAncia e disputam objetivos em cen\xE1rios por eras. Combina decis\xF5es estrat\xE9gicas, diplomacia entre fac\xE7\xF5es e progress\xE3o cont\xEDnua.", category: "Plataformas", technologies: JSON.stringify(["React", "TypeScript", "Vite", "Supabase", "Tailwind CSS"]), highlights: JSON.stringify(["Estrat\xE9gia e diplomacia", "Alian\xE7as din\xE2micas", "Progress\xE3o por eras", "Multijogador"]), status: "em_desenvolvimento" },
+      { name: "KidShield", subtitle: "Family Guardian Suite", description: "Suite voltada \xE0 prote\xE7\xE3o digital familiar: controles parentais, alertas e ferramentas para acompanhar o uso seguro de dispositivos e conte\xFAdos. Privacidade e LGPD em foco.", category: "Sa\xFAde", technologies: JSON.stringify(["React", "TypeScript", "Node.js", "PostgreSQL"]), highlights: JSON.stringify(["Fam\xEDlia em primeiro lugar", "Seguran\xE7a digital", "Controles parentais", "Privacidade"]), status: "em_desenvolvimento" },
+      { name: "Rede Si\xE3o", subtitle: "A rede social dos evang\xE9licos", description: "Rede social pensada para o p\xFAblico evang\xE9lico: feed, perfis, grupos e conversas em um ambiente alinhado \xE0 f\xE9, fam\xEDlia e comunidade crist\xE3. Compartilhe vida, eventos, louvor e mensagem.", category: "Plataformas", technologies: JSON.stringify(["React", "TypeScript", "Vite", "Supabase", "Tailwind CSS"]), highlights: JSON.stringify(["Rede social crist\xE3", "Como o Facebook com prop\xF3sito", "Grupos e igrejas", "Comunidade evang\xE9lica"]), status: "em_desenvolvimento" },
+      { name: "Pratiko", subtitle: "Praticidade no dia a dia", description: "Sistema para simplificar rotinas operacionais e tarefas recorrentes, com foco em produtividade e clareza de processos. Checklists, lembretes e relat\xF3rios simples.", category: "Gest\xE3o", technologies: JSON.stringify(["React", "TypeScript", "Vite", "Supabase", "shadcn-ui"]), highlights: JSON.stringify(["Produtividade", "Processos claros", "Baixa fric\xE7\xE3o", "Gest\xE3o leve"]), status: "em_desenvolvimento" },
+      { name: "Titan App", subtitle: "PWA de Escalada", description: "Aplicativo PWA de escalada desenvolvido pela Triarc Solutions. Registro de vias, modo offline, comunidade de escaladores, dicas de seguran\xE7a e tracking de progresso. Slogan: Iron Grip. Endless Ascend.", category: "Plataformas", technologies: JSON.stringify(["React", "TypeScript", "PWA", "Supabase", "Offline First"]), highlights: JSON.stringify(["Modo offline", "Comunidade de escaladores", "Tracking de progresso", "PWA nativo"]), status: "ativo" },
+      { name: "Triarc Social Manager", subtitle: "Automa\xE7\xE3o de Conte\xFAdo para Instagram", description: "Plataforma interna de automa\xE7\xE3o de conte\xFAdo para Instagram da Triarc Solutions. Gera\xE7\xE3o de legendas e artes com IA, agendamento, aprova\xE7\xE3o e publica\xE7\xE3o autom\xE1tica.", category: "IA & Automa\xE7\xE3o", technologies: JSON.stringify(["React", "TypeScript", "Node.js", "OpenAI API", "tRPC", "MySQL"]), highlights: JSON.stringify(["IA para legendas e artes", "Agendamento autom\xE1tico", "Fluxo de aprova\xE7\xE3o", "Publica\xE7\xE3o via MCP"]), status: "ativo" },
+      { name: "Plataforma de Eventos Legend\xE1rios", subtitle: "Gest\xE3o de Eventos Crist\xE3os", description: "Plataforma completa para gest\xE3o de eventos do movimento Legend\xE1rios. Inscri\xE7\xF5es, controle de presen\xE7a, comunica\xE7\xE3o com participantes e relat\xF3rios de eventos.", category: "Plataformas", technologies: JSON.stringify(["React", "TypeScript", "Node.js", "PostgreSQL"]), highlights: JSON.stringify(["Gest\xE3o completa de eventos", "Controle de presen\xE7a", "Comunica\xE7\xE3o integrada", "Relat\xF3rios detalhados"]), status: "ativo" },
+      { name: "Sistema de Auditoria Empresarial", subtitle: "Conformidade e Compliance", description: "Sistema para auditoria interna e conformidade empresarial. Checklists de auditoria, rastreamento de n\xE3o conformidades, planos de a\xE7\xE3o corretiva e relat\xF3rios executivos.", category: "Gest\xE3o", technologies: JSON.stringify(["React", "TypeScript", "Node.js", "PostgreSQL", "PDF Generation"]), highlights: JSON.stringify(["Auditoria interna completa", "Rastreamento de conformidade", "Planos de a\xE7\xE3o", "Relat\xF3rios executivos"]), status: "ativo" },
+      { name: "Portal RH Inteligente", subtitle: "Gest\xE3o de Pessoas com IA", description: "Portal de RH com IA integrada para gest\xE3o de colaboradores. Onboarding digital, avalia\xE7\xE3o de desempenho, gest\xE3o de f\xE9rias e banco de horas, tudo automatizado.", category: "Gest\xE3o", technologies: JSON.stringify(["React", "TypeScript", "Supabase", "OpenAI API", "N8N"]), highlights: JSON.stringify(["Onboarding digital", "IA para avalia\xE7\xF5es", "Banco de horas autom\xE1tico", "Gest\xE3o completa de pessoas"]), status: "em_desenvolvimento" },
+      { name: "EduTech Triarc", subtitle: "Plataforma de E-learning Corporativo", description: "Plataforma de ensino a dist\xE2ncia para treinamentos corporativos. Cursos em v\xEDdeo, quizzes, certificados digitais, trilhas de aprendizagem e gamifica\xE7\xE3o.", category: "Treinamento", technologies: JSON.stringify(["React", "TypeScript", "Node.js", "PostgreSQL", "Video Streaming"]), highlights: JSON.stringify(["E-learning corporativo", "Certificados digitais", "Gamifica\xE7\xE3o", "Trilhas de aprendizagem"]), status: "em_desenvolvimento" },
+      { name: "Monitor IoT Industrial", subtitle: "Monitoramento de Equipamentos em Tempo Real", description: "Sistema de monitoramento IoT para equipamentos industriais. Coleta de dados de sensores, alertas de manuten\xE7\xE3o preditiva, dashboards em tempo real e hist\xF3rico de opera\xE7\xF5es.", category: "Industrial", technologies: JSON.stringify(["React", "TypeScript", "Node.js", "MQTT", "InfluxDB", "IoT"]), highlights: JSON.stringify(["Monitoramento em tempo real", "Manuten\xE7\xE3o preditiva", "Alertas inteligentes", "Hist\xF3rico completo"]), status: "em_desenvolvimento" },
+      { name: "Chatbot Corporativo IA", subtitle: "Assistente Virtual para Empresas", description: "Chatbot inteligente treinado com a base de conhecimento da empresa. Atendimento ao cliente, suporte interno, FAQ automatizado e integra\xE7\xE3o com WhatsApp e Telegram.", category: "IA & Automa\xE7\xE3o", technologies: JSON.stringify(["Node.js", "OpenAI API", "WhatsApp API", "Telegram Bot", "Vector DB"]), highlights: JSON.stringify(["Treinado com dados da empresa", "Multi-canal", "Atendimento 24/7", "Integra\xE7\xE3o WhatsApp"]), status: "em_breve" },
+      { name: "Dashboard Financeiro Empresarial", subtitle: "BI e Analytics para Neg\xF3cios", description: "Dashboard de business intelligence para gest\xE3o financeira empresarial. KPIs em tempo real, fluxo de caixa, DRE autom\xE1tico, proje\xE7\xF5es e alertas de desvio or\xE7ament\xE1rio.", category: "Dados", technologies: JSON.stringify(["React", "TypeScript", "Python", "Power BI Embedded", "PostgreSQL"]), highlights: JSON.stringify(["KPIs em tempo real", "DRE autom\xE1tico", "Proje\xE7\xF5es financeiras", "Alertas de desvio"]), status: "em_breve" },
+      { name: "Marketplace de Servi\xE7os Locais", subtitle: "Conectando Profissionais e Clientes em Maca\xE9", description: "Marketplace para conex\xE3o de prestadores de servi\xE7os locais com clientes em Maca\xE9/RJ. Perfis profissionais, avalia\xE7\xF5es, agendamento online e pagamento integrado.", category: "Plataformas", technologies: JSON.stringify(["React", "TypeScript", "Node.js", "PostgreSQL", "Stripe", "Maps API"]), highlights: JSON.stringify(["Marketplace local", "Avalia\xE7\xF5es verificadas", "Agendamento online", "Pagamento integrado"]), status: "em_breve" },
+      { name: "Sistema de Gest\xE3o Escolar", subtitle: "Administra\xE7\xE3o Completa para Escolas", description: "Sistema completo para gest\xE3o escolar. Matr\xEDculas, grade curricular, lan\xE7amento de notas, boletins digitais, comunica\xE7\xE3o com pais e relat\xF3rios pedag\xF3gicos.", category: "Plataformas", technologies: JSON.stringify(["React", "TypeScript", "Node.js", "PostgreSQL", "PDF Generation"]), highlights: JSON.stringify(["Gest\xE3o completa escolar", "Boletins digitais", "Comunica\xE7\xE3o com pais", "Relat\xF3rios pedag\xF3gicos"]), status: "em_breve" }
+    ];
+  }
+});
+
 // server/db.ts
 var db_exports = {};
 __export(db_exports, {
@@ -422,9 +594,8 @@ async function getPublicationLogsByPost(postId) {
   return db.select().from(publicationLogs).where(eq(publicationLogs.postId, postId)).orderBy(desc(publicationLogs.createdAt));
 }
 async function getAllThemes() {
-  const db = await getDb();
-  if (!db) return [];
-  return db.select().from(contentThemes);
+  const { ensureContentThemes: ensureContentThemes2 } = await Promise.resolve().then(() => (init_seed_triarc(), seed_triarc_exports));
+  return ensureContentThemes2();
 }
 async function getThemeBySlug(slug) {
   const db = await getDb();
@@ -2072,142 +2243,8 @@ var researchRouter = router({
   })
 });
 
-// server/seed-triarc.ts
-init_db();
-init_schema();
-var TRIARC_SERVICES = [
-  {
-    type: "servico",
-    name: "Gest\xE3o Empresarial",
-    subtitle: "Consultoria em Gest\xE3o",
-    description: "Consultoria em gest\xE3o empresarial para otimiza\xE7\xE3o de processos e estrat\xE9gias. An\xE1lise de processos, planejamento estrat\xE9gico, otimiza\xE7\xE3o de opera\xE7\xF5es, gest\xE3o de projetos, compliance e negocia\xE7\xE3o estrat\xE9gica.",
-    category: "Gest\xE3o",
-    technologies: JSON.stringify(["Gest\xE3o de Projetos", "MS Project", "Compliance", "Planejamento Estrat\xE9gico"]),
-    highlights: JSON.stringify(["Planejamento estrat\xE9gico", "Otimiza\xE7\xE3o de opera\xE7\xF5es", "Gest\xE3o de fornecedores", "Auditoria de contratos"]),
-    status: "ativo"
-  },
-  {
-    type: "servico",
-    name: "Suporte T\xE9cnico em TI",
-    subtitle: "Manuten\xE7\xE3o e Infraestrutura",
-    description: "Suporte t\xE9cnico, manuten\xE7\xE3o preditiva e servi\xE7os especializados em tecnologia da informa\xE7\xE3o. Monitoramento de infraestrutura, gest\xE3o de problemas, suporte remoto e presencial.",
-    category: "TI",
-    technologies: JSON.stringify(["Manuten\xE7\xE3o Preditiva", "Monitoramento", "Suporte Remoto", "An\xE1lise de Performance"]),
-    highlights: JSON.stringify(["Manuten\xE7\xE3o preditiva", "Suporte 24/7", "Monitoramento cont\xEDnuo", "An\xE1lise de falhas"]),
-    status: "ativo"
-  },
-  {
-    type: "servico",
-    name: "Desenvolvimento Sob Encomenda",
-    subtitle: "Software Personalizado",
-    description: "Desenvolvimento de sistemas web, aplica\xE7\xF5es mobile e sistemas de gest\xE3o personalizados. Cria\xE7\xE3o de IAs, agentes especialistas e automa\xE7\xF5es sob medida para sua empresa.",
-    category: "Desenvolvimento",
-    technologies: JSON.stringify(["React", "TypeScript", "Node.js", "PostgreSQL", "IA/ML", "Mobile"]),
-    highlights: JSON.stringify(["Sistemas web personalizados", "Apps mobile", "Cria\xE7\xE3o de IAs", "Agentes especialistas"]),
-    status: "ativo"
-  },
-  {
-    type: "servico",
-    name: "Intelig\xEAncia Artificial e Automa\xE7\xE3o",
-    subtitle: "IA Aplicada ao Neg\xF3cio",
-    description: "Solu\xE7\xF5es avan\xE7adas em IA, automa\xE7\xE3o e agentes especialistas. Machine Learning aplicado, processamento de linguagem natural, sistemas de recomenda\xE7\xE3o e automa\xE7\xE3o de fluxos de trabalho.",
-    category: "IA & Automa\xE7\xE3o",
-    technologies: JSON.stringify(["OpenAI API", "Machine Learning", "NLP", "Automa\xE7\xE3o", "Agentes IA"]),
-    highlights: JSON.stringify(["IAs personalizadas", "Agentes especialistas", "Automa\xE7\xE3o de fluxos", "ML aplicado"]),
-    status: "ativo"
-  },
-  {
-    type: "servico",
-    name: "Automa\xE7\xE3o Industrial",
-    subtitle: "Processos Industriais Inteligentes",
-    description: "Solu\xE7\xF5es de automa\xE7\xE3o para processos industriais e operacionais. Sistemas SCADA, integra\xE7\xE3o de equipamentos, monitoramento industrial e otimiza\xE7\xE3o de produ\xE7\xE3o.",
-    category: "Industrial",
-    technologies: JSON.stringify(["SCADA", "Automa\xE7\xE3o Industrial", "Controle de Processos", "IoT", "N8N"]),
-    highlights: JSON.stringify(["Automa\xE7\xE3o de processos", "Sistemas SCADA", "Integra\xE7\xE3o de equipamentos", "Otimiza\xE7\xE3o de produ\xE7\xE3o"]),
-    status: "ativo"
-  },
-  {
-    type: "servico",
-    name: "Treinamento Profissional",
-    subtitle: "Capacita\xE7\xE3o e Desenvolvimento",
-    description: "Treinamento em desenvolvimento profissional e gerencial. Capacita\xE7\xE3o t\xE9cnica, workshops especializados, programas de mentoria e desenvolvimento de lideran\xE7as.",
-    category: "Treinamento",
-    technologies: JSON.stringify(["E-learning", "Workshops", "Mentoria", "Capacita\xE7\xE3o T\xE9cnica"]),
-    highlights: JSON.stringify(["Capacita\xE7\xE3o t\xE9cnica", "Desenvolvimento gerencial", "Workshops especializados", "Programas de mentoria"]),
-    status: "ativo"
-  },
-  {
-    type: "servico",
-    name: "Licenciamento de Software",
-    subtitle: "Software Propriet\xE1rio",
-    description: "Desenvolvimento e licenciamento de programas de computador. Software propriet\xE1rio, distribui\xE7\xE3o, atualiza\xE7\xF5es, suporte t\xE9cnico especializado e auditoria de licen\xE7as.",
-    category: "Software",
-    technologies: JSON.stringify(["Software Propriet\xE1rio", "SaaS", "Licenciamento", "Distribui\xE7\xE3o"]),
-    highlights: JSON.stringify(["Software propriet\xE1rio", "Receita recorrente", "Suporte especializado", "Auditoria de licen\xE7as"]),
-    status: "ativo"
-  },
-  {
-    type: "servico",
-    name: "Data Science e Analytics",
-    subtitle: "Intelig\xEAncia de Dados",
-    description: "An\xE1lise de dados, Business Intelligence e visualiza\xE7\xF5es estrat\xE9gicas. Dashboards interativos, relat\xF3rios automatizados e insights acion\xE1veis para tomada de decis\xE3o.",
-    category: "Dados",
-    technologies: JSON.stringify(["Python", "Power BI", "SQL", "Machine Learning", "Visualiza\xE7\xE3o de Dados"]),
-    highlights: JSON.stringify(["Dashboards interativos", "Relat\xF3rios automatizados", "Insights acion\xE1veis", "BI estrat\xE9gico"]),
-    status: "ativo"
-  }
-];
-var TRIARC_PROJECTS = [
-  { name: "Sistema de Presen\xE7a de Eventos", subtitle: "Controle de Presen\xE7as em Eventos", description: "Plataforma para gest\xE3o e controle de presen\xE7a em eventos. Interface r\xE1pida e intuitiva para gerenciamento e acompanhamento de participantes com dashboard de m\xE9tricas.", category: "Plataformas", technologies: JSON.stringify(["React", "TypeScript", "Vite", "shadcn-ui", "Tailwind CSS"]), highlights: JSON.stringify(["Gest\xE3o \xE1gil de eventos", "Controle pr\xE1tico de presen\xE7a", "Design moderno e intuitivo", "Alta performance"]), status: "ativo" },
-  { name: "Conex\xE3o Pessoas (COPE)", subtitle: "Plataforma de Conex\xE3o de Profissionais", description: "Plataforma inovadora de troca de habilidades entre profissionais. Sistema completo com gest\xE3o de usu\xE1rios, trades, assinaturas premium e monitoramento de receitas em tempo real. 1000+ usu\xE1rios, 5000+ trades.", category: "Plataformas", technologies: JSON.stringify(["React", "TypeScript", "Node.js", "PostgreSQL", "Supabase"]), highlights: JSON.stringify(["Plataforma SaaS completa", "Receita recorrente mensal", "Sistema de matching inteligente", "API RESTful documentada"]), status: "ativo" },
-  { name: "SS-Milhas", subtitle: "Smart Management System de Milhas", description: "Sistema inteligente de gest\xE3o de milhas e pontos a\xE9reos. Gerenciamento de programas de fidelidade, rastreamento de milhas acumuladas e otimiza\xE7\xE3o de resgates. 500+ usu\xE1rios, 1M+ milhas gerenciadas.", category: "Plataformas", technologies: JSON.stringify(["React", "TypeScript", "Node.js", "MongoDB", "Real-time Sync"]), highlights: JSON.stringify(["Gest\xE3o inteligente de milhas", "Interface moderna", "Integra\xE7\xE3o com APIs de fidelidade", "Otimiza\xE7\xE3o autom\xE1tica"]), status: "ativo" },
-  { name: "TopFlow.ai", subtitle: "Invisible SEO - Alavanque seu site", description: "Plataforma completa de SEO invis\xEDvel e automa\xE7\xE3o de marketing digital com IA. Otimiza\xE7\xE3o de sites, gera\xE7\xE3o de conte\xFAdo, gest\xE3o de campanhas em redes sociais e integra\xE7\xE3o com Instagram e Facebook Ads. 50+ sites, 1000+ otimiza\xE7\xF5es.", category: "IA & Automa\xE7\xE3o", technologies: JSON.stringify(["React 18", "TypeScript", "Supabase", "OpenAI API", "AI/ML"]), highlights: JSON.stringify(["SEO invis\xEDvel e automatizado", "IA de \xFAltima gera\xE7\xE3o", "Integra\xE7\xE3o com redes sociais", "Resultados mensur\xE1veis"]), status: "ativo" },
-  { name: "CB Integrativa", subtitle: "Assistente Virtual de Sa\xFAde Integrativa", description: "Sistema completo de cuidado integrativo com bot inteligente para sa\xFAde. Gest\xE3o de cuidados integrativos, agendamento e acompanhamento com assistente virtual especializado em medicina integrativa e hol\xEDstica.", category: "Sa\xFAde", technologies: JSON.stringify(["React", "TypeScript", "Node.js", "OpenAI API", "PostgreSQL"]), highlights: JSON.stringify(["IA especializada em sa\xFAde", "Cuidado hol\xEDstico completo", "Telemedicina integrada", "Conformidade com LGPD"]), status: "ativo" },
-  { name: "Grupo Conecta", subtitle: "Sistema de Ponto e Comunica\xE7\xE3o Empresarial", description: "Sistema completo de controle de ponto com geolocaliza\xE7\xE3o e comunica\xE7\xE3o empresarial. Agente de voz IA com ElevenLabs, mensageria em tempo real, gest\xE3o de funcion\xE1rios e app mobile nativo para Android e iOS.", category: "Gest\xE3o", technologies: JSON.stringify(["React 19", "TypeScript", "Supabase", "Capacitor", "ElevenLabs AI", "N8N"]), highlights: JSON.stringify(["Ponto digital com geolocaliza\xE7\xE3o", "Agente de voz IA", "App mobile nativo", "Automa\xE7\xE3o com N8N"]), status: "ativo" },
-  { name: "Legend\xE1rios Maca\xE9", subtitle: "Plataforma Oficial do Movimento", description: "Plataforma web oficial para o movimento Legend\xE1rios Maca\xE9. Integra\xE7\xF5es autom\xE1ticas com portais Legend\xE1rios Global e Rio, sincroniza\xE7\xE3o em tempo real e timeline interativa. 1000+ visitantes, 50+ eventos.", category: "Plataformas", technologies: JSON.stringify(["React", "TypeScript", "Vite", "WordPress REST API", "React Query"]), highlights: JSON.stringify(["Plataforma oficial do movimento", "Integra\xE7\xF5es autom\xE1ticas", "Sincroniza\xE7\xE3o em tempo real", "Design responsivo"]), status: "ativo" },
-  { name: "Sentinela", subtitle: "Plataforma de Conex\xE3o e Comunica\xE7\xE3o", description: "Plataforma de comunica\xE7\xE3o e conex\xE3o para o movimento Legend\xE1rios. Conecta membros, facilita comunica\xE7\xE3o, compartilha eventos e fortalece a comunidade com interface moderna.", category: "Plataformas", technologies: JSON.stringify(["React", "TypeScript", "Node.js", "PostgreSQL", "WebSocket"]), highlights: JSON.stringify(["Comunica\xE7\xE3o em tempo real", "Conex\xE3o comunit\xE1ria", "Interface moderna", "Fortalecimento da comunidade"]), status: "ativo" },
-  { name: "TransCarga", subtitle: "Logistics Hub - Plataforma de Log\xEDstica", description: "Plataforma completa de log\xEDstica que conecta empresas e caminhoneiros. Rastreamento GPS em tempo real, geofencing, negocia\xE7\xF5es inteligentes, verifica\xE7\xE3o de documentos e assistente IA.", category: "Plataformas", technologies: JSON.stringify(["React 18", "TypeScript", "Supabase", "Leaflet Maps", "AI/ML"]), highlights: JSON.stringify(["Rastreamento em tempo real", "IA integrada", "Geofencing inteligente", "Plataforma completa"]), status: "ativo" },
-  { name: "Logos", subtitle: "Reuni\xF5es gravadas, transcritas e resumidas", description: "Plataforma para gravar reuni\xF5es, gerar transcri\xE7\xE3o autom\xE1tica e produzir resumos acion\xE1veis. Centraliza o hist\xF3rico de encontros e facilita a busca no que foi dito.", category: "IA & Automa\xE7\xE3o", technologies: JSON.stringify(["React", "TypeScript", "Vite", "IA", "Speech-to-Text"]), highlights: JSON.stringify(["Gravar e transcrever", "Resumos com IA", "Busca nas reuni\xF5es", "Pronto para uso"]), status: "ativo" },
-  { name: "Farol das Escrituras", subtitle: "Estudo e leitura das Escrituras", description: "Plataforma para aprofundamento b\xEDblico, leitura guiada e recursos que apoiam o estudo das Escrituras de forma clara e acess\xEDvel. Anota\xE7\xF5es, favoritos e busca de refer\xEAncias.", category: "Plataformas", technologies: JSON.stringify(["React", "TypeScript", "Vite", "Tailwind CSS"]), highlights: JSON.stringify(["Estudo b\xEDblico", "UX limpa", "Multi-dispositivo", "Pronto para uso"]), status: "ativo" },
-  { name: "Mir Maca\xE9", subtitle: "An\xE1lise e captura de dados da congrega\xE7\xE3o", description: "Plataforma da congrega\xE7\xE3o Mir Maca\xE9 para reunir, validar e visualizar dados operacionais e pastorais. Automatiza coleta de dados, reduz trabalho manual e oferece pain\xE9is claros.", category: "Gest\xE3o", technologies: JSON.stringify(["React", "TypeScript", "Vite", "TanStack Query", "API REST", "Automa\xE7\xE3o"]), highlights: JSON.stringify(["Dados da Mir Maca\xE9", "Captura automatizada", "An\xE1lise e pain\xE9is", "Menos planilha manual"]), status: "ativo" },
-  { name: "Triarc Key Generator", subtitle: "Gera\xE7\xE3o segura de chaves criptogr\xE1ficas", description: "Ferramenta para gera\xE7\xE3o, valida\xE7\xE3o e gest\xE3o de chaves criptogr\xE1ficas e secrets no ecossistema TRIARC, com boas pr\xE1ticas de seguran\xE7a.", category: "Sistemas", technologies: JSON.stringify(["TypeScript", "Node.js", "Web Crypto API", "CLI"]), highlights: JSON.stringify(["Seguran\xE7a first", "Developer experience", "Chaves e secrets", "TRIARC tooling"]), status: "ativo" },
-  { name: "Axis", subtitle: "Dashboards interativos e configur\xE1veis", description: "Plataforma para montar dashboards totalmente interativos e sob medida. Arraste widgets, ligue fontes de dados, defina filtros e compartilhe vis\xF5es claras com a equipe.", category: "Gest\xE3o", technologies: JSON.stringify(["React", "TypeScript", "Vite", "TanStack Query", "Visualiza\xE7\xE3o de dados"]), highlights: JSON.stringify(["100% configur\xE1vel", "Altamente interativo", "Dados conectados", "Pronto para uso"]), status: "ativo" },
-  { name: "Sintaxe", subtitle: "Programa\xE7\xE3o para crian\xE7as e adolescentes", description: "Plataforma de aprendizagem de programa\xE7\xE3o para o p\xFAblico jovem. Linguagem clara, passos curtos e desafios gamificados que ensinam l\xF3gica, sintaxe e resolu\xE7\xE3o de problemas.", category: "Plataformas", technologies: JSON.stringify(["React", "TypeScript", "Vite", "Gamifica\xE7\xE3o"]), highlights: JSON.stringify(["Ensino de programa\xE7\xE3o", "Gamificado", "Para jovens", "Aprendizado pr\xE1tico"]), status: "ativo" },
-  { name: "NutriSystem", subtitle: "Sistema Completo de Gest\xE3o Nutricional", description: "Plataforma completa para gest\xE3o nutricional e acompanhamento de pacientes. Planos alimentares, c\xE1lculo autom\xE1tico de macronutrientes, acompanhamento de evolu\xE7\xE3o e relat\xF3rios.", category: "Sa\xFAde", technologies: JSON.stringify(["React", "TypeScript", "Node.js", "PostgreSQL", "Supabase"]), highlights: JSON.stringify(["Sistema completo de nutri\xE7\xE3o", "Interface moderna", "Gest\xE3o profissional", "Tecnologia de ponta"]), status: "em_desenvolvimento" },
-  { name: "TRIARC CRM", subtitle: "Sistema de Gest\xE3o de Relacionamento com Cliente", description: "CRM completo com IA integrada, pipeline de vendas drag-and-drop, gera\xE7\xE3o de faturas, relat\xF3rios inteligentes e integra\xE7\xE3o com TopFlow AI. Dashboard anal\xEDtico completo.", category: "Gest\xE3o", technologies: JSON.stringify(["React 18", "TypeScript", "Supabase", "AI/ML", "DnD Kit", "PWA"]), highlights: JSON.stringify(["CRM completo", "IA para insights", "Pipeline de vendas inteligente", "Integra\xE7\xE3o com TopFlow AI"]), status: "em_desenvolvimento" },
-  { name: "SS Finan\xE7as", subtitle: "Sistema de Gest\xE3o Financeira Pessoal", description: "Plataforma completa para gest\xE3o financeira pessoal com controle de receitas, despesas, investimentos e metas. Categoriza\xE7\xE3o autom\xE1tica por IA e dashboard visual interativo.", category: "Gest\xE3o", technologies: JSON.stringify(["React", "TypeScript", "Supabase", "AI/ML", "Chart.js"]), highlights: JSON.stringify(["Gest\xE3o financeira completa", "IA para categoriza\xE7\xE3o", "Dashboard visual", "Metas e investimentos"]), status: "em_desenvolvimento" },
-  { name: "Jarvis", subtitle: "Assistente de IA em evolu\xE7\xE3o", description: "Assistente inteligente conversacional em evolu\xE7\xE3o cont\xEDnua, com foco em automa\xE7\xE3o de tarefas, respostas contextuais e extensibilidade via plugins.", category: "IA & Automa\xE7\xE3o", technologies: JSON.stringify(["React", "TypeScript", "Node.js", "OpenAI API", "AI/ML"]), highlights: JSON.stringify(["IA conversacional", "Arquitetura evolutiva", "Automa\xE7\xE3o", "Open source"]), status: "em_desenvolvimento" },
-  { name: "KryptoStudio", subtitle: "Do conte\xFAdo a slides, infogr\xE1ficos e v\xEDdeo", description: "Plataforma estilo Notebook LM: adicione documentos e PDFs como fonte \xFAnica de verdade e a IA gera apresenta\xE7\xF5es, infogr\xE1ficos e v\xEDdeos. Ideal para estudar, ensinar ou comunicar.", category: "IA & Automa\xE7\xE3o", technologies: JSON.stringify(["React", "TypeScript", "IA generativa", "Busca sem\xE2ntica", "Multim\xEDdia"]), highlights: JSON.stringify(["Inspirado no Notebook LM", "Slides e infogr\xE1ficos", "V\xEDdeo a partir do conte\xFAdo", "IA nas suas fontes"]), status: "em_desenvolvimento" },
-  { name: "Era das Alian\xE7as", subtitle: "Jogo de estrat\xE9gia e alian\xE7as", description: "Jogo digital onde jogadores negociam alian\xE7as, expandem influ\xEAncia e disputam objetivos em cen\xE1rios por eras. Combina decis\xF5es estrat\xE9gicas, diplomacia entre fac\xE7\xF5es e progress\xE3o cont\xEDnua.", category: "Plataformas", technologies: JSON.stringify(["React", "TypeScript", "Vite", "Supabase", "Tailwind CSS"]), highlights: JSON.stringify(["Estrat\xE9gia e diplomacia", "Alian\xE7as din\xE2micas", "Progress\xE3o por eras", "Multijogador"]), status: "em_desenvolvimento" },
-  { name: "KidShield", subtitle: "Family Guardian Suite", description: "Suite voltada \xE0 prote\xE7\xE3o digital familiar: controles parentais, alertas e ferramentas para acompanhar o uso seguro de dispositivos e conte\xFAdos. Privacidade e LGPD em foco.", category: "Sa\xFAde", technologies: JSON.stringify(["React", "TypeScript", "Node.js", "PostgreSQL"]), highlights: JSON.stringify(["Fam\xEDlia em primeiro lugar", "Seguran\xE7a digital", "Controles parentais", "Privacidade"]), status: "em_desenvolvimento" },
-  { name: "Rede Si\xE3o", subtitle: "A rede social dos evang\xE9licos", description: "Rede social pensada para o p\xFAblico evang\xE9lico: feed, perfis, grupos e conversas em um ambiente alinhado \xE0 f\xE9, fam\xEDlia e comunidade crist\xE3. Compartilhe vida, eventos, louvor e mensagem.", category: "Plataformas", technologies: JSON.stringify(["React", "TypeScript", "Vite", "Supabase", "Tailwind CSS"]), highlights: JSON.stringify(["Rede social crist\xE3", "Como o Facebook com prop\xF3sito", "Grupos e igrejas", "Comunidade evang\xE9lica"]), status: "em_desenvolvimento" },
-  { name: "Pratiko", subtitle: "Praticidade no dia a dia", description: "Sistema para simplificar rotinas operacionais e tarefas recorrentes, com foco em produtividade e clareza de processos. Checklists, lembretes e relat\xF3rios simples.", category: "Gest\xE3o", technologies: JSON.stringify(["React", "TypeScript", "Vite", "Supabase", "shadcn-ui"]), highlights: JSON.stringify(["Produtividade", "Processos claros", "Baixa fric\xE7\xE3o", "Gest\xE3o leve"]), status: "em_desenvolvimento" },
-  { name: "Titan App", subtitle: "PWA de Escalada", description: "Aplicativo PWA de escalada desenvolvido pela Triarc Solutions. Registro de vias, modo offline, comunidade de escaladores, dicas de seguran\xE7a e tracking de progresso. Slogan: Iron Grip. Endless Ascend.", category: "Plataformas", technologies: JSON.stringify(["React", "TypeScript", "PWA", "Supabase", "Offline First"]), highlights: JSON.stringify(["Modo offline", "Comunidade de escaladores", "Tracking de progresso", "PWA nativo"]), status: "ativo" },
-  { name: "Triarc Social Manager", subtitle: "Automa\xE7\xE3o de Conte\xFAdo para Instagram", description: "Plataforma interna de automa\xE7\xE3o de conte\xFAdo para Instagram da Triarc Solutions. Gera\xE7\xE3o de legendas e artes com IA, agendamento, aprova\xE7\xE3o e publica\xE7\xE3o autom\xE1tica.", category: "IA & Automa\xE7\xE3o", technologies: JSON.stringify(["React", "TypeScript", "Node.js", "OpenAI API", "tRPC", "MySQL"]), highlights: JSON.stringify(["IA para legendas e artes", "Agendamento autom\xE1tico", "Fluxo de aprova\xE7\xE3o", "Publica\xE7\xE3o via MCP"]), status: "ativo" },
-  { name: "Plataforma de Eventos Legend\xE1rios", subtitle: "Gest\xE3o de Eventos Crist\xE3os", description: "Plataforma completa para gest\xE3o de eventos do movimento Legend\xE1rios. Inscri\xE7\xF5es, controle de presen\xE7a, comunica\xE7\xE3o com participantes e relat\xF3rios de eventos.", category: "Plataformas", technologies: JSON.stringify(["React", "TypeScript", "Node.js", "PostgreSQL"]), highlights: JSON.stringify(["Gest\xE3o completa de eventos", "Controle de presen\xE7a", "Comunica\xE7\xE3o integrada", "Relat\xF3rios detalhados"]), status: "ativo" },
-  { name: "Sistema de Auditoria Empresarial", subtitle: "Conformidade e Compliance", description: "Sistema para auditoria interna e conformidade empresarial. Checklists de auditoria, rastreamento de n\xE3o conformidades, planos de a\xE7\xE3o corretiva e relat\xF3rios executivos.", category: "Gest\xE3o", technologies: JSON.stringify(["React", "TypeScript", "Node.js", "PostgreSQL", "PDF Generation"]), highlights: JSON.stringify(["Auditoria interna completa", "Rastreamento de conformidade", "Planos de a\xE7\xE3o", "Relat\xF3rios executivos"]), status: "ativo" },
-  { name: "Portal RH Inteligente", subtitle: "Gest\xE3o de Pessoas com IA", description: "Portal de RH com IA integrada para gest\xE3o de colaboradores. Onboarding digital, avalia\xE7\xE3o de desempenho, gest\xE3o de f\xE9rias e banco de horas, tudo automatizado.", category: "Gest\xE3o", technologies: JSON.stringify(["React", "TypeScript", "Supabase", "OpenAI API", "N8N"]), highlights: JSON.stringify(["Onboarding digital", "IA para avalia\xE7\xF5es", "Banco de horas autom\xE1tico", "Gest\xE3o completa de pessoas"]), status: "em_desenvolvimento" },
-  { name: "EduTech Triarc", subtitle: "Plataforma de E-learning Corporativo", description: "Plataforma de ensino a dist\xE2ncia para treinamentos corporativos. Cursos em v\xEDdeo, quizzes, certificados digitais, trilhas de aprendizagem e gamifica\xE7\xE3o.", category: "Treinamento", technologies: JSON.stringify(["React", "TypeScript", "Node.js", "PostgreSQL", "Video Streaming"]), highlights: JSON.stringify(["E-learning corporativo", "Certificados digitais", "Gamifica\xE7\xE3o", "Trilhas de aprendizagem"]), status: "em_desenvolvimento" },
-  { name: "Monitor IoT Industrial", subtitle: "Monitoramento de Equipamentos em Tempo Real", description: "Sistema de monitoramento IoT para equipamentos industriais. Coleta de dados de sensores, alertas de manuten\xE7\xE3o preditiva, dashboards em tempo real e hist\xF3rico de opera\xE7\xF5es.", category: "Industrial", technologies: JSON.stringify(["React", "TypeScript", "Node.js", "MQTT", "InfluxDB", "IoT"]), highlights: JSON.stringify(["Monitoramento em tempo real", "Manuten\xE7\xE3o preditiva", "Alertas inteligentes", "Hist\xF3rico completo"]), status: "em_desenvolvimento" },
-  { name: "Chatbot Corporativo IA", subtitle: "Assistente Virtual para Empresas", description: "Chatbot inteligente treinado com a base de conhecimento da empresa. Atendimento ao cliente, suporte interno, FAQ automatizado e integra\xE7\xE3o com WhatsApp e Telegram.", category: "IA & Automa\xE7\xE3o", technologies: JSON.stringify(["Node.js", "OpenAI API", "WhatsApp API", "Telegram Bot", "Vector DB"]), highlights: JSON.stringify(["Treinado com dados da empresa", "Multi-canal", "Atendimento 24/7", "Integra\xE7\xE3o WhatsApp"]), status: "em_breve" },
-  { name: "Dashboard Financeiro Empresarial", subtitle: "BI e Analytics para Neg\xF3cios", description: "Dashboard de business intelligence para gest\xE3o financeira empresarial. KPIs em tempo real, fluxo de caixa, DRE autom\xE1tico, proje\xE7\xF5es e alertas de desvio or\xE7ament\xE1rio.", category: "Dados", technologies: JSON.stringify(["React", "TypeScript", "Python", "Power BI Embedded", "PostgreSQL"]), highlights: JSON.stringify(["KPIs em tempo real", "DRE autom\xE1tico", "Proje\xE7\xF5es financeiras", "Alertas de desvio"]), status: "em_breve" },
-  { name: "Marketplace de Servi\xE7os Locais", subtitle: "Conectando Profissionais e Clientes em Maca\xE9", description: "Marketplace para conex\xE3o de prestadores de servi\xE7os locais com clientes em Maca\xE9/RJ. Perfis profissionais, avalia\xE7\xF5es, agendamento online e pagamento integrado.", category: "Plataformas", technologies: JSON.stringify(["React", "TypeScript", "Node.js", "PostgreSQL", "Stripe", "Maps API"]), highlights: JSON.stringify(["Marketplace local", "Avalia\xE7\xF5es verificadas", "Agendamento online", "Pagamento integrado"]), status: "em_breve" },
-  { name: "Sistema de Gest\xE3o Escolar", subtitle: "Administra\xE7\xE3o Completa para Escolas", description: "Sistema completo para gest\xE3o escolar. Matr\xEDculas, grade curricular, lan\xE7amento de notas, boletins digitais, comunica\xE7\xE3o com pais e relat\xF3rios pedag\xF3gicos.", category: "Plataformas", technologies: JSON.stringify(["React", "TypeScript", "Node.js", "PostgreSQL", "PDF Generation"]), highlights: JSON.stringify(["Gest\xE3o completa escolar", "Boletins digitais", "Comunica\xE7\xE3o com pais", "Relat\xF3rios pedag\xF3gicos"]), status: "em_breve" }
-];
-async function seedTriarcContent() {
-  const db = await getDb();
-  if (!db) return;
-  const existing = await db.select({ id: triacContent.id }).from(triacContent).limit(1);
-  if (existing.length > 0) return;
-  const allItems = [
-    ...TRIARC_SERVICES,
-    ...TRIARC_PROJECTS.map((p) => ({ ...p, type: "projeto" }))
-  ];
-  await db.insert(triacContent).values(allItems);
-  console.log(`[Seed] ${allItems.length} itens Triarc inseridos (${TRIARC_SERVICES.length} servi\xE7os + ${TRIARC_PROJECTS.length} projetos)`);
-}
-
 // server/routers.ts
+init_seed_triarc();
 init_schema();
 init_db();
 var APP_CONTEXT2 = `A Triarc Solutions \xE9 uma empresa de tecnologia e inova\xE7\xE3o com sede em Maca\xE9/RJ. Site oficial: triarcsolutions.com.br. Pilares: Gest\xE3o, Treinamento e Tecnologia. Servi\xE7os: desenvolvimento de software sob encomenda, IA e automa\xE7\xE3o, gest\xE3o empresarial, suporte t\xE9cnico em TI, automa\xE7\xE3o industrial, treinamento profissional, licenciamento de software e data science. Projetos em destaque: TopFlow.ai (SEO com IA), COPE (plataforma de conex\xE3o de profissionais), SS-Milhas (gest\xE3o de milhas), TransCarga (log\xEDstica inteligente), TRIARC CRM, NutriSystem, Grupo Conecta e mais de 36 projetos entregues. O Triarc Social Manager \xE9 a plataforma interna de automa\xE7\xE3o de conte\xFAdo para Instagram da Triarc Solutions.`;
@@ -3109,6 +3146,7 @@ Erro: ${error || "Desconhecido"}`
 }
 
 // server/vercel.ts
+init_seed_triarc();
 init_db();
 import { sql as sql2 } from "drizzle-orm";
 var app = express();
@@ -3173,7 +3211,8 @@ app.get("/api/cron/tick", async (req, res) => {
 });
 app.use("/api/trpc", createExpressMiddleware({ router: appRouter, createContext }));
 sdk.ensureAdminUser().catch((e) => console.error("[Auth] Erro ao criar admin:", e));
-seedTriarcContent().catch((e) => console.error("[Seed] Erro:", e));
+seedTriarcContent().catch((e) => console.error("[Seed] Erro triac_content:", e));
+seedContentThemes().catch((e) => console.error("[Seed] Erro content_themes:", e));
 var vercel_default = app;
 export {
   vercel_default as default
