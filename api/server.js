@@ -330,32 +330,37 @@ async function createPost(data) {
   return { id: result[0].id };
 }
 async function queryPosts(db, rawSql) {
-  const result = await db.execute(rawSql);
-  return Array.isArray(result) ? result : [];
+  try {
+    const result = await db.execute(rawSql);
+    return Array.isArray(result) ? result : [];
+  } catch (error) {
+    _db = null;
+    throw error;
+  }
 }
 async function getPostById(id) {
   const db = await getDb();
   if (!db) return void 0;
-  const rows = await queryPosts(db, sql`SELECT ${sql.raw(POST_COLS)} FROM posts p WHERE p.id = ${id} LIMIT 1`);
+  const rows = await queryPosts(db, sql`SELECT ${sql.raw(POST_COLS)} ${POST_FROM} WHERE p.id = ${id} LIMIT 1`);
   return rows[0];
 }
 async function getPostsByAccount(accountId, status) {
   const db = await getDb();
   if (!db) return [];
   if (status) {
-    return queryPosts(db, sql`SELECT ${sql.raw(POST_COLS)} FROM posts p WHERE p."accountId" = ${accountId} AND p.status = ${status} ORDER BY p."createdAt" DESC`);
+    return queryPosts(db, sql`SELECT ${sql.raw(POST_COLS)} ${POST_FROM} WHERE p."accountId" = ${accountId} AND p.status = ${status} ORDER BY p."createdAt" DESC LIMIT ${POST_LIST_LIMIT}`);
   }
-  return queryPosts(db, sql`SELECT ${sql.raw(POST_COLS)} FROM posts p WHERE p."accountId" = ${accountId} ORDER BY p."createdAt" DESC`);
+  return queryPosts(db, sql`SELECT ${sql.raw(POST_COLS)} ${POST_FROM} WHERE p."accountId" = ${accountId} ORDER BY p."createdAt" DESC LIMIT ${POST_LIST_LIMIT}`);
 }
 async function getPostsByStatus(status) {
   const db = await getDb();
   if (!db) return [];
-  return queryPosts(db, sql`SELECT ${sql.raw(POST_COLS)} FROM posts p WHERE p.status = ${status} ORDER BY p."createdAt" DESC`);
+  return queryPosts(db, sql`SELECT ${sql.raw(POST_COLS)} ${POST_FROM} WHERE p.status = ${status} ORDER BY p."createdAt" DESC LIMIT ${POST_LIST_LIMIT}`);
 }
 async function getAllPosts() {
   const db = await getDb();
   if (!db) return [];
-  return queryPosts(db, sql`SELECT ${sql.raw(POST_COLS)} FROM posts p ORDER BY p."createdAt" DESC`);
+  return queryPosts(db, sql`SELECT ${sql.raw(POST_COLS)} ${POST_FROM} ORDER BY p."createdAt" DESC LIMIT ${POST_LIST_LIMIT}`);
 }
 async function updatePost(id, data) {
   const db = await getDb();
@@ -427,7 +432,7 @@ async function getThemeBySlug(slug) {
   const result = await db.select().from(contentThemes).where(eq(contentThemes.slug, slug)).limit(1);
   return result[0];
 }
-var _db, _lastError, POST_COLS;
+var _db, _lastError, POST_COLS, POST_LIST_LIMIT, POST_FROM;
 var init_db = __esm({
   "server/db.ts"() {
     "use strict";
@@ -437,7 +442,17 @@ var init_db = __esm({
     POST_COLS = `p.id, p."userId", p."accountId", p.caption, p.status, p.theme, p."scheduledAt", p."publishedAt",
   p."instagramPostId", p."instagramPermalink", p.likes, p.comments, p."createdAt", p."updatedAt",
   p."mcpPending", p."retryCount", p."nextRetryAt", p."linkedinPublished", p."facebookPublished",
-  (SELECT pm."mediaUrl" FROM post_media pm WHERE pm."postId" = p.id ORDER BY pm."sortOrder" ASC LIMIT 1) AS "mediaUrl"`;
+  pm."mediaUrl" AS "mediaUrl"`;
+    POST_LIST_LIMIT = 150;
+    POST_FROM = sql.raw(`
+  FROM posts p
+  LEFT JOIN LATERAL (
+    SELECT "mediaUrl" FROM post_media
+    WHERE "postId" = p.id
+    ORDER BY "sortOrder" ASC
+    LIMIT 1
+  ) pm ON true
+`);
   }
 });
 
@@ -465,7 +480,7 @@ function getSessionCookieOptions(req) {
   return {
     httpOnly: true,
     path: "/",
-    sameSite: "none",
+    sameSite: "lax",
     secure: isSecureRequest(req)
   };
 }
@@ -507,6 +522,12 @@ var ENV = {
   linkedinClientSecret: process.env.LINKEDIN_CLIENT_SECRET ?? "",
   facebookAppId: process.env.FACEBOOK_APP_ID ?? "",
   facebookAppSecret: process.env.FACEBOOK_APP_SECRET ?? "",
+  /** Scopes OAuth customizados (separados por vírgula). Sobrescreve o padrão. */
+  facebookOAuthScopes: process.env.FACEBOOK_OAUTH_SCOPES ?? "",
+  /** "1" = inclui instagram_basic + instagram_content_publish (exige produto IG no app Meta) */
+  facebookIgScopes: process.env.FACEBOOK_IG_SCOPES === "1",
+  /** Facebook Login for Business — config_id do Meta Developer */
+  facebookLoginConfigId: process.env.FACEBOOK_LOGIN_CONFIG_ID ?? "",
   // Instagram direct
   igUserId: process.env.IG_USER_ID ?? "",
   igUsername: process.env.IG_USERNAME ?? "",
@@ -1001,6 +1022,56 @@ init_db();
 init_db();
 init_schema();
 import { eq as eq2 } from "drizzle-orm";
+
+// server/_core/oauthFinish.ts
+function parseOAuthState(state, fallbackOrigin) {
+  try {
+    const decoded = JSON.parse(Buffer.from(state, "base64url").toString());
+    return {
+      origin: decoded.origin || fallbackOrigin,
+      accountId: decoded.accountId,
+      popup: decoded.popup === true || decoded.popup === "1"
+    };
+  } catch {
+    return { origin: fallbackOrigin, popup: false };
+  }
+}
+function buildOAuthState(origin, accountId, popup) {
+  return Buffer.from(JSON.stringify({ origin, accountId, popup: popup ? true : void 0 })).toString("base64url");
+}
+function finishOAuth(res, opts) {
+  const { origin, popup, provider, success, error } = opts;
+  const param = success ? `${provider}_connected=1` : `${provider}_error=${encodeURIComponent(error ?? "unknown")}`;
+  const redirectUrl = `${origin}/accounts?${param}`;
+  if (popup) {
+    const message = success ? "Conta conectada com sucesso!" : `Erro ao conectar: ${error ?? "desconhecido"}`;
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.send(`<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="UTF-8"><title>OAuth</title></head>
+<body style="font-family:system-ui,sans-serif;text-align:center;padding:48px 24px">
+<p>${message}</p>
+<p style="color:#666;font-size:14px">Fechando esta janela...</p>
+<script>
+(function(){
+  var payload = { type: "oauth_complete", provider: ${JSON.stringify(provider)}, success: ${success ? "true" : "false"} };
+  try {
+    if (window.opener && !window.opener.closed) {
+      window.opener.postMessage(payload, ${JSON.stringify(origin)});
+      window.close();
+      setTimeout(function(){ window.close(); }, 300);
+      return;
+    }
+  } catch (e) {}
+  window.location.replace(${JSON.stringify(redirectUrl)});
+})();
+</script>
+</body></html>`);
+    return;
+  }
+  res.redirect(redirectUrl);
+}
+
+// server/linkedin.ts
 var LINKEDIN_AUTH_URL = "https://www.linkedin.com/oauth/v2/authorization";
 var LINKEDIN_TOKEN_URL = "https://www.linkedin.com/oauth/v2/accessToken";
 var LINKEDIN_UGC_URL = "https://api.linkedin.com/v2/ugcPosts";
@@ -1051,8 +1122,9 @@ function registerLinkedInRoutes(app2) {
   app2.get("/api/linkedin/auth", (req, res) => {
     const origin = req.query.origin || "http://localhost:3000";
     const accountId = req.query.accountId;
+    const popup = req.query.popup === "1" || req.query.popup === "true";
     const redirectUri = getRedirectUri(origin);
-    const state = Buffer.from(JSON.stringify({ origin, accountId })).toString("base64url");
+    const state = buildOAuthState(origin, accountId, popup);
     const params = new URLSearchParams({
       response_type: "code",
       client_id: ENV.linkedinClientId,
@@ -1064,18 +1136,11 @@ function registerLinkedInRoutes(app2) {
   });
   app2.get("/auth/linkedin/callback", async (req, res) => {
     const { code, state, error } = req.query;
+    const fallbackOrigin = "https://tsm.triarcsolutions.com.br";
+    const { origin, accountId, popup } = parseOAuthState(state, fallbackOrigin);
     if (error) {
       console.error("[LinkedIn] OAuth error:", error);
-      return res.redirect("/?linkedin_error=" + encodeURIComponent(error));
-    }
-    let origin = "http://localhost:3000";
-    let accountId;
-    try {
-      const decoded = JSON.parse(Buffer.from(state, "base64url").toString());
-      origin = decoded.origin;
-      accountId = decoded.accountId;
-    } catch {
-      console.warn("[LinkedIn] Could not parse state");
+      return finishOAuth(res, { origin, popup, provider: "linkedin", success: false, error });
     }
     const redirectUri = getRedirectUri(origin);
     try {
@@ -1093,7 +1158,7 @@ function registerLinkedInRoutes(app2) {
       const tokenData = await tokenRes.json();
       if (!tokenData.access_token) {
         console.error("[LinkedIn] Token exchange failed:", tokenData);
-        return res.redirect("/?linkedin_error=token_exchange_failed");
+        return finishOAuth(res, { origin, popup, provider: "linkedin", success: false, error: "token_exchange_failed" });
       }
       const { access_token, expires_in } = tokenData;
       const expiresAt = new Date(Date.now() + (expires_in ?? 5184e3) * 1e3);
@@ -1137,10 +1202,10 @@ function registerLinkedInRoutes(app2) {
         }).where(eq2(instagramAccounts.id, parseInt(accountId)));
         console.log(`[LinkedIn] Token salvo para conta ${accountId}, URN: ${linkedinUrn}`);
       }
-      res.redirect(`${origin}/accounts?linkedin_connected=1`);
+      finishOAuth(res, { origin, popup, provider: "linkedin", success: true });
     } catch (err) {
       console.error("[LinkedIn] Callback error:", err);
-      res.redirect("/?linkedin_error=callback_failed");
+      finishOAuth(res, { origin, popup, provider: "linkedin", success: false, error: "callback_failed" });
     }
   });
 }
@@ -1240,16 +1305,25 @@ async function registerLinkedInImage(accessToken, ownerUrn, imageUrl) {
 init_db();
 init_schema();
 import { eq as eq3 } from "drizzle-orm";
-var FB_AUTH_URL = "https://www.facebook.com/v19.0/dialog/oauth";
-var FB_TOKEN_URL = "https://graph.facebook.com/v19.0/oauth/access_token";
-var FB_GRAPH_URL = "https://graph.facebook.com/v19.0";
-var FB_SCOPES = [
+var FB_AUTH_URL = "https://www.facebook.com/v21.0/dialog/oauth";
+var FB_TOKEN_URL = "https://graph.facebook.com/v21.0/oauth/access_token";
+var FB_GRAPH_URL = "https://graph.facebook.com/v21.0";
+var FB_PAGE_SCOPES = [
   "pages_show_list",
   "pages_read_engagement",
-  "pages_manage_posts",
-  "instagram_basic",
-  "instagram_content_publish"
-].join(",");
+  "pages_manage_posts"
+];
+var FB_IG_SCOPES = ["instagram_basic", "instagram_content_publish"];
+function getFacebookScopes(forInstagram) {
+  if (ENV.facebookOAuthScopes.trim()) {
+    return ENV.facebookOAuthScopes.trim();
+  }
+  const scopes = [...FB_PAGE_SCOPES];
+  if (forInstagram && ENV.facebookIgScopes) {
+    scopes.push(...FB_IG_SCOPES);
+  }
+  return scopes.join(",");
+}
 var FB_PAGE_VANITY = "Triarcsolutions";
 var FACEBOOK_REDIRECT_URI = "https://tsm.triarcsolutions.com.br/auth/facebook/callback";
 function getRedirectUri2(_origin) {
@@ -1258,7 +1332,7 @@ function getRedirectUri2(_origin) {
 async function resolvePageToken(userToken) {
   try {
     const res = await fetch(
-      `${FB_GRAPH_URL}/me/accounts?fields=id,name,access_token,category&access_token=${userToken}`
+      `${FB_GRAPH_URL}/me/accounts?fields=id,name,access_token,category,instagram_business_account&access_token=${userToken}`
     );
     if (!res.ok) {
       console.warn("[Facebook] /me/accounts status:", res.status, await res.text());
@@ -1274,7 +1348,8 @@ async function resolvePageToken(userToken) {
       (p) => p.name?.toLowerCase().includes("triarc") || p.id === FB_PAGE_VANITY
     ) ?? pages[0];
     console.log(`[Facebook] P\xE1gina selecionada: ${triarc.name} (${triarc.id})`);
-    return { pageId: triarc.id, pageToken: triarc.access_token, pageName: triarc.name };
+    const igUserId = triarc.instagram_business_account?.id;
+    return { pageId: triarc.id, pageToken: triarc.access_token, pageName: triarc.name, igUserId };
   } catch (err) {
     console.warn("[Facebook] Erro ao resolver Page token:", err);
     return null;
@@ -1284,31 +1359,31 @@ function registerFacebookRoutes(app2) {
   app2.get("/api/facebook/auth", (req, res) => {
     const origin = req.query.origin || "http://localhost:3000";
     const accountId = req.query.accountId;
+    const popup = req.query.popup === "1" || req.query.popup === "true";
+    const forInstagram = req.query.forInstagram === "1" || req.query.forInstagram === "true";
     const redirectUri = getRedirectUri2(origin);
-    const state = Buffer.from(JSON.stringify({ origin, accountId })).toString("base64url");
+    const state = buildOAuthState(origin, accountId, popup);
+    const scope = getFacebookScopes(forInstagram);
     const params = new URLSearchParams({
       client_id: ENV.facebookAppId,
       redirect_uri: redirectUri,
-      scope: FB_SCOPES,
+      scope,
       state,
-      response_type: "code"
+      response_type: "code",
+      display: popup ? "popup" : "page"
     });
+    if (ENV.facebookLoginConfigId) {
+      params.set("config_id", ENV.facebookLoginConfigId);
+    }
     res.redirect(`${FB_AUTH_URL}?${params.toString()}`);
   });
   app2.get("/auth/facebook/callback", async (req, res) => {
     const { code, state, error } = req.query;
+    const fallbackOrigin = "https://tsm.triarcsolutions.com.br";
+    const { origin, accountId, popup } = parseOAuthState(state, fallbackOrigin);
     if (error) {
       console.error("[Facebook] OAuth error:", error);
-      return res.redirect("/?facebook_error=" + encodeURIComponent(error));
-    }
-    let origin = "http://localhost:3000";
-    let accountId;
-    try {
-      const decoded = JSON.parse(Buffer.from(state, "base64url").toString());
-      origin = decoded.origin;
-      accountId = decoded.accountId;
-    } catch {
-      console.warn("[Facebook] Could not parse state");
+      return finishOAuth(res, { origin, popup, provider: "facebook", success: false, error });
     }
     const redirectUri = getRedirectUri2(origin);
     try {
@@ -1318,7 +1393,7 @@ function registerFacebookRoutes(app2) {
       const tokenData = await tokenRes.json();
       if (!tokenData.access_token) {
         console.error("[Facebook] Token exchange failed:", tokenData);
-        return res.redirect("/?facebook_error=token_exchange_failed");
+        return finishOAuth(res, { origin, popup, provider: "facebook", success: false, error: "token_exchange_failed" });
       }
       const userToken = tokenData.access_token;
       const page = await resolvePageToken(userToken);
@@ -1338,20 +1413,25 @@ function registerFacebookRoutes(app2) {
         const [account] = await db.select().from(instagramAccounts).where(eq3(instagramAccounts.id, parseInt(accountId))).limit(1);
         let accountRef = pageRef;
         if (account?.platform === "instagram" && page) {
-          try {
-            const igRes = await fetch(
-              `${FB_GRAPH_URL}/${page.pageId}?fields=instagram_business_account&access_token=${page.pageToken}`
-            );
-            if (igRes.ok) {
-              const igData = await igRes.json();
-              const igUserId = igData?.instagram_business_account?.id;
-              if (igUserId) {
-                accountRef = `ig:${igUserId}`;
-                console.log(`[Facebook] Instagram Business Account: ${igUserId}`);
+          let igUserId = page.igUserId;
+          if (!igUserId) {
+            try {
+              const igRes = await fetch(
+                `${FB_GRAPH_URL}/${page.pageId}?fields=instagram_business_account&access_token=${page.pageToken}`
+              );
+              if (igRes.ok) {
+                const igData = await igRes.json();
+                igUserId = igData?.instagram_business_account?.id;
               }
+            } catch (err) {
+              console.warn("[Facebook] N\xE3o foi poss\xEDvel obter conta Instagram Business:", err);
             }
-          } catch (err) {
-            console.warn("[Facebook] N\xE3o foi poss\xEDvel obter conta Instagram Business:", err);
+          }
+          if (igUserId) {
+            accountRef = `ig:${igUserId}`;
+            console.log(`[Facebook] Instagram Business Account: ${igUserId}`);
+          } else {
+            console.warn("[Facebook] P\xE1gina sem Instagram Business vinculado \u2014 verifique conta Creator/Business no Meta");
           }
         }
         await db.update(instagramAccounts).set({
@@ -1361,10 +1441,10 @@ function registerFacebookRoutes(app2) {
         }).where(eq3(instagramAccounts.id, parseInt(accountId)));
         console.log(`[Facebook] Token salvo para conta ${accountId} (ref: ${accountRef})`);
       }
-      res.redirect(`${origin}/accounts?facebook_connected=1`);
+      finishOAuth(res, { origin, popup, provider: "facebook", success: true });
     } catch (err) {
       console.error("[Facebook] Callback error:", err);
-      res.redirect("/?facebook_error=callback_failed");
+      finishOAuth(res, { origin, popup, provider: "facebook", success: false, error: "callback_failed" });
     }
   });
 }
@@ -3023,6 +3103,7 @@ Erro: ${error || "Desconhecido"}`
 
 // server/vercel.ts
 init_db();
+import { sql as sql2 } from "drizzle-orm";
 var app = express();
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
@@ -3032,6 +3113,7 @@ app.get("/api/health", async (_req, res) => {
   try {
     const db = await getDb();
     if (db) {
+      await db.execute(sql2`SELECT 1 AS ok`);
       dbOk = true;
     } else {
       dbError = getLastDbError() || "getDb() returned null";
