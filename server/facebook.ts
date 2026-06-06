@@ -16,15 +16,30 @@ import { instagramAccounts } from "../drizzle/schema";
 import { eq } from "drizzle-orm";
 import { buildOAuthState, finishOAuth, parseOAuthState } from "./_core/oauthFinish";
 
-const FB_AUTH_URL = "https://www.facebook.com/v19.0/dialog/oauth";
-const FB_TOKEN_URL = "https://graph.facebook.com/v19.0/oauth/access_token";
-const FB_GRAPH_URL = "https://graph.facebook.com/v19.0";
+const FB_AUTH_URL = "https://www.facebook.com/v21.0/dialog/oauth";
+const FB_TOKEN_URL = "https://graph.facebook.com/v21.0/oauth/access_token";
+const FB_GRAPH_URL = "https://graph.facebook.com/v21.0";
 
-// Permissões para publicar em Pages e Instagram Business
-const FB_SCOPES = [
-  "pages_show_list", "pages_read_engagement", "pages_manage_posts",
-  "instagram_basic", "instagram_content_publish",
-].join(",");
+/** Scopes padrão — só Pages (funcionam sem produto Instagram no app Meta). */
+const FB_PAGE_SCOPES = [
+  "pages_show_list",
+  "pages_read_engagement",
+  "pages_manage_posts",
+];
+
+/** Requer produto "Instagram Graph API" + permissões no Meta Developer. */
+const FB_IG_SCOPES = ["instagram_basic", "instagram_content_publish"];
+
+function getFacebookScopes(forInstagram: boolean): string {
+  if (ENV.facebookOAuthScopes.trim()) {
+    return ENV.facebookOAuthScopes.trim();
+  }
+  const scopes = [...FB_PAGE_SCOPES];
+  if (forInstagram && ENV.facebookIgScopes) {
+    scopes.push(...FB_IG_SCOPES);
+  }
+  return scopes.join(",");
+}
 
 // Vanity name da página da Triarc Solutions no Facebook
 const FB_PAGE_VANITY = "Triarcsolutions";
@@ -42,10 +57,10 @@ function getRedirectUri(_origin: string): string {
  */
 async function resolvePageToken(
   userToken: string
-): Promise<{ pageId: string; pageToken: string; pageName: string } | null> {
+): Promise<{ pageId: string; pageToken: string; pageName: string; igUserId?: string } | null> {
   try {
     const res = await fetch(
-      `${FB_GRAPH_URL}/me/accounts?fields=id,name,access_token,category&access_token=${userToken}`
+      `${FB_GRAPH_URL}/me/accounts?fields=id,name,access_token,category,instagram_business_account&access_token=${userToken}`
     );
     if (!res.ok) {
       console.warn("[Facebook] /me/accounts status:", res.status, await res.text());
@@ -66,7 +81,8 @@ async function resolvePageToken(
     ) ?? pages[0]; // fallback: primeira página disponível
 
     console.log(`[Facebook] Página selecionada: ${triarc.name} (${triarc.id})`);
-    return { pageId: triarc.id, pageToken: triarc.access_token, pageName: triarc.name };
+    const igUserId = triarc.instagram_business_account?.id as string | undefined;
+    return { pageId: triarc.id, pageToken: triarc.access_token, pageName: triarc.name, igUserId };
   } catch (err) {
     console.warn("[Facebook] Erro ao resolver Page token:", err);
     return null;
@@ -79,16 +95,23 @@ export function registerFacebookRoutes(app: Express) {
     const origin = (req.query.origin as string) || "http://localhost:3000";
     const accountId = req.query.accountId as string;
     const popup = req.query.popup === "1" || req.query.popup === "true";
+    const forInstagram = req.query.forInstagram === "1" || req.query.forInstagram === "true";
     const redirectUri = getRedirectUri(origin);
     const state = buildOAuthState(origin, accountId, popup);
+    const scope = getFacebookScopes(forInstagram);
 
     const params = new URLSearchParams({
       client_id: ENV.facebookAppId,
       redirect_uri: redirectUri,
-      scope: FB_SCOPES,
+      scope,
       state,
       response_type: "code",
+      display: popup ? "popup" : "page",
     });
+
+    if (ENV.facebookLoginConfigId) {
+      params.set("config_id", ENV.facebookLoginConfigId);
+    }
 
     res.redirect(`${FB_AUTH_URL}?${params.toString()}`);
   });
@@ -147,20 +170,25 @@ export function registerFacebookRoutes(app: Express) {
 
         let accountRef = pageRef;
         if (account?.platform === "instagram" && page) {
-          try {
-            const igRes = await fetch(
-              `${FB_GRAPH_URL}/${page.pageId}?fields=instagram_business_account&access_token=${page.pageToken}`
-            );
-            if (igRes.ok) {
-              const igData = await igRes.json() as any;
-              const igUserId = igData?.instagram_business_account?.id;
-              if (igUserId) {
-                accountRef = `ig:${igUserId}`;
-                console.log(`[Facebook] Instagram Business Account: ${igUserId}`);
+          let igUserId = page.igUserId;
+          if (!igUserId) {
+            try {
+              const igRes = await fetch(
+                `${FB_GRAPH_URL}/${page.pageId}?fields=instagram_business_account&access_token=${page.pageToken}`
+              );
+              if (igRes.ok) {
+                const igData = await igRes.json() as any;
+                igUserId = igData?.instagram_business_account?.id;
               }
+            } catch (err) {
+              console.warn("[Facebook] Não foi possível obter conta Instagram Business:", err);
             }
-          } catch (err) {
-            console.warn("[Facebook] Não foi possível obter conta Instagram Business:", err);
+          }
+          if (igUserId) {
+            accountRef = `ig:${igUserId}`;
+            console.log(`[Facebook] Instagram Business Account: ${igUserId}`);
+          } else {
+            console.warn("[Facebook] Página sem Instagram Business vinculado — verifique conta Creator/Business no Meta");
           }
         }
 

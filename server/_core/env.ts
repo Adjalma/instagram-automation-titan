@@ -18,6 +18,12 @@ export const ENV = {
   linkedinClientSecret: process.env.LINKEDIN_CLIENT_SECRET ?? "",
   facebookAppId: process.env.FACEBOOK_APP_ID ?? "",
   facebookAppSecret: process.env.FACEBOOK_APP_SECRET ?? "",
+  /** Scopes OAuth customizados (separados por vírgula). Sobrescreve o padrão. */
+  facebookOAuthScopes: process.env.FACEBOOK_OAUTH_SCOPES ?? "",
+  /** "1" = inclui instagram_basic + instagram_content_publish (exige produto IG no app Meta) */
+  facebookIgScopes: process.env.FACEBOOK_IG_SCOPES === "1",
+  /** Facebook Login for Business — config_id do Meta Developer */
+  facebookLoginConfigId: process.env.FACEBOOK_LOGIN_CONFIG_ID ?? "",
   // Instagram direct
   igUserId: process.env.IG_USER_ID ?? "",
   igUsername: process.env.IG_USERNAME ?? "",

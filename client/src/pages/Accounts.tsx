@@ -67,11 +67,22 @@ export default function Accounts() {
     if (deleteId !== null) deleteAccount.mutate({ id: deleteId });
   }, [deleteId, deleteAccount]);
 
-  const handleOAuthConnect = useCallback((provider: "facebook" | "linkedin", accountId: number) => {
+  const handleOAuthConnect = useCallback((
+    provider: "facebook" | "linkedin",
+    accountId: number,
+    platform?: string
+  ) => {
+    const forInstagram = platform === "instagram";
     const ok = openOAuthConnect(provider, accountId, () => {
       refetch();
-      toast.success(provider === "facebook" ? "Conta Facebook/Instagram conectada!" : "LinkedIn conectado!");
-    });
+      toast.success(
+        forInstagram
+          ? "Instagram conectado via Facebook!"
+          : provider === "facebook"
+            ? "Facebook conectado!"
+            : "LinkedIn conectado!"
+      );
+    }, { forInstagram });
     if (!ok) {
       toast.error("Permita popups neste site para conectar a conta (ícone ao lado da barra de endereço).");
     }
@@ -240,13 +251,13 @@ export default function Accounts() {
                         <div className="flex items-center gap-1">
                           <Badge className="bg-pink-600 text-white text-xs">📸 Conectado</Badge>
                           <Button variant="ghost" size="sm" className="text-xs text-pink-700 h-6 px-2"
-                            onClick={() => handleOAuthConnect("facebook", account.id)}>
+                            onClick={() => handleOAuthConnect("facebook", account.id, "instagram")}>
                             Reconectar
                           </Button>
                         </div>
                       ) : (
                         <Button variant="outline" size="sm" className="text-pink-600 border-pink-600 hover:bg-pink-50"
-                          onClick={() => handleOAuthConnect("facebook", account.id)}>
+                          onClick={() => handleOAuthConnect("facebook", account.id, "instagram")}>
                           <Instagram className="w-3 h-3 mr-1" /> Conectar
                         </Button>
                       )
@@ -256,13 +267,13 @@ export default function Accounts() {
                         <div className="flex items-center gap-1">
                           <Badge className="bg-blue-600 text-white text-xs">📰 Page Conectada</Badge>
                           <Button variant="ghost" size="sm" className="text-xs text-blue-700 h-6 px-2"
-                            onClick={() => handleOAuthConnect("facebook", account.id)}>
+                            onClick={() => handleOAuthConnect("facebook", account.id, "facebook")}>
                             Reconectar
                           </Button>
                         </div>
                       ) : (
                         <Button variant="outline" size="sm" className="text-blue-600 border-blue-600 hover:bg-blue-50"
-                          onClick={() => handleOAuthConnect("facebook", account.id)}>
+                          onClick={() => handleOAuthConnect("facebook", account.id, "facebook")}>
                           <Facebook className="w-3 h-3 mr-1" /> Conectar
                         </Button>
                       )
@@ -335,10 +346,17 @@ export default function Accounts() {
         <CardHeader className="pb-2">
           <CardTitle className="text-sm text-muted-foreground">Publicação Automática</CardTitle>
         </CardHeader>
-        <CardContent className="text-xs text-muted-foreground space-y-1">
-          <p>✅ <strong>Instagram</strong> — conecte via Facebook OAuth ou configure IG_ACCESS_TOKEN no Vercel</p>
-          <p>✅ <strong>LinkedIn</strong> — OAuth configurado. Ao conectar, publica automaticamente na Company Page</p>
-          <p>✅ <strong>Facebook</strong> — OAuth configurado. Ao conectar, publica automaticamente na Página da empresa</p>
+        <CardContent className="text-xs text-muted-foreground space-y-2">
+          <p>✅ <strong>Instagram</strong> — conecte via Facebook (conta Business/Creator vinculada à Página Triarc)</p>
+          <p className="pl-4 text-[11px] leading-relaxed">
+            Se aparecer <em>Invalid Scopes</em> no Meta: no Developer Console adicione o produto
+            <strong> Instagram Graph API</strong>, em Facebook Login ative as permissões
+            <code className="mx-1">instagram_basic</code> e
+            <code className="mx-1">instagram_content_publish</code>, depois no Vercel defina
+            <code className="mx-1">FACEBOOK_IG_SCOPES=1</code> e redeploy.
+          </p>
+          <p>✅ <strong>LinkedIn</strong> — OAuth configurado</p>
+          <p>✅ <strong>Facebook</strong> — OAuth configurado (Página da empresa)</p>
           <p>🔜 <strong>TikTok</strong> — em desenvolvimento</p>
           <p>🔜 <strong>YouTube</strong> — em desenvolvimento</p>
         </CardContent>
