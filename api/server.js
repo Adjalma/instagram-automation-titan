@@ -684,8 +684,10 @@ var ENV = {
   deepseekModel: process.env.DEEPSEEK_MODEL ?? "deepseek-chat",
   // Fallback: Anthropic Claude
   anthropicApiKey: process.env.ANTHROPIC_API_KEY ?? "",
-  // Image generation: Gemini
+  // Image generation: Gemini (Nano Banana)
   geminiApiKey: process.env.GEMINI_API_KEY ?? "",
+  /** Modelo de imagem — padrão gemini-2.5-flash-image (substitui preview 2.0 descontinuado) */
+  geminiImageModel: process.env.GEMINI_IMAGE_MODEL ?? "gemini-2.5-flash-image",
   // News API
   newsApiKey: process.env.NEWS_API_KEY ?? "",
   // Social media OAuth
@@ -1103,15 +1105,26 @@ async function invokeAnthropicRest(params, apiKey) {
 // server/_core/imageGeneration.ts
 var IMAGE_NO_TEXT_RULES = `CRITICAL RULES: Do NOT render any text, letters, words, numbers, typography, headlines, titles or captions inside the image. No Portuguese or English visible. Convey the topic only through abstract visuals, icons, symbols, colors and composition. All readable text belongs in the Instagram caption, not in the image.`;
 var TRIARC_VISUAL_STYLE = "Modern premium tech aesthetic, cyan (#00BFFF) and dark navy (#0A1628), minimalist corporate design, subtle circuit patterns and holographic glow. Place the Triarc Solutions logo emblem (circular tech badge with gears) in the bottom-right corner. 1080x1080 square, magazine quality.";
+var GEMINI_IMAGE_MODEL_FALLBACKS = [
+  "gemini-2.5-flash-image",
+  "gemini-3.1-flash-image",
+  "gemini-3-pro-image"
+];
 function buildTriarcImagePrompt(topic) {
   return `Premium Instagram visual for Triarc Solutions, a Brazilian tech company. Visual mood inspired by the concept: "${topic}". ${TRIARC_VISUAL_STYLE} ${IMAGE_NO_TEXT_RULES}`;
+}
+function uniqueModels(primary) {
+  const seen = /* @__PURE__ */ new Set();
+  return [primary, ...GEMINI_IMAGE_MODEL_FALLBACKS].filter((m) => {
+    if (seen.has(m)) return false;
+    seen.add(m);
+    return true;
+  });
 }
 async function generateImage(options) {
   if (!ENV.geminiApiKey) {
     throw new Error("GEMINI_API_KEY is not configured");
   }
-  const model = "gemini-2.0-flash-preview-image-generation";
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${ENV.geminiApiKey}`;
   const prompt = options.prompt.includes("Do NOT render any text") ? options.prompt : `${options.prompt}
 
 ${IMAGE_NO_TEXT_RULES}`;
@@ -1127,8 +1140,8 @@ ${IMAGE_NO_TEXT_RULES}`;
         if (imgRes.ok) {
           const buf = await imgRes.arrayBuffer();
           const b64 = Buffer.from(buf).toString("base64");
-          const mimeType2 = imgRes.headers.get("content-type") ?? img.mimeType ?? "image/jpeg";
-          parts.push({ inlineData: { mimeType: mimeType2, data: b64 } });
+          const mimeType = imgRes.headers.get("content-type") ?? img.mimeType ?? "image/jpeg";
+          parts.push({ inlineData: { mimeType, data: b64 } });
         }
       } catch {
       }
@@ -1138,25 +1151,39 @@ ${IMAGE_NO_TEXT_RULES}`;
     contents: [{ parts }],
     generationConfig: { responseModalities: ["IMAGE", "TEXT"] }
   };
-  const response = await fetch(endpoint, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(body)
-  });
-  if (!response.ok) {
-    const detail = await response.text().catch(() => "");
-    throw new Error(`Gemini image generation failed (${response.status}): ${detail}`);
+  const models = uniqueModels(ENV.geminiImageModel);
+  let lastError = "";
+  for (const model of models) {
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${ENV.geminiApiKey}`;
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    if (response.status === 404) {
+      lastError = await response.text().catch(() => `model ${model} not found`);
+      console.warn(`[Gemini] Modelo ${model} indispon\xEDvel (404), tentando pr\xF3ximo...`);
+      continue;
+    }
+    if (!response.ok) {
+      const detail = await response.text().catch(() => "");
+      throw new Error(`Gemini image generation failed (${response.status}) [${model}]: ${detail}`);
+    }
+    const result = await response.json();
+    const imagePart = result.candidates?.[0]?.content?.parts?.find((p) => p.inlineData);
+    if (!imagePart?.inlineData) {
+      throw new Error(`Gemini (${model}) did not return an image`);
+    }
+    const { data: b64Data, mimeType } = imagePart.inlineData;
+    const buffer = Buffer.from(b64Data, "base64");
+    const ext = mimeType.split("/")[1] ?? "png";
+    const { url } = await storagePut(`generated/${Date.now()}.${ext}`, buffer, mimeType);
+    console.log(`[Gemini] Imagem gerada com modelo ${model}`);
+    return { url };
   }
-  const result = await response.json();
-  const imagePart = result.candidates?.[0]?.content?.parts?.find((p) => p.inlineData);
-  if (!imagePart?.inlineData) {
-    throw new Error("Gemini did not return an image");
-  }
-  const { data: b64Data, mimeType } = imagePart.inlineData;
-  const buffer = Buffer.from(b64Data, "base64");
-  const ext = mimeType.split("/")[1] ?? "png";
-  const { url } = await storagePut(`generated/${Date.now()}.${ext}`, buffer, mimeType);
-  return { url };
+  throw new Error(
+    `Gemini image generation failed: nenhum modelo de imagem dispon\xEDvel. \xDAltimo erro: ${lastError}. Configure GEMINI_IMAGE_MODEL (ex: gemini-2.5-flash-image) ou verifique a API key.`
+  );
 }
 
 // server/instagram.ts

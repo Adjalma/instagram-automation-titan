@@ -9,8 +9,10 @@ export const ENV = {
   deepseekModel: process.env.DEEPSEEK_MODEL ?? "deepseek-chat",
   // Fallback: Anthropic Claude
   anthropicApiKey: process.env.ANTHROPIC_API_KEY ?? "",
-  // Image generation: Gemini
+  // Image generation: Gemini (Nano Banana)
   geminiApiKey: process.env.GEMINI_API_KEY ?? "",
+  /** Modelo de imagem — padrão gemini-2.5-flash-image (substitui preview 2.0 descontinuado) */
+  geminiImageModel: process.env.GEMINI_IMAGE_MODEL ?? "gemini-2.5-flash-image",
   // News API
   newsApiKey: process.env.NEWS_API_KEY ?? "",
   // Social media OAuth
