@@ -1427,6 +1427,10 @@ function registerFacebookRoutes(app2) {
               console.warn("[Facebook] N\xE3o foi poss\xEDvel obter conta Instagram Business:", err);
             }
           }
+          if (!igUserId && ENV.igUserId) {
+            igUserId = ENV.igUserId;
+            console.log(`[Facebook] Instagram ID via IG_USER_ID env: ${igUserId}`);
+          }
           if (igUserId) {
             accountRef = `ig:${igUserId}`;
             console.log(`[Facebook] Instagram Business Account: ${igUserId}`);
@@ -1440,6 +1444,9 @@ function registerFacebookRoutes(app2) {
           linkedinUrn: accountRef
         }).where(eq3(instagramAccounts.id, parseInt(accountId)));
         console.log(`[Facebook] Token salvo para conta ${accountId} (ref: ${accountRef})`);
+      } else {
+        console.warn("[Facebook] OAuth sem accountId \u2014 token n\xE3o associado a nenhuma conta");
+        return finishOAuth(res, { origin, popup, provider: "facebook", success: false, error: "missing_account_id" });
       }
       finishOAuth(res, { origin, popup, provider: "facebook", success: true });
     } catch (err) {

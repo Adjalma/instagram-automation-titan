@@ -73,8 +73,8 @@ export default function Accounts() {
     platform?: string
   ) => {
     const forInstagram = platform === "instagram";
-    const ok = openOAuthConnect(provider, accountId, () => {
-      refetch();
+    const ok = openOAuthConnect(provider, accountId, async () => {
+      await refetch();
       toast.success(
         forInstagram
           ? "Instagram conectado via Facebook!"
@@ -247,9 +247,16 @@ export default function Accounts() {
                   </div>
                   <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
                     {platform === "instagram" && (
-                      account.accessToken && account.linkedinUrn?.startsWith("ig:") ? (
-                        <div className="flex items-center gap-1">
-                          <Badge className="bg-pink-600 text-white text-xs">📸 Conectado</Badge>
+                      account.accessToken ? (
+                        <div className="flex items-center gap-1 flex-wrap justify-end">
+                          <Badge className={`text-white text-xs ${account.linkedinUrn?.startsWith("ig:") ? "bg-pink-600" : "bg-amber-600"}`}>
+                            {account.linkedinUrn?.startsWith("ig:") ? "📸 Conectado" : "🔗 Token OK"}
+                          </Badge>
+                          {!account.linkedinUrn?.startsWith("ig:") && (
+                            <span className="text-[10px] text-muted-foreground max-w-[120px] leading-tight">
+                              Vincule IG Business à Página Triarc no Meta
+                            </span>
+                          )}
                           <Button variant="ghost" size="sm" className="text-xs text-pink-700 h-6 px-2"
                             onClick={() => handleOAuthConnect("facebook", account.id, "instagram")}>
                             Reconectar

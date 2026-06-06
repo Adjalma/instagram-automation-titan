@@ -15,24 +15,24 @@ export function openOAuthConnect(
   if (!popup) return false;
 
   let done = false;
-  const finish = () => {
+  const finish = (success: boolean) => {
     if (done) return;
     done = true;
     window.removeEventListener("message", onMessage);
     clearInterval(poll);
-    onComplete?.();
+    if (success) onComplete?.();
   };
 
   const onMessage = (event: MessageEvent) => {
     if (event.origin !== window.location.origin) return;
     if (event.data?.type !== "oauth_complete") return;
-    finish();
+    finish(event.data?.success !== false);
   };
 
   window.addEventListener("message", onMessage);
 
   const poll = window.setInterval(() => {
-    if (popup.closed) finish();
+    if (popup.closed && !done) finish(false);
   }, 400);
 
   return true;
