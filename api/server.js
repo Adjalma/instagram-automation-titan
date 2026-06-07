@@ -2050,7 +2050,12 @@ var IG_GRAPH2 = "https://graph.facebook.com/v21.0";
 async function resolveMediaUrlForInstagram(mediaUrl) {
   if (mediaUrl.startsWith("data:")) {
     console.log("[Agent] Convertendo data URL \u2192 Supabase para publica\xE7\xE3o IG");
-    return await uploadDataUrlToStorage(mediaUrl, "published");
+    const proxyUrl = await uploadDataUrlToStorage(mediaUrl, "published");
+    const idx = proxyUrl.search(/\/(storage|manus-storage)\//);
+    if (idx >= 0) {
+      return await storageGetSignedUrl(proxyUrl.slice(idx));
+    }
+    return proxyUrl;
   }
   let storagePath = mediaUrl;
   const storageIdx = mediaUrl.search(/\/(storage|manus-storage)\//);
