@@ -1147,16 +1147,25 @@ async function invokeAnthropicRest(params, apiKey) {
 
 // server/_core/imageGeneration.ts
 var GEMINI_TIMEOUT_MS = 12e4;
+var MAX_RETRIES_PER_MODEL = 3;
+var RETRYABLE_STATUSES = /* @__PURE__ */ new Set([429, 500, 503]);
 var IMAGE_NO_TEXT_RULES = `CRITICAL RULES: Do NOT render any text, letters, words, numbers, typography, headlines, titles or captions inside the image. No Portuguese or English visible. Convey the topic only through abstract visuals, icons, symbols, colors and composition. All readable text belongs in the Instagram caption, not in the image.`;
 var TRIARC_VISUAL_STYLE = "Modern premium tech aesthetic, cyan (#00BFFF) and dark navy (#0A1628), minimalist corporate design, subtle circuit patterns and holographic glow. Place the Triarc Solutions logo emblem (circular tech badge with gears) in the bottom-right corner. 1080x1080 square, magazine quality.";
 var GEMINI_IMAGE_MODEL_FALLBACKS = [
   "gemini-2.5-flash-image",
-  "gemini-3.1-flash-image-preview"
+  "gemini-3.1-flash-image-preview",
+  "gemini-3-pro-image-preview"
 ];
 function buildTriarcImagePrompt(topic) {
   return `Premium Instagram visual for Triarc Solutions, a Brazilian tech company. Visual mood inspired by the concept: "${topic}". ${TRIARC_VISUAL_STYLE} ${IMAGE_NO_TEXT_RULES}`;
 }
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 function formatGeminiHttpError(status, model, detail) {
+  if (status === 503 || detail.includes("high demand") || detail.includes("UNAVAILABLE")) {
+    return "Servidor Gemini sobrecarregado (alta demanda tempor\xE1ria). Aguarde 1\u20132 minutos e clique em Gerar Imagem novamente.";
+  }
   if (status === 429) {
     const isFreeTierZero = detail.includes("free_tier") && (detail.includes("limit: 0") || detail.includes('"limit":0'));
     if (isFreeTierZero) {
@@ -1205,6 +1214,28 @@ async function callGeminiImage(model, body) {
     clearTimeout(timer);
   }
 }
+async function callGeminiWithRetry(model, body) {
+  let lastDetail = "";
+  for (let attempt = 1; attempt <= MAX_RETRIES_PER_MODEL; attempt++) {
+    const response = await callGeminiImage(model, body);
+    if (response.ok || response.status === 404) {
+      return response;
+    }
+    lastDetail = await response.text().catch(() => "");
+    if (!RETRYABLE_STATUSES.has(response.status)) {
+      throw new Error(formatGeminiHttpError(response.status, model, lastDetail));
+    }
+    if (attempt < MAX_RETRIES_PER_MODEL) {
+      const delayMs = attempt * 2e3;
+      console.warn(
+        `[Gemini] ${model} HTTP ${response.status} \u2014 retry ${attempt}/${MAX_RETRIES_PER_MODEL} em ${delayMs}ms`
+      );
+      await sleep(delayMs);
+    }
+  }
+  console.warn(`[Gemini] ${model} esgotou retries (${lastDetail.slice(0, 120)})`);
+  return null;
+}
 function extractImagePart(result) {
   if (result.promptFeedback?.blockReason) {
     throw new Error(`Gemini bloqueou o prompt: ${result.promptFeedback.blockReason}`);
@@ -1233,16 +1264,18 @@ ${IMAGE_NO_TEXT_RULES}`;
   };
   const models = uniqueModels(ENV.geminiImageModel);
   let lastError = "";
+  let saw503 = false;
   for (const model of models) {
-    const response = await callGeminiImage(model, body);
+    const response = await callGeminiWithRetry(model, body);
+    if (!response) {
+      saw503 = true;
+      lastError = `modelo ${model} indispon\xEDvel (503/429)`;
+      continue;
+    }
     if (response.status === 404) {
       lastError = await response.text().catch(() => `model ${model} not found`);
       console.warn(`[Gemini] Modelo ${model} indispon\xEDvel (404)`);
       continue;
-    }
-    if (!response.ok) {
-      const detail = await response.text().catch(() => "");
-      throw new Error(formatGeminiHttpError(response.status, model, detail));
     }
     let result;
     try {
@@ -1260,6 +1293,9 @@ ${IMAGE_NO_TEXT_RULES}`;
     const { url } = await storagePut(`generated/${Date.now()}.${ext}`, buffer, mimeType);
     console.log(`[Gemini] Imagem OK (${model}) \u2192 ${url.slice(0, 80)}...`);
     return { url };
+  }
+  if (saw503) {
+    throw new Error(formatGeminiHttpError(503, models[0] ?? "gemini", "high demand"));
   }
   throw new Error(
     `Nenhum modelo Gemini de imagem dispon\xEDvel. ${lastError}. Verifique GEMINI_API_KEY e ai.dev/rate-limit.`
