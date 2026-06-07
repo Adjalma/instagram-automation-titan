@@ -366,13 +366,42 @@ __export(db_exports, {
   getThemeBySlug: () => getThemeBySlug,
   getUserByEmail: () => getUserByEmail,
   getUserByOpenId: () => getUserByOpenId,
+  resetDb: () => resetDb,
   updateFirstPostMediaUrl: () => updateFirstPostMediaUrl,
   updatePost: () => updatePost,
-  upsertUser: () => upsertUser
+  upsertUser: () => upsertUser,
+  withDbRetry: () => withDbRetry
 });
 import { eq, desc, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
+function isTransientDbError(err) {
+  const msg = [
+    err?.message,
+    err?.cause?.message,
+    String(err)
+  ].filter(Boolean).join(" ");
+  return /timeout|closed|terminated|ECONNRESET|ECONNREFUSED|57014|Failed query|connection|socket|broken pipe/i.test(msg);
+}
+function resetDb() {
+  _db = null;
+  const client = _client;
+  _client = null;
+  if (client) {
+    client.end({ timeout: 0 }).catch(() => {
+    });
+  }
+}
+async function withDbRetry(fn) {
+  try {
+    return await fn();
+  } catch (err) {
+    if (!isTransientDbError(err)) throw err;
+    console.warn("[Database] Erro transit\xF3rio, reconectando...", err?.message);
+    resetDb();
+    return await fn();
+  }
+}
 async function getDb() {
   if (_db) return _db;
   const url = process.env.DATABASE_URL || process.env.DB_URL || process.env.POSTGRES_URL || process.env.POSTGRES_PRISMA_URL || process.env.SUPABASE_DB_URL;
@@ -396,7 +425,7 @@ async function getDb() {
     const username = decodeURIComponent(parsed.username || "postgres");
     const password = decodeURIComponent(parsed.password || "");
     console.log(`[Database] Connecting to ${host}:${port}/${database} as ${username}`);
-    const client = postgres({
+    _client = postgres({
       host,
       port,
       database,
@@ -404,13 +433,14 @@ async function getDb() {
       password,
       max: 1,
       ssl: "require",
-      idle_timeout: 20,
+      idle_timeout: 120,
+      max_lifetime: 60 * 30,
       connect_timeout: 30,
       prepare: false
     });
-    await client`SELECT 1 AS ok`;
+    await _client`SELECT 1 AS ok`;
     console.log("[Database] Raw connection OK");
-    const db = drizzle(client);
+    const db = drizzle(_client);
     _db = db;
     _lastError = "";
     console.log("[Database] Connected to PostgreSQL");
@@ -420,7 +450,7 @@ async function getDb() {
     const code = root?.code ?? error?.code ?? "";
     _lastError = code ? `${code}: ${msg}` : msg;
     console.error("[Database] Connection failed:", _lastError, error);
-    _db = null;
+    resetDb();
   }
   return _db;
 }
@@ -536,9 +566,11 @@ async function getAllPosts() {
   return queryPosts(db, sql`SELECT ${sql.raw(POST_COLS)} ${POST_FROM} ORDER BY p."createdAt" DESC LIMIT ${POST_LIST_LIMIT}`);
 }
 async function updatePost(id, data) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-  await db.update(posts).set(data).where(eq(posts.id, id));
+  await withDbRetry(async () => {
+    const db = await getDb();
+    if (!db) throw new Error("Database not available");
+    await db.update(posts).set({ ...data, updatedAt: /* @__PURE__ */ new Date() }).where(eq(posts.id, id));
+  });
 }
 async function deletePost(id) {
   const db = await getDb();
@@ -558,12 +590,14 @@ async function getPostMedia(postId) {
   return db.select().from(postMedia).where(eq(postMedia.postId, postId)).orderBy(postMedia.sortOrder);
 }
 async function updateFirstPostMediaUrl(postId, mediaUrl) {
-  const db = await getDb();
-  if (!db) return;
-  const rows = await db.select({ id: postMedia.id }).from(postMedia).where(eq(postMedia.postId, postId)).orderBy(postMedia.sortOrder).limit(1);
-  if (rows[0]) {
-    await db.update(postMedia).set({ mediaUrl }).where(eq(postMedia.id, rows[0].id));
-  }
+  await withDbRetry(async () => {
+    const db = await getDb();
+    if (!db) return;
+    const rows = await db.select({ id: postMedia.id }).from(postMedia).where(eq(postMedia.postId, postId)).orderBy(postMedia.sortOrder).limit(1);
+    if (rows[0]) {
+      await db.update(postMedia).set({ mediaUrl }).where(eq(postMedia.id, rows[0].id));
+    }
+  });
 }
 async function deletePostMedia(id) {
   const db = await getDb();
@@ -612,12 +646,13 @@ async function getThemeBySlug(slug) {
   const result = await db.select().from(contentThemes).where(eq(contentThemes.slug, slug)).limit(1);
   return result[0];
 }
-var _db, _lastError, POST_COLS, POST_LIST_LIMIT, POST_FROM;
+var _db, _client, _lastError, POST_COLS, POST_LIST_LIMIT, POST_FROM;
 var init_db = __esm({
   "server/db.ts"() {
     "use strict";
     init_schema();
     _db = null;
+    _client = null;
     _lastError = "";
     POST_COLS = `p.id, p."userId", p."accountId", p.caption, p.status, p.theme, p."scheduledAt", p."publishedAt",
   p."instagramPostId", p."instagramPermalink", p.likes, p.comments, p."createdAt", p."updatedAt",

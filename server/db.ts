@@ -8,7 +8,38 @@ import {
 import type { InsertPost } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
+let _client: ReturnType<typeof postgres> | null = null;
 let _lastError = "";
+
+function isTransientDbError(err: unknown): boolean {
+  const msg = [
+    (err as { message?: string })?.message,
+    (err as { cause?: { message?: string } })?.cause?.message,
+    String(err),
+  ].filter(Boolean).join(" ");
+  return /timeout|closed|terminated|ECONNRESET|ECONNREFUSED|57014|Failed query|connection|socket|broken pipe/i.test(msg);
+}
+
+/** Descarta pool singleton — necessário após operações longas (upload IG) com conexão idle. */
+export function resetDb(): void {
+  _db = null;
+  const client = _client;
+  _client = null;
+  if (client) {
+    client.end({ timeout: 0 }).catch(() => {});
+  }
+}
+
+export async function withDbRetry<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (err) {
+    if (!isTransientDbError(err)) throw err;
+    console.warn("[Database] Erro transitório, reconectando...", (err as Error)?.message);
+    resetDb();
+    return await fn();
+  }
+}
 
 export async function getDb() {
   if (_db) return _db;
@@ -42,7 +73,7 @@ export async function getDb() {
 
     console.log(`[Database] Connecting to ${host}:${port}/${database} as ${username}`);
 
-    const client = postgres({
+    _client = postgres({
       host,
       port,
       database,
@@ -50,16 +81,17 @@ export async function getDb() {
       password,
       max: 1,
       ssl: "require",
-      idle_timeout: 20,
+      idle_timeout: 120,
+      max_lifetime: 60 * 30,
       connect_timeout: 30,
       prepare: false,
     });
 
     // Test raw connection before wrapping with Drizzle
-    await client`SELECT 1 AS ok`;
+    await _client`SELECT 1 AS ok`;
     console.log("[Database] Raw connection OK");
 
-    const db = drizzle(client);
+    const db = drizzle(_client);
     _db = db;
     _lastError = "";
     console.log("[Database] Connected to PostgreSQL");
@@ -69,7 +101,7 @@ export async function getDb() {
     const code = root?.code ?? error?.code ?? "";
     _lastError = code ? `${code}: ${msg}` : msg;
     console.error("[Database] Connection failed:", _lastError, error);
-    _db = null;
+    resetDb();
   }
 
   return _db;
@@ -227,9 +259,11 @@ export async function updatePost(id: number, data: Partial<{
   mcpPending: number; retryCount: number; nextRetryAt: Date | null;
   likes: number; comments: number; linkedinPublished: number; facebookPublished: number;
 }>) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-  await db.update(posts).set(data as any).where(eq(posts.id, id));
+  await withDbRetry(async () => {
+    const db = await getDb();
+    if (!db) throw new Error("Database not available");
+    await db.update(posts).set({ ...data, updatedAt: new Date() } as any).where(eq(posts.id, id));
+  });
 }
 
 export async function deletePost(id: number) {
@@ -254,17 +288,19 @@ export async function getPostMedia(postId: number) {
 }
 
 export async function updateFirstPostMediaUrl(postId: number, mediaUrl: string) {
-  const db = await getDb();
-  if (!db) return;
-  const rows = await db
-    .select({ id: postMedia.id })
-    .from(postMedia)
-    .where(eq(postMedia.postId, postId))
-    .orderBy(postMedia.sortOrder)
-    .limit(1);
-  if (rows[0]) {
-    await db.update(postMedia).set({ mediaUrl }).where(eq(postMedia.id, rows[0].id));
-  }
+  await withDbRetry(async () => {
+    const db = await getDb();
+    if (!db) return;
+    const rows = await db
+      .select({ id: postMedia.id })
+      .from(postMedia)
+      .where(eq(postMedia.postId, postId))
+      .orderBy(postMedia.sortOrder)
+      .limit(1);
+    if (rows[0]) {
+      await db.update(postMedia).set({ mediaUrl }).where(eq(postMedia.id, rows[0].id));
+    }
+  });
 }
 
 export async function deletePostMedia(id: number) {
