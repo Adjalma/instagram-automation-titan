@@ -123,12 +123,14 @@ app.use("/api/trpc", createExpressMiddleware({
   },
 }));
 
-// Inicialização no cold start
-sdk.ensureAdminUser().catch(e => console.error("[Auth] Erro ao criar admin:", e));
-seedTriarcContent().catch(e => console.error("[Seed] Erro triac_content:", e));
-seedContentThemes().catch(e => console.error("[Seed] Erro content_themes:", e));
-ensureStorageBucket().catch(e => console.error("[Storage] Bucket:", e.message));
-ensureImageJobsTable().catch(e => console.error("[ImageJob] Tabela:", e.message));
+// Inicialização adiada — não compete com auth.me no cold start
+setTimeout(() => {
+  sdk.ensureAdminUser().catch(e => console.error("[Auth] Erro ao criar admin:", e));
+  seedTriarcContent().catch(e => console.error("[Seed] Erro triac_content:", e));
+  seedContentThemes().catch(e => console.error("[Seed] Erro content_themes:", e));
+  ensureStorageBucket().catch(e => console.error("[Storage] Bucket:", e.message));
+  ensureImageJobsTable().catch(e => console.error("[ImageJob] Tabela:", e.message));
+}, 5000);
 
 /** Geração de imagem Gemini pode levar 15–120s. */
 export const config = { maxDuration: 300 };

@@ -404,55 +404,62 @@ async function withDbRetry(fn) {
 }
 async function getDb() {
   if (_db) return _db;
-  const url = process.env.DATABASE_URL || process.env.DB_URL || process.env.POSTGRES_URL || process.env.POSTGRES_PRISMA_URL || process.env.SUPABASE_DB_URL;
-  if (!url) {
-    _lastError = "No database URL found. Checked: DATABASE_URL, DB_URL, POSTGRES_URL, SUPABASE_DB_URL";
-    console.error("[Database]", _lastError);
-    return null;
-  }
-  try {
-    let parsed;
-    try {
-      parsed = new URL(url);
-    } catch {
-      _lastError = "Invalid database URL format";
+  if (_connecting) return _connecting;
+  _connecting = (async () => {
+    const url = process.env.DATABASE_URL || process.env.DB_URL || process.env.POSTGRES_URL || process.env.POSTGRES_PRISMA_URL || process.env.SUPABASE_DB_URL;
+    if (!url) {
+      _lastError = "No database URL found. Checked: DATABASE_URL, DB_URL, POSTGRES_URL, SUPABASE_DB_URL";
       console.error("[Database]", _lastError);
       return null;
     }
-    const host = parsed.hostname;
-    const port = parseInt(parsed.port || "5432", 10);
-    const database = parsed.pathname.replace("/", "") || "postgres";
-    const username = decodeURIComponent(parsed.username || "postgres");
-    const password = decodeURIComponent(parsed.password || "");
-    console.log(`[Database] Connecting to ${host}:${port}/${database} as ${username}`);
-    _client = postgres({
-      host,
-      port,
-      database,
-      username,
-      password,
-      max: 1,
-      ssl: "require",
-      idle_timeout: 120,
-      max_lifetime: 60 * 30,
-      connect_timeout: 30,
-      prepare: false
-    });
-    await _client`SELECT 1 AS ok`;
-    console.log("[Database] Raw connection OK");
-    const db = drizzle(_client);
-    _db = db;
-    _lastError = "";
-    console.log("[Database] Connected to PostgreSQL");
-  } catch (error) {
-    const root = error?.cause ?? error;
-    const msg = root?.message ?? error?.message ?? String(error);
-    const code = root?.code ?? error?.code ?? "";
-    _lastError = code ? `${code}: ${msg}` : msg;
-    console.error("[Database] Connection failed:", _lastError, error);
-    resetDb();
-  }
-  return _db;
+    try {
+      let parsed;
+      try {
+        parsed = new URL(url);
+      } catch {
+        _lastError = "Invalid database URL format";
+        console.error("[Database]", _lastError);
+        return null;
+      }
+      const host = parsed.hostname;
+      const port = parseInt(parsed.port || "5432", 10);
+      const database = parsed.pathname.replace("/", "") || "postgres";
+      const username = decodeURIComponent(parsed.username || "postgres");
+      const password = decodeURIComponent(parsed.password || "");
+      console.log(`[Database] Connecting to ${host}:${port}/${database} as ${username}`);
+      _client = postgres({
+        host,
+        port,
+        database,
+        username,
+        password,
+        max: 1,
+        ssl: "require",
+        idle_timeout: 120,
+        max_lifetime: 60 * 30,
+        connect_timeout: 30,
+        prepare: false
+      });
+      await _client`SELECT 1 AS ok`;
+      await _client`SET statement_timeout TO '8000'`;
+      console.log("[Database] Raw connection OK");
+      const db = drizzle(_client);
+      _db = db;
+      _lastError = "";
+      console.log("[Database] Connected to PostgreSQL");
+    } catch (error) {
+      const root = error?.cause ?? error;
+      const msg = root?.message ?? error?.message ?? String(error);
+      const code = root?.code ?? error?.code ?? "";
+      _lastError = code ? `${code}: ${msg}` : msg;
+      console.error("[Database] Connection failed:", _lastError, error);
+      resetDb();
+    }
+    return _db;
+  })().finally(() => {
+    _connecting = null;
+  });
+  return _connecting;
 }
 function getLastDbError() {
   return _lastError;
@@ -537,7 +544,7 @@ async function queryPosts(db, rawSql) {
     const result = await db.execute(rawSql);
     return Array.isArray(result) ? result : [];
   } catch (error) {
-    _db = null;
+    resetDb();
     throw error;
   }
 }
@@ -646,13 +653,14 @@ async function getThemeBySlug(slug) {
   const result = await db.select().from(contentThemes).where(eq(contentThemes.slug, slug)).limit(1);
   return result[0];
 }
-var _db, _client, _lastError, POST_COLS, POST_LIST_LIMIT, POST_FROM;
+var _db, _client, _connecting, _lastError, POST_COLS, POST_LIST_LIMIT, POST_FROM;
 var init_db = __esm({
   "server/db.ts"() {
     "use strict";
     init_schema();
     _db = null;
     _client = null;
+    _connecting = null;
     _lastError = "";
     POST_COLS = `p.id, p."userId", p."accountId", p.caption, p.status, p.theme, p."scheduledAt", p."publishedAt",
   p."instagramPostId", p."instagramPermalink", p.likes, p.comments, p."createdAt", p."updatedAt",
@@ -830,23 +838,50 @@ var SDKServer = class {
       return null;
     }
   }
+  async getUserFromSessionCookieOnly(req) {
+    const cookies = parseCookieHeader(req.headers.cookie ?? "");
+    const session = await this.verifySession(cookies[COOKIE_NAME]);
+    if (!session) return null;
+    if (ENV.adminEmail && ENV.adminPassword && session.openId === `admin:${ENV.adminEmail}`) {
+      return {
+        id: 0,
+        openId: session.openId,
+        name: session.name || "Admin",
+        email: ENV.adminEmail,
+        passwordHash: null,
+        loginMethod: "local",
+        role: "admin",
+        createdAt: /* @__PURE__ */ new Date(),
+        updatedAt: /* @__PURE__ */ new Date(),
+        lastSignedIn: /* @__PURE__ */ new Date()
+      };
+    }
+    return null;
+  }
   async authenticateRequest(req) {
     const cookies = parseCookieHeader(req.headers.cookie ?? "");
     const sessionCookie = cookies[COOKIE_NAME];
     const session = await this.verifySession(sessionCookie);
     if (!session) throw ForbiddenError("Invalid session cookie");
-    const virtualAdmin = ENV.adminEmail && ENV.adminPassword && session.openId === `admin:${ENV.adminEmail}` ? {
-      id: 0,
-      openId: session.openId,
-      name: "Admin",
-      email: ENV.adminEmail,
-      passwordHash: null,
-      loginMethod: "local",
-      role: "admin",
-      createdAt: /* @__PURE__ */ new Date(),
-      updatedAt: /* @__PURE__ */ new Date(),
-      lastSignedIn: /* @__PURE__ */ new Date()
-    } : null;
+    if (ENV.adminEmail && ENV.adminPassword && session.openId === `admin:${ENV.adminEmail}`) {
+      void getUserByOpenId(session.openId).then((u) => {
+        if (u) void upsertUser({ openId: u.openId, lastSignedIn: /* @__PURE__ */ new Date() }).catch(() => {
+        });
+      }).catch(() => {
+      });
+      return {
+        id: 0,
+        openId: session.openId,
+        name: session.name || "Admin",
+        email: ENV.adminEmail,
+        passwordHash: null,
+        loginMethod: "local",
+        role: "admin",
+        createdAt: /* @__PURE__ */ new Date(),
+        updatedAt: /* @__PURE__ */ new Date(),
+        lastSignedIn: /* @__PURE__ */ new Date()
+      };
+    }
     let user;
     try {
       user = await getUserByOpenId(session.openId);
@@ -855,7 +890,6 @@ var SDKServer = class {
       user = void 0;
     }
     if (!user) {
-      if (virtualAdmin) return virtualAdmin;
       throw ForbiddenError("User not found");
     }
     void upsertUser({ openId: user.openId, lastSignedIn: /* @__PURE__ */ new Date() }).catch((err) => {
@@ -3457,9 +3491,17 @@ Retorne JSON com exatamente esta estrutura:
 async function createContext(opts) {
   let user = null;
   try {
-    user = await sdk.authenticateRequest(opts.req);
-  } catch (error) {
-    user = null;
+    const authPromise = sdk.authenticateRequest(opts.req);
+    const timeoutMs = 12e3;
+    user = await Promise.race([
+      authPromise,
+      new Promise((resolve) => setTimeout(() => resolve(null), timeoutMs))
+    ]);
+    if (!user) {
+      user = await sdk.getUserFromSessionCookieOnly(opts.req);
+    }
+  } catch {
+    user = await sdk.getUserFromSessionCookieOnly(opts.req);
   }
   return {
     req: opts.req,
@@ -3955,11 +3997,13 @@ app.use("/api/trpc", createExpressMiddleware({
     console.error(`[tRPC] ${path ?? "?"}:`, error.message);
   }
 }));
-sdk.ensureAdminUser().catch((e) => console.error("[Auth] Erro ao criar admin:", e));
-seedTriarcContent().catch((e) => console.error("[Seed] Erro triac_content:", e));
-seedContentThemes().catch((e) => console.error("[Seed] Erro content_themes:", e));
-ensureStorageBucket().catch((e) => console.error("[Storage] Bucket:", e.message));
-ensureImageJobsTable().catch((e) => console.error("[ImageJob] Tabela:", e.message));
+setTimeout(() => {
+  sdk.ensureAdminUser().catch((e) => console.error("[Auth] Erro ao criar admin:", e));
+  seedTriarcContent().catch((e) => console.error("[Seed] Erro triac_content:", e));
+  seedContentThemes().catch((e) => console.error("[Seed] Erro content_themes:", e));
+  ensureStorageBucket().catch((e) => console.error("[Storage] Bucket:", e.message));
+  ensureImageJobsTable().catch((e) => console.error("[ImageJob] Tabela:", e.message));
+}, 5e3);
 var config = { maxDuration: 300 };
 var vercel_default = app;
 export {

@@ -9,6 +9,7 @@ import type { InsertPost } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 let _client: ReturnType<typeof postgres> | null = null;
+let _connecting: Promise<ReturnType<typeof drizzle> | null> | null = null;
 let _lastError = "";
 
 function isTransientDbError(err: unknown): boolean {
@@ -43,7 +44,9 @@ export async function withDbRetry<T>(fn: () => Promise<T>): Promise<T> {
 
 export async function getDb() {
   if (_db) return _db;
+  if (_connecting) return _connecting;
 
+  _connecting = (async () => {
   const url = process.env.DATABASE_URL
     || process.env.DB_URL
     || process.env.POSTGRES_URL
@@ -89,6 +92,7 @@ export async function getDb() {
 
     // Test raw connection before wrapping with Drizzle
     await _client`SELECT 1 AS ok`;
+    await _client`SET statement_timeout TO '8000'`;
     console.log("[Database] Raw connection OK");
 
     const db = drizzle(_client);
@@ -105,6 +109,11 @@ export async function getDb() {
   }
 
   return _db;
+  })().finally(() => {
+    _connecting = null;
+  });
+
+  return _connecting;
 }
 
 export function getLastDbError() {
@@ -220,7 +229,7 @@ async function queryPosts(db: ReturnType<typeof drizzle>, rawSql: ReturnType<typ
     const result = await db.execute(rawSql);
     return Array.isArray(result) ? result : [];
   } catch (error) {
-    _db = null;
+    resetDb();
     throw error;
   }
 }

@@ -76,6 +76,32 @@ class SDKServer {
     }
   }
 
+  async getUserFromSessionCookieOnly(req: Request): Promise<User | null> {
+    const cookies = parseCookieHeader(req.headers.cookie ?? "");
+    const session = await this.verifySession(cookies[COOKIE_NAME]);
+    if (!session) return null;
+
+    if (
+      ENV.adminEmail &&
+      ENV.adminPassword &&
+      session.openId === `admin:${ENV.adminEmail}`
+    ) {
+      return {
+        id: 0,
+        openId: session.openId,
+        name: session.name || "Admin",
+        email: ENV.adminEmail,
+        passwordHash: null,
+        loginMethod: "local",
+        role: "admin",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        lastSignedIn: new Date(),
+      } as User;
+    }
+    return null;
+  }
+
   async authenticateRequest(req: Request): Promise<User> {
     const cookies = parseCookieHeader(req.headers.cookie ?? "");
     const sessionCookie = cookies[COOKIE_NAME];
@@ -83,23 +109,30 @@ class SDKServer {
 
     if (!session) throw ForbiddenError("Invalid session cookie");
 
-    const virtualAdmin =
+    // Admin via env — zero espera no banco (evita auth.me travado)
+    if (
       ENV.adminEmail &&
       ENV.adminPassword &&
       session.openId === `admin:${ENV.adminEmail}`
-        ? ({
-            id: 0,
-            openId: session.openId,
-            name: "Admin",
-            email: ENV.adminEmail,
-            passwordHash: null,
-            loginMethod: "local",
-            role: "admin",
-            createdAt: new Date(),
-            updatedAt: new Date(),
-            lastSignedIn: new Date(),
-          } as User)
-        : null;
+    ) {
+      void db.getUserByOpenId(session.openId)
+        .then((u) => {
+          if (u) void db.upsertUser({ openId: u.openId, lastSignedIn: new Date() }).catch(() => {});
+        })
+        .catch(() => {});
+      return {
+        id: 0,
+        openId: session.openId,
+        name: session.name || "Admin",
+        email: ENV.adminEmail,
+        passwordHash: null,
+        loginMethod: "local",
+        role: "admin",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        lastSignedIn: new Date(),
+      } as User;
+    }
 
     let user: User | undefined;
     try {
@@ -110,7 +143,6 @@ class SDKServer {
     }
 
     if (!user) {
-      if (virtualAdmin) return virtualAdmin;
       throw ForbiddenError("User not found");
     }
 

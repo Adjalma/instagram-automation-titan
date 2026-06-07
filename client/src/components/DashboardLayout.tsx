@@ -67,10 +67,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     return saved ? parseInt(saved, 10) : DEFAULT_WIDTH;
   });
   const { loading, user, isAuthenticated } = useAuth();
+  const [slowLoad, setSlowLoad] = useState(false);
 
   useEffect(() => {
     localStorage.setItem(SIDEBAR_WIDTH_KEY, sidebarWidth.toString());
   }, [sidebarWidth]);
+
+  useEffect(() => {
+    if (!loading) { setSlowLoad(false); return; }
+    const t = setTimeout(() => setSlowLoad(true), 12_000);
+    return () => clearTimeout(t);
+  }, [loading]);
 
   useEffect(() => {
     if (loading) return;
@@ -78,7 +85,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     window.location.replace("/login");
   }, [loading, isAuthenticated]);
 
-  if (loading) return <DashboardLayoutSkeleton />;
+  if (loading && !slowLoad) return <DashboardLayoutSkeleton />;
+
+  if (loading && slowLoad) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 p-6 text-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <p className="text-sm text-muted-foreground">Carregando… o servidor pode estar lento.</p>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => window.location.reload()}>Atualizar</Button>
+          <Button onClick={() => { window.location.href = "/login"; }}>Ir para login</Button>
+        </div>
+      </div>
+    );
+  }
 
   if (!user) {
     return (
