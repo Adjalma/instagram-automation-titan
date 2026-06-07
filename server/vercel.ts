@@ -15,6 +15,7 @@ import { getDb, getLastDbError } from "./db";
 import { sql } from "drizzle-orm";
 import { ensureStorageBucket } from "./storage";
 import { probeImageStack } from "./_core/imageGeneration";
+import { ensureImageJobsTable } from "./imageJobs";
 
 const app = express();
 app.use(express.json({ limit: "50mb" }));
@@ -103,6 +104,7 @@ sdk.ensureAdminUser().catch(e => console.error("[Auth] Erro ao criar admin:", e)
 seedTriarcContent().catch(e => console.error("[Seed] Erro triac_content:", e));
 seedContentThemes().catch(e => console.error("[Seed] Erro content_themes:", e));
 ensureStorageBucket().catch(e => console.error("[Storage] Bucket:", e.message));
+ensureImageJobsTable().catch(e => console.error("[ImageJob] Tabela:", e.message));
 
 /** Geração de imagem Gemini pode levar 15–120s. */
 export const config = { maxDuration: 120 };

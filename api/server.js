@@ -1310,6 +1310,112 @@ async function probeImageStack() {
   };
 }
 
+// server/imageJobs.ts
+init_db();
+import { sql as sql2 } from "drizzle-orm";
+import { waitUntil } from "@vercel/functions";
+var tableReady = false;
+async function ensureImageJobsTable() {
+  if (tableReady) return;
+  const db = await getDb();
+  if (!db) return;
+  await db.execute(sql2`
+    CREATE TABLE IF NOT EXISTS image_generation_jobs (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL,
+      prompt TEXT NOT NULL,
+      status VARCHAR(20) NOT NULL DEFAULT 'pending',
+      url TEXT,
+      error TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  tableReady = true;
+}
+async function createImageJob(userId, prompt) {
+  await ensureImageJobsTable();
+  const db = await getDb();
+  if (!db) throw new Error("Banco de dados indispon\xEDvel");
+  const rows = await db.execute(sql2`
+    INSERT INTO image_generation_jobs (user_id, prompt, status)
+    VALUES (${userId}, ${prompt}, 'pending')
+    RETURNING id
+  `);
+  const id = rows[0]?.id;
+  if (!id) throw new Error("Falha ao criar job de imagem");
+  return id;
+}
+async function getImageJob(jobId, userId) {
+  await ensureImageJobsTable();
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.execute(sql2`
+    SELECT id, user_id, prompt, status, url, error
+    FROM image_generation_jobs
+    WHERE id = ${jobId} AND user_id = ${userId}
+    LIMIT 1
+  `);
+  const row = rows[0];
+  if (!row) return null;
+  return {
+    id: row.id,
+    userId: row.user_id,
+    prompt: row.prompt,
+    status: row.status,
+    url: row.url,
+    error: row.error
+  };
+}
+async function markJobFailed(jobId, message) {
+  const db = await getDb();
+  if (!db) return;
+  await db.execute(sql2`
+    UPDATE image_generation_jobs
+    SET status = 'failed', error = ${message.slice(0, 500)}, updated_at = NOW()
+    WHERE id = ${jobId}
+  `);
+}
+async function processImageJob(jobId) {
+  await ensureImageJobsTable();
+  const db = await getDb();
+  if (!db) throw new Error("Banco de dados indispon\xEDvel");
+  const claimed = await db.execute(sql2`
+    UPDATE image_generation_jobs
+    SET status = 'processing', updated_at = NOW()
+    WHERE id = ${jobId} AND status = 'pending'
+    RETURNING id, prompt
+  `);
+  const job = claimed[0];
+  if (!job) {
+    console.log(`[ImageJob] ${jobId} j\xE1 em processamento ou conclu\xEDdo`);
+    return;
+  }
+  console.log(`[ImageJob] Processando ${jobId}...`);
+  try {
+    const { url } = await generateImage({ prompt: job.prompt });
+    if (!url) throw new Error("Gemini n\xE3o retornou URL");
+    await db.execute(sql2`
+      UPDATE image_generation_jobs
+      SET status = 'done', url = ${url}, error = NULL, updated_at = NOW()
+      WHERE id = ${jobId}
+    `);
+    console.log(`[ImageJob] ${jobId} conclu\xEDdo`);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`[ImageJob] ${jobId} falhou:`, msg);
+    await markJobFailed(jobId, msg);
+  }
+}
+function scheduleImageJob(jobId) {
+  const task = processImageJob(jobId);
+  try {
+    waitUntil(task);
+  } catch {
+    void task;
+  }
+}
+
 // server/instagram.ts
 init_db();
 async function processScheduledPosts() {
@@ -2963,7 +3069,7 @@ Destaque o impacto, tecnologias usadas e valor para o cliente.`
       theme: z3.string(),
       description: z3.string().optional(),
       includelogo: z3.boolean().optional()
-    })).mutation(async ({ input }) => {
+    })).mutation(async ({ ctx, input }) => {
       const account = await getAccountById(input.accountId);
       if (!account) {
         throw new TRPCError2({ code: "NOT_FOUND", message: "Conta n\xE3o encontrada" });
@@ -2975,18 +3081,29 @@ Destaque o impacto, tecnologias usadas e valor para o cliente.`
 Visual context: ${extra}`;
       }
       try {
-        const started = Date.now();
-        const { url } = await generateImage({ prompt });
-        console.log(`[generateArt] OK em ${Date.now() - started}ms theme="${input.theme}"`);
-        if (!url) {
-          throw new TRPCError2({ code: "INTERNAL_SERVER_ERROR", message: "Gemini n\xE3o retornou URL da imagem" });
-        }
-        return { url };
+        const jobId = await createImageJob(ctx.user.id, prompt);
+        scheduleImageJob(jobId);
+        console.log(`[generateArt] Job ${jobId} enfileirado theme="${input.theme}"`);
+        return { jobId, status: "pending" };
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        console.error("[generateArt] FALHA:", msg);
+        console.error("[generateArt] FALHA ao enfileirar:", msg);
         throw new TRPCError2({ code: "INTERNAL_SERVER_ERROR", message: msg });
       }
+    }),
+    generateArtStatus: protectedProcedure.input(z3.object({
+      jobId: z3.number()
+    })).query(async ({ ctx, input }) => {
+      const job = await getImageJob(input.jobId, ctx.user.id);
+      if (!job) {
+        throw new TRPCError2({ code: "NOT_FOUND", message: "Job de imagem n\xE3o encontrado" });
+      }
+      return {
+        jobId: job.id,
+        status: job.status,
+        url: job.url ?? void 0,
+        error: job.error ?? void 0
+      };
     })
   }),
   actionPlan: router({
@@ -3315,7 +3432,7 @@ Erro: ${error || "Desconhecido"}`
 // server/vercel.ts
 init_seed_triarc();
 init_db();
-import { sql as sql2 } from "drizzle-orm";
+import { sql as sql3 } from "drizzle-orm";
 var app = express();
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
@@ -3325,7 +3442,7 @@ app.get("/api/health", async (_req, res) => {
   try {
     const db = await getDb();
     if (db) {
-      await db.execute(sql2`SELECT 1 AS ok`);
+      await db.execute(sql3`SELECT 1 AS ok`);
       dbOk = true;
     } else {
       dbError = getLastDbError() || "getDb() returned null";
@@ -3391,6 +3508,7 @@ sdk.ensureAdminUser().catch((e) => console.error("[Auth] Erro ao criar admin:", 
 seedTriarcContent().catch((e) => console.error("[Seed] Erro triac_content:", e));
 seedContentThemes().catch((e) => console.error("[Seed] Erro content_themes:", e));
 ensureStorageBucket().catch((e) => console.error("[Storage] Bucket:", e.message));
+ensureImageJobsTable().catch((e) => console.error("[ImageJob] Tabela:", e.message));
 var config = { maxDuration: 120 };
 var vercel_default = app;
 export {

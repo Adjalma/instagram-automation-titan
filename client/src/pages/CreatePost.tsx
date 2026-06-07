@@ -52,19 +52,7 @@ export default function CreatePost() {
     onError: (e) => toast.error("Erro ao gerar legenda", { description: e.message }),
   });
 
-  const generateImage = trpc.ai.generateArt.useMutation({
-    onSuccess: (data) => {
-      if (data.url) setMediaUrl(data.url);
-      toast.success("Imagem gerada!");
-    },
-    onError: (e) => {
-      const msg =
-        e.message === "fetch failed" || e.message.includes("Failed to fetch")
-          ? "Conexão interrompida (timeout do servidor). A geração leva 15–90s — aguarde o deploy mais recente ou cole uma URL manualmente."
-          : e.message;
-      toast.error("Erro ao gerar imagem", { description: msg, duration: 8000 });
-    },
-  });
+  const generateImage = trpc.ai.generateArt.useMutation();
 
   const handleGenerateCaption = useCallback(async () => {
     if (!accountId) { toast.error("Selecione uma conta"); return; }
@@ -80,17 +68,38 @@ export default function CreatePost() {
   const handleGenerateImage = useCallback(async () => {
     if (!accountId) { toast.error("Selecione uma conta"); return; }
     if (!theme) { toast.error("Informe o tema para gerar a imagem"); return; }
+
+    const toastId = toast.loading("Gerando imagem com Gemini...", {
+      description: "Pode levar 1–2 minutos. Não feche a página.",
+    });
+
     try {
-      await generateImage.mutateAsync({
+      const { jobId } = await generateImage.mutateAsync({
         accountId: Number(accountId),
         theme,
-        // Não enviar legenda inteira — só contexto curto acelera e evita bloqueio
         description: theme !== caption ? caption.slice(0, 200) || undefined : undefined,
       });
-    } catch {
-      // toast via onError
+
+      for (let i = 0; i < 90; i++) {
+        await new Promise((r) => setTimeout(r, 2000));
+        const status = await utils.ai.generateArtStatus.fetch({ jobId });
+
+        if (status.status === "done" && status.url) {
+          setMediaUrl(status.url);
+          toast.success("Imagem gerada!", { id: toastId });
+          return;
+        }
+        if (status.status === "failed") {
+          throw new Error(status.error ?? "Falha ao gerar imagem");
+        }
+      }
+
+      throw new Error("Tempo esgotado aguardando a imagem. Tente novamente.");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      toast.error("Erro ao gerar imagem", { description: msg, id: toastId, duration: 8000 });
     }
-  }, [accountId, theme, caption, generateImage]);
+  }, [accountId, theme, caption, generateImage, utils.ai.generateArtStatus]);
 
   const handleSubmit = useCallback(() => {
     if (!accountId) { toast.error("Selecione uma conta"); return; }

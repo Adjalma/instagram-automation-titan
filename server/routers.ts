@@ -16,6 +16,7 @@ import {
 } from "./db";
 import { invokeLLM } from "./_core/llm";
 import { generateImage, buildTriarcImagePrompt } from "./_core/imageGeneration";
+import { createImageJob, getImageJob, scheduleImageJob } from "./imageJobs";
 import { notifyOwner } from "./_core/notification";
 import { storagePut } from "./storage";
 import { processScheduledPosts, fetchPostInsights } from "./instagram";
@@ -618,7 +619,7 @@ export const appRouter = router({
       theme: z.string(),
       description: z.string().optional(),
       includelogo: z.boolean().optional(),
-    })).mutation(async ({ input }) => {
+    })).mutation(async ({ ctx, input }) => {
       const account = await getAccountById(input.accountId);
       if (!account) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Conta não encontrada" });
@@ -631,18 +632,29 @@ export const appRouter = router({
       }
 
       try {
-        const started = Date.now();
-        const { url } = await generateImage({ prompt });
-        console.log(`[generateArt] OK em ${Date.now() - started}ms theme="${input.theme}"`);
-        if (!url) {
-          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Gemini não retornou URL da imagem" });
-        }
-        return { url };
+        const jobId = await createImageJob(ctx.user.id, prompt);
+        scheduleImageJob(jobId);
+        console.log(`[generateArt] Job ${jobId} enfileirado theme="${input.theme}"`);
+        return { jobId, status: "pending" as const };
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
-        console.error("[generateArt] FALHA:", msg);
+        console.error("[generateArt] FALHA ao enfileirar:", msg);
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: msg });
       }
+    }),
+    generateArtStatus: protectedProcedure.input(z.object({
+      jobId: z.number(),
+    })).query(async ({ ctx, input }) => {
+      const job = await getImageJob(input.jobId, ctx.user.id);
+      if (!job) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Job de imagem não encontrado" });
+      }
+      return {
+        jobId: job.id,
+        status: job.status,
+        url: job.url ?? undefined,
+        error: job.error ?? undefined,
+      };
     }),
   }),
 
