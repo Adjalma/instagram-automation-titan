@@ -28,10 +28,20 @@ export function buildTriarcImagePrompt(topic: string): string {
 
 function formatGeminiHttpError(status: number, model: string, detail: string): string {
   if (status === 429) {
+    const isFreeTierZero =
+      detail.includes("free_tier") &&
+      (detail.includes("limit: 0") || detail.includes('"limit":0'));
+    if (isFreeTierZero) {
+      return (
+        "Geração de IMAGEM no Gemini está com cota 0 no tier gratuito — isso é separado do saldo/créditos de texto. " +
+        "No Google Cloud Console, vincule billing ao MESMO projeto da API key, crie uma NOVA GEMINI_API_KEY, " +
+        "atualize no Vercel e redeploy. Confira cota de imagem em ai.dev/rate-limit. " +
+        "Alternativa: cole uma URL de imagem manualmente no Criar Post."
+      );
+    }
     return (
-      "Cota da API Gemini esgotada. Geração de imagem exige billing ativo no Google AI Studio " +
-      "(ai.google.dev) — o plano gratuito pode ter limite 0 para modelos de imagem. " +
-      "Ative faturamento ou aguarde ~1 min e tente de novo. Alternativa: cole uma URL de imagem manualmente."
+      "Limite de requisições Gemini atingido. Aguarde ~1 minuto e tente de novo. " +
+      "Alternativa: cole uma URL de imagem manualmente."
     );
   }
   if (status === 403) {
