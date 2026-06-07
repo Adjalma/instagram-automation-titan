@@ -13,6 +13,7 @@ import { startScheduler } from "../scheduler";
 import { registerScheduledRoutes } from "../scheduledRoutes";
 import { registerLinkedInRoutes } from "../linkedin";
 import { registerFacebookRoutes } from "../facebook";
+import { registerImageRoutes } from "../imageRoutes";
 import { seedTriarcContent, seedContentThemes } from "../seed-triarc";
 
 function isPortAvailable(port: number): Promise<boolean> {
@@ -48,6 +49,7 @@ async function startServer() {
   registerLinkedInRoutes(app);
   // Facebook OAuth + Pages publishing routes
   registerFacebookRoutes(app);
+  registerImageRoutes(app);
   // tRPC API
   app.use(
     "/api/trpc",

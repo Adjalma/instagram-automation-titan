@@ -53,7 +53,6 @@ export default function CreatePost() {
     onError: (e) => toast.error("Erro ao gerar legenda", { description: e.message }),
   });
 
-  const generateImage = trpc.ai.generateArt.useMutation();
 
   const handleGenerateCaption = useCallback(async () => {
     if (!accountId) { toast.error("Selecione uma conta"); return; }
@@ -71,56 +70,49 @@ export default function CreatePost() {
     if (!theme) { toast.error("Informe o tema para gerar a imagem"); return; }
 
     setIsGeneratingImage(true);
-    const started = Date.now();
     const toastId = toast.loading("Gerando imagem com Gemini...", {
-      description: "Aguarde — pode levar até 3 minutos. Não feche a página.",
+      description: "Aguarde até 2 minutos. Não feche a página.",
     });
 
-    const statusLabel: Record<string, string> = {
-      pending: "Na fila...",
-      processing: "Gemini criando a arte...",
-    };
-
     try {
-      const { jobId } = await generateImage.mutateAsync({
-        accountId: Number(accountId),
-        theme,
-        description: theme !== caption ? caption.slice(0, 200) || undefined : undefined,
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 130_000);
+
+      const res = await fetch("/api/generate-image", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          accountId: Number(accountId),
+          theme,
+          description: theme !== caption ? caption.slice(0, 200) || undefined : undefined,
+        }),
+        signal: controller.signal,
       });
 
-      // 150 × 2s = até 5 min de polling
-      for (let i = 0; i < 150; i++) {
-        await new Promise((r) => setTimeout(r, i === 0 ? 1500 : 2000));
-        const status = await utils.ai.generateArtStatus.fetch({ jobId });
-        const elapsed = Math.round((Date.now() - started) / 1000);
+      clearTimeout(timer);
 
-        if (status.status === "done" && status.url) {
-          setMediaUrl(status.url);
-          toast.success("Imagem gerada!", { id: toastId });
-          return;
-        }
-        if (status.status === "failed") {
-          throw new Error(status.error ?? "Falha ao gerar imagem");
-        }
+      const data = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
 
-        if (i % 3 === 0) {
-          toast.loading("Gerando imagem com Gemini...", {
-            id: toastId,
-            description: `${statusLabel[status.status] ?? status.status} (${elapsed}s)`,
-          });
-        }
+      if (!res.ok) {
+        throw new Error(data.error ?? `Erro HTTP ${res.status}`);
+      }
+      if (!data.url) {
+        throw new Error("Servidor não retornou URL da imagem");
       }
 
-      throw new Error(
-        "Tempo esgotado após 5 minutos. O Gemini pode estar lento — tente novamente em 1–2 minutos."
-      );
+      setMediaUrl(data.url);
+      toast.success("Imagem gerada!", { id: toastId });
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e);
+      let msg = e instanceof Error ? e.message : String(e);
+      if (msg.includes("abort") || msg === "Failed to fetch") {
+        msg = "Tempo esgotado ou conexão interrompida. Tente novamente em 1 minuto.";
+      }
       toast.error("Erro ao gerar imagem", { description: msg, id: toastId, duration: 10000 });
     } finally {
       setIsGeneratingImage(false);
     }
-  }, [accountId, theme, caption, generateImage, utils.ai.generateArtStatus]);
+  }, [accountId, theme, caption]);
 
   const handleSubmit = useCallback(() => {
     if (!accountId) { toast.error("Selecione uma conta"); return; }

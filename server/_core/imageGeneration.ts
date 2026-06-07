@@ -8,8 +8,8 @@ export type GenerateImageOptions = {
 
 export type GenerateImageResponse = { url?: string };
 
-const GEMINI_TIMEOUT_MS = 120_000;
-const MAX_RETRIES_PER_MODEL = 3;
+const GEMINI_TIMEOUT_MS = 55_000;
+const MAX_RETRIES_PER_MODEL = 2;
 const RETRYABLE_STATUSES = new Set([429, 500, 503]);
 
 const IMAGE_NO_TEXT_RULES = `CRITICAL RULES: Do NOT render any text, letters, words, numbers, typography, headlines, titles or captions inside the image. No Portuguese or English visible. Convey the topic only through abstract visuals, icons, symbols, colors and composition. All readable text belongs in the Instagram caption, not in the image.`;
@@ -20,7 +20,6 @@ const TRIARC_VISUAL_STYLE =
 const GEMINI_IMAGE_MODEL_FALLBACKS = [
   "gemini-2.5-flash-image",
   "gemini-3.1-flash-image-preview",
-  "gemini-3-pro-image-preview",
 ] as const;
 
 export function buildTriarcImagePrompt(topic: string): string {

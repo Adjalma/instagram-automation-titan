@@ -17,7 +17,7 @@ export type ImageJobRow = {
   updatedAt: Date;
 };
 
-const STALE_PROCESSING_MS = 4 * 60 * 1000;
+const STALE_PROCESSING_MS = 100_000;
 
 let tableReady = false;
 
@@ -203,21 +203,33 @@ export function dispatchImageJobProcessing(jobId: number): void {
   triggerRemoteProcessing(jobId);
 }
 
+/** Marca jobs presos em processing como failed. */
+export async function failStaleProcessingIfNeeded(jobId: number): Promise<void> {
+  const job = await getImageJobById(jobId);
+  if (!job || job.status !== "processing") return;
+  if (Date.now() - job.updatedAt.getTime() > STALE_PROCESSING_MS) {
+    await markJobFailed(
+      jobId,
+      "Processamento interrompido (timeout do servidor). Clique em Gerar Imagem novamente."
+    );
+  }
+}
+
 /** Re-dispara jobs presos; chamado no polling de status. */
 export async function kickImageJob(jobId: number): Promise<void> {
+  await failStaleProcessingIfNeeded(jobId);
+
   const job = await getImageJobById(jobId);
   if (!job || job.status === "done" || job.status === "failed") return;
 
   if (job.status === "processing") {
-    if (Date.now() - job.updatedAt.getTime() > STALE_PROCESSING_MS) {
-      await resetJobToPending(jobId);
-      dispatchImageJobProcessing(jobId);
-    }
     return;
   }
 
   const ageMs = Date.now() - job.createdAt.getTime();
-  if (ageMs > 3000) {
+  const neverStarted = job.updatedAt.getTime() - job.createdAt.getTime() < 3000;
+  // Só re-dispara se ficou pending >8s sem nunca ir para processing
+  if (neverStarted && ageMs > 8000 && ageMs < 120_000) {
     dispatchImageJobProcessing(jobId);
   }
 }

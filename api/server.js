@@ -1146,15 +1146,14 @@ async function invokeAnthropicRest(params, apiKey) {
 }
 
 // server/_core/imageGeneration.ts
-var GEMINI_TIMEOUT_MS = 12e4;
-var MAX_RETRIES_PER_MODEL = 3;
+var GEMINI_TIMEOUT_MS = 55e3;
+var MAX_RETRIES_PER_MODEL = 2;
 var RETRYABLE_STATUSES = /* @__PURE__ */ new Set([429, 500, 503]);
 var IMAGE_NO_TEXT_RULES = `CRITICAL RULES: Do NOT render any text, letters, words, numbers, typography, headlines, titles or captions inside the image. No Portuguese or English visible. Convey the topic only through abstract visuals, icons, symbols, colors and composition. All readable text belongs in the Instagram caption, not in the image.`;
 var TRIARC_VISUAL_STYLE = "Modern premium tech aesthetic, cyan (#00BFFF) and dark navy (#0A1628), minimalist corporate design, subtle circuit patterns and holographic glow. Place the Triarc Solutions logo emblem (circular tech badge with gears) in the bottom-right corner. 1080x1080 square, magazine quality.";
 var GEMINI_IMAGE_MODEL_FALLBACKS = [
   "gemini-2.5-flash-image",
-  "gemini-3.1-flash-image-preview",
-  "gemini-3-pro-image-preview"
+  "gemini-3.1-flash-image-preview"
 ];
 function buildTriarcImagePrompt(topic) {
   return `Premium Instagram visual for Triarc Solutions, a Brazilian tech company. Visual mood inspired by the concept: "${topic}". ${TRIARC_VISUAL_STYLE} ${IMAGE_NO_TEXT_RULES}`;
@@ -1314,7 +1313,7 @@ async function probeImageStack() {
 init_db();
 import { sql as sql2 } from "drizzle-orm";
 import { waitUntil } from "@vercel/functions";
-var STALE_PROCESSING_MS = 4 * 60 * 1e3;
+var STALE_PROCESSING_MS = 1e5;
 var tableReady = false;
 function internalAuthSecret() {
   return ENV.cronSecret || ENV.cookieSecret;
@@ -1394,16 +1393,6 @@ async function markJobFailed(jobId, message) {
     WHERE id = ${jobId}
   `);
 }
-async function resetJobToPending(jobId) {
-  const db = await getDb();
-  if (!db) return;
-  await db.execute(sql2`
-    UPDATE image_generation_jobs
-    SET status = 'pending', error = NULL, updated_at = NOW()
-    WHERE id = ${jobId} AND status = 'processing'
-  `);
-  console.warn(`[ImageJob] ${jobId} resetado de processing \u2192 pending (stale)`);
-}
 async function processImageJob(jobId) {
   await ensureImageJobsTable();
   const db = await getDb();
@@ -1457,18 +1446,26 @@ function dispatchImageJobProcessing(jobId) {
   }
   triggerRemoteProcessing(jobId);
 }
+async function failStaleProcessingIfNeeded(jobId) {
+  const job = await getImageJobById(jobId);
+  if (!job || job.status !== "processing") return;
+  if (Date.now() - job.updatedAt.getTime() > STALE_PROCESSING_MS) {
+    await markJobFailed(
+      jobId,
+      "Processamento interrompido (timeout do servidor). Clique em Gerar Imagem novamente."
+    );
+  }
+}
 async function kickImageJob(jobId) {
+  await failStaleProcessingIfNeeded(jobId);
   const job = await getImageJobById(jobId);
   if (!job || job.status === "done" || job.status === "failed") return;
   if (job.status === "processing") {
-    if (Date.now() - job.updatedAt.getTime() > STALE_PROCESSING_MS) {
-      await resetJobToPending(jobId);
-      dispatchImageJobProcessing(jobId);
-    }
     return;
   }
   const ageMs = Date.now() - job.createdAt.getTime();
-  if (ageMs > 3e3) {
+  const neverStarted = job.updatedAt.getTime() - job.createdAt.getTime() < 3e3;
+  if (neverStarted && ageMs > 8e3 && ageMs < 12e4) {
     dispatchImageJobProcessing(jobId);
   }
 }
@@ -3492,6 +3489,53 @@ Erro: ${error || "Desconhecido"}`
   });
 }
 
+// server/imageRoutes.ts
+init_db();
+var TOTAL_GENERATION_MS = 1e5;
+function buildPrompt(theme, description) {
+  let prompt = buildTriarcImagePrompt(theme.trim());
+  const extra = description?.trim().slice(0, 500);
+  if (extra) prompt += `
+Visual context: ${extra}`;
+  return prompt;
+}
+async function generateWithBudget(prompt) {
+  const budget = new Promise((_, reject) => {
+    setTimeout(
+      () => reject(new Error("Gera\xE7\xE3o excedeu 100s. Tente novamente em 1 minuto.")),
+      TOTAL_GENERATION_MS
+    );
+  });
+  const { url } = await Promise.race([generateImage({ prompt }), budget]);
+  if (!url) throw new Error("Gemini n\xE3o retornou URL da imagem");
+  return url;
+}
+function registerImageRoutes(app2) {
+  app2.post("/api/generate-image", async (req, res) => {
+    const started = Date.now();
+    try {
+      const user = await sdk.authenticateRequest(req);
+      const { accountId, theme, description } = req.body ?? {};
+      if (!accountId || !theme?.trim()) {
+        return res.status(400).json({ error: "Conta e tema s\xE3o obrigat\xF3rios" });
+      }
+      const account = await getAccountById(Number(accountId));
+      if (!account) {
+        return res.status(404).json({ error: "Conta n\xE3o encontrada" });
+      }
+      const prompt = buildPrompt(String(theme), description ? String(description) : void 0);
+      console.log(`[generate-image] user=${user.id} theme="${theme}"`);
+      const url = await generateWithBudget(prompt);
+      console.log(`[generate-image] OK em ${Date.now() - started}ms`);
+      return res.json({ url });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`[generate-image] FALHA em ${Date.now() - started}ms:`, msg);
+      return res.status(500).json({ error: msg });
+    }
+  });
+}
+
 // server/vercel.ts
 init_seed_triarc();
 init_db();
@@ -3549,6 +3593,7 @@ registerOAuthRoutes(app);
 registerScheduledRoutes(app);
 registerLinkedInRoutes(app);
 registerFacebookRoutes(app);
+registerImageRoutes(app);
 app.get("/api/cron/tick", async (req, res) => {
   if (req.headers["authorization"] !== `Bearer ${process.env.CRON_SECRET}`) {
     return res.status(401).json({ error: "Unauthorized" });

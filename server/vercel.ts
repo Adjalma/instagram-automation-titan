@@ -8,6 +8,7 @@ import { createContext } from "./_core/context";
 import { registerScheduledRoutes } from "./scheduledRoutes";
 import { registerLinkedInRoutes } from "./linkedin";
 import { registerFacebookRoutes } from "./facebook";
+import { registerImageRoutes } from "./imageRoutes";
 import { runAutonomousAgent } from "./autonomousAgent";
 import { sdk } from "./_core/sdk";
 import { seedTriarcContent, seedContentThemes } from "./seed-triarc";
@@ -78,6 +79,7 @@ registerOAuthRoutes(app);
 registerScheduledRoutes(app);
 registerLinkedInRoutes(app);
 registerFacebookRoutes(app);
+registerImageRoutes(app);
 
 app.get("/api/cron/tick", async (req, res) => {
   if (req.headers["authorization"] !== `Bearer ${process.env.CRON_SECRET}`) {
