@@ -17,6 +17,7 @@ import { sql } from "drizzle-orm";
 import { ensureStorageBucket } from "./storage";
 import { probeImageStack } from "./_core/imageGeneration";
 import { describeIgTokenEnv } from "./_core/env";
+import { ensureImageJobsTable, processImageJob, verifyInternalAuth } from "./imageJobs";
 
 const app = express();
 app.use(express.json({ limit: "50mb" }));

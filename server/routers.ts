@@ -20,6 +20,7 @@ import { createImageJob, getImageJob, kickImageJob, dispatchImageJobProcessing }
 import { notifyOwner } from "./_core/notification";
 import { storagePut } from "./storage";
 import { processScheduledPosts, fetchPostInsights } from "./instagram";
+import { runAutonomousAgent } from "./autonomousAgent";
 import { resolveIgAccessTokenFromEnv } from "./_core/env";
 import { researchRouter } from "./routers/research";
 import { seedTriarcContent, TRIARC_SERVICES, TRIARC_PROJECTS } from "./seed-triarc";
