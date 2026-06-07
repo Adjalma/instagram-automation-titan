@@ -18,7 +18,8 @@ import {
 } from "./db";
 import { publishToLinkedIn } from "./linkedin";
 import { publishToFacebook } from "./facebook";
-import { storageGetSignedUrl, uploadDataUrlToStorage } from "./storage";
+import { uploadDataUrlToStorage, extractStorageKey, supabasePublicObjectUrl } from "./storage";
+import { fetchWithRetry, formatFetchError } from "./httpFetch";
 
 const IG_GRAPH = "https://graph.facebook.com/v21.0";
 
@@ -28,22 +29,18 @@ async function resolveMediaUrlForInstagram(mediaUrl: string): Promise<string> {
     throw new Error("Imagem em data URL — use Publicar Agora para converter automaticamente");
   }
 
-  let storagePath = mediaUrl;
-  const storageIdx = mediaUrl.search(/\/(storage|manus-storage)\//);
-  if (storageIdx >= 0) {
-    storagePath = mediaUrl.slice(storageIdx);
+  const key = extractStorageKey(mediaUrl);
+  if (key) {
+    return supabasePublicObjectUrl(key);
   }
 
-  if (storagePath.startsWith("/storage/") || storagePath.startsWith("/manus-storage/")) {
-    try {
-      return await storageGetSignedUrl(storagePath);
-    } catch {
-      const key = storagePath.replace(/^\/(storage|manus-storage)\//, "");
-      if (ENV.supabaseUrl) {
-        const bucket = process.env.SUPABASE_STORAGE_BUCKET ?? "triarc-social";
-        return `${ENV.supabaseUrl}/storage/v1/object/public/${bucket}/${key}`;
-      }
-    }
+  if (mediaUrl.startsWith("/storage/") || mediaUrl.startsWith("/manus-storage/")) {
+    const k = mediaUrl.replace(/^\/(?:storage|manus-storage)\//, "");
+    return supabasePublicObjectUrl(k);
+  }
+
+  if (mediaUrl.startsWith("http://") || mediaUrl.startsWith("https://")) {
+    return mediaUrl;
   }
 
   if (mediaUrl.startsWith("/")) {
@@ -63,43 +60,62 @@ export async function publishToInstagram(params: {
 }): Promise<{ postId: string; permalink: string }> {
   const { igUserId, accessToken, caption, imageUrl } = params;
 
-  // Step 1: Create media container
-  const containerBody: Record<string, string> = {
-    caption,
-    access_token: accessToken,
-  };
-
-  if (imageUrl) {
-    containerBody.image_url = imageUrl;
-    // media_type só para VIDEO/REELS/STORIES/CAROUSEL — omitir em foto feed (#100 se IMAGE)
-  } else {
-    // Text-only not supported by IG; skip gracefully
+  if (!imageUrl) {
     throw new Error("Instagram requer pelo menos uma imagem");
   }
 
-  const containerRes = await fetch(`${IG_GRAPH}/${igUserId}/media`, {
-    method: "POST",
-    headers: { "content-type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams(containerBody).toString(),
-  });
+  // Meta baixa a imagem desta URL — verificar acessibilidade antes
+  try {
+    const probe = await fetchWithRetry(
+      imageUrl,
+      { method: "GET", headers: { Range: "bytes=0-4095" }, timeoutMs: 30_000 },
+      "verificar imagem para Instagram"
+    );
+    if (!probe.ok && probe.status !== 206) {
+      throw new Error(`Imagem inacessível (HTTP ${probe.status}). Meta não consegue baixar.`);
+    }
+  } catch (err: unknown) {
+    throw new Error(formatFetchError(err, "Imagem inacessível para Meta"));
+  }
+
+  const containerBody: Record<string, string> = {
+    caption,
+    access_token: accessToken,
+    image_url: imageUrl,
+  };
+
+  const containerRes = await fetchWithRetry(
+    `${IG_GRAPH}/${igUserId}/media`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams(containerBody).toString(),
+      timeoutMs: 90_000,
+    },
+    "Instagram criar container"
+  );
 
   if (!containerRes.ok) {
     const err = await containerRes.text();
-    throw new Error(`IG media container failed: ${containerRes.status} ${err}`);
+    throw new Error(`Instagram container (${containerRes.status}): ${err.slice(0, 300)}`);
   }
 
   const { id: creationId } = (await containerRes.json()) as { id: string };
 
-  // Step 2: Publish container
-  const publishRes = await fetch(`${IG_GRAPH}/${igUserId}/media_publish`, {
-    method: "POST",
-    headers: { "content-type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({ creation_id: creationId, access_token: accessToken }).toString(),
-  });
+  const publishRes = await fetchWithRetry(
+    `${IG_GRAPH}/${igUserId}/media_publish`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ creation_id: creationId, access_token: accessToken }).toString(),
+      timeoutMs: 90_000,
+    },
+    "Instagram publicar"
+  );
 
   if (!publishRes.ok) {
     const err = await publishRes.text();
-    throw new Error(`IG media_publish failed: ${publishRes.status} ${err}`);
+    throw new Error(`Instagram publish (${publishRes.status}): ${err.slice(0, 300)}`);
   }
 
   const { id: mediaId } = (await publishRes.json()) as { id: string };
@@ -392,11 +408,8 @@ export async function runAutonomousAgent(options?: {
     try {
       if (rawImageUrl?.startsWith("data:")) {
         console.log(`[Agent] Post ${post.id}: convertendo data URL → Supabase`);
-        const proxyUrl = await uploadDataUrlToStorage(rawImageUrl, "published");
-        await updateFirstPostMediaUrl(post.id, proxyUrl);
-        const idx = proxyUrl.search(/\/(storage|manus-storage)\//);
-        imageUrl =
-          idx >= 0 ? await storageGetSignedUrl(proxyUrl.slice(idx)) : proxyUrl;
+        imageUrl = await uploadDataUrlToStorage(rawImageUrl, "published");
+        await updateFirstPostMediaUrl(post.id, imageUrl);
       } else if (rawImageUrl) {
         imageUrl = await resolveMediaUrlForInstagram(rawImageUrl);
       }

@@ -978,6 +978,45 @@ function registerOAuthRoutes(app2) {
   });
 }
 
+// server/httpFetch.ts
+var DEFAULT_TIMEOUT_MS = 6e4;
+var DEFAULT_RETRIES = 3;
+function formatFetchError(err, step) {
+  const cause = err?.cause;
+  const parts = [
+    step,
+    err instanceof Error ? err.message : String(err),
+    cause?.code,
+    cause?.message
+  ].filter(Boolean);
+  const joined = parts.join(" \u2014 ");
+  if (/fetch failed/i.test(joined)) {
+    return `${step}: falha de rede (timeout ou conex\xE3o). Verifique SUPABASE_URL e token Meta.`;
+  }
+  return joined;
+}
+async function fetchWithRetry(url, init = {}, label = "fetch") {
+  const timeoutMs = init.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  let lastErr;
+  for (let attempt = 1; attempt <= DEFAULT_RETRIES; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch(url, { ...init, signal: controller.signal });
+      clearTimeout(timer);
+      return res;
+    } catch (err) {
+      clearTimeout(timer);
+      lastErr = err;
+      if (attempt < DEFAULT_RETRIES) {
+        await new Promise((r) => setTimeout(r, attempt * 1500));
+        continue;
+      }
+    }
+  }
+  throw new Error(formatFetchError(lastErr, label));
+}
+
 // server/storage.ts
 var STORAGE_BUCKET = process.env.SUPABASE_STORAGE_BUCKET ?? "triarc-social";
 var bucketEnsured = false;
@@ -1000,6 +1039,22 @@ function supabaseHeaders(contentType) {
 function publicStorageUrl(key) {
   const base = (ENV.appUrl || "https://tsm.triarcsolutions.com.br").replace(/\/$/, "");
   return `${base}/storage/${key}`;
+}
+function supabasePublicObjectUrl(key) {
+  if (!ENV.supabaseUrl) {
+    return publicStorageUrl(key);
+  }
+  const normalized = normalizeKey(key);
+  return `${ENV.supabaseUrl.replace(/\/$/, "")}/storage/v1/object/public/${STORAGE_BUCKET}/${normalized}`;
+}
+function extractStorageKey(mediaUrl) {
+  const fromProxy = mediaUrl.match(/\/(?:storage|manus-storage)\/([^?#]+)/);
+  if (fromProxy) return decodeURIComponent(fromProxy[1]);
+  const fromSupabase = mediaUrl.match(
+    /\/storage\/v1\/object\/(?:public|sign)\/[^/]+\/([^?#]+)/
+  );
+  if (fromSupabase) return decodeURIComponent(fromSupabase[1]);
+  return null;
 }
 async function ensureStorageBucket() {
   if (bucketEnsured) return;
@@ -1042,9 +1097,9 @@ async function uploadBytes(key, raw, contentType) {
     "x-upsert": "true",
     "cache-control": "3600"
   };
-  let res = await fetch(uploadUrl, { method: "POST", headers, body: raw });
+  let res = await fetchWithRetry(uploadUrl, { method: "POST", headers, body: raw, timeoutMs: 12e4 }, "upload Supabase");
   if (!res.ok && (res.status === 400 || res.status === 405)) {
-    res = await fetch(uploadUrl, { method: "PUT", headers, body: raw });
+    res = await fetchWithRetry(uploadUrl, { method: "PUT", headers, body: raw, timeoutMs: 12e4 }, "upload Supabase (PUT)");
   }
   if (!res.ok) {
     const err = await res.text().catch(() => "");
@@ -1059,13 +1114,16 @@ async function storagePut(relKey, data, contentType = "application/octet-stream"
   const key = appendHashSuffix(normalizeKey(relKey));
   const raw = typeof data === "string" ? Buffer.from(data) : Buffer.from(data);
   await uploadBytes(key, raw, contentType);
-  return { key, url: publicStorageUrl(key) };
+  return { key, url: supabasePublicObjectUrl(key) };
 }
 async function uploadDataUrlToStorage(dataUrl, relKeyPrefix = "generated") {
   const match = /^data:([^;]+);base64,(.+)$/s.exec(dataUrl);
   if (!match) throw new Error("data URL inv\xE1lida");
   const mimeType = match[1];
   const buffer = Buffer.from(match[2], "base64");
+  if (buffer.length > 8 * 1024 * 1024) {
+    throw new Error("Imagem muito grande (>8MB). Gere a imagem de novo com Gerar Imagem.");
+  }
   const ext = mimeType.split("/")[1]?.replace("jpeg", "jpg") ?? "png";
   const { url } = await storagePut(`${relKeyPrefix}/${Date.now()}.${ext}`, buffer, mimeType);
   return url;
@@ -2169,21 +2227,16 @@ async function resolveMediaUrlForInstagram(mediaUrl) {
   if (mediaUrl.startsWith("data:")) {
     throw new Error("Imagem em data URL \u2014 use Publicar Agora para converter automaticamente");
   }
-  let storagePath = mediaUrl;
-  const storageIdx = mediaUrl.search(/\/(storage|manus-storage)\//);
-  if (storageIdx >= 0) {
-    storagePath = mediaUrl.slice(storageIdx);
+  const key = extractStorageKey(mediaUrl);
+  if (key) {
+    return supabasePublicObjectUrl(key);
   }
-  if (storagePath.startsWith("/storage/") || storagePath.startsWith("/manus-storage/")) {
-    try {
-      return await storageGetSignedUrl(storagePath);
-    } catch {
-      const key = storagePath.replace(/^\/(storage|manus-storage)\//, "");
-      if (ENV.supabaseUrl) {
-        const bucket = process.env.SUPABASE_STORAGE_BUCKET ?? "triarc-social";
-        return `${ENV.supabaseUrl}/storage/v1/object/public/${bucket}/${key}`;
-      }
-    }
+  if (mediaUrl.startsWith("/storage/") || mediaUrl.startsWith("/manus-storage/")) {
+    const k = mediaUrl.replace(/^\/(?:storage|manus-storage)\//, "");
+    return supabasePublicObjectUrl(k);
+  }
+  if (mediaUrl.startsWith("http://") || mediaUrl.startsWith("https://")) {
+    return mediaUrl;
   }
   if (mediaUrl.startsWith("/")) {
     return `${ENV.appUrl.replace(/\/$/, "")}${mediaUrl}`;
@@ -2193,33 +2246,54 @@ async function resolveMediaUrlForInstagram(mediaUrl) {
 var LI_API = "https://api.linkedin.com/v2";
 async function publishToInstagram(params) {
   const { igUserId, accessToken, caption, imageUrl } = params;
-  const containerBody = {
-    caption,
-    access_token: accessToken
-  };
-  if (imageUrl) {
-    containerBody.image_url = imageUrl;
-  } else {
+  if (!imageUrl) {
     throw new Error("Instagram requer pelo menos uma imagem");
   }
-  const containerRes = await fetch(`${IG_GRAPH2}/${igUserId}/media`, {
-    method: "POST",
-    headers: { "content-type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams(containerBody).toString()
-  });
+  try {
+    const probe = await fetchWithRetry(
+      imageUrl,
+      { method: "GET", headers: { Range: "bytes=0-4095" }, timeoutMs: 3e4 },
+      "verificar imagem para Instagram"
+    );
+    if (!probe.ok && probe.status !== 206) {
+      throw new Error(`Imagem inacess\xEDvel (HTTP ${probe.status}). Meta n\xE3o consegue baixar.`);
+    }
+  } catch (err) {
+    throw new Error(formatFetchError(err, "Imagem inacess\xEDvel para Meta"));
+  }
+  const containerBody = {
+    caption,
+    access_token: accessToken,
+    image_url: imageUrl
+  };
+  const containerRes = await fetchWithRetry(
+    `${IG_GRAPH2}/${igUserId}/media`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams(containerBody).toString(),
+      timeoutMs: 9e4
+    },
+    "Instagram criar container"
+  );
   if (!containerRes.ok) {
     const err = await containerRes.text();
-    throw new Error(`IG media container failed: ${containerRes.status} ${err}`);
+    throw new Error(`Instagram container (${containerRes.status}): ${err.slice(0, 300)}`);
   }
   const { id: creationId } = await containerRes.json();
-  const publishRes = await fetch(`${IG_GRAPH2}/${igUserId}/media_publish`, {
-    method: "POST",
-    headers: { "content-type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({ creation_id: creationId, access_token: accessToken }).toString()
-  });
+  const publishRes = await fetchWithRetry(
+    `${IG_GRAPH2}/${igUserId}/media_publish`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ creation_id: creationId, access_token: accessToken }).toString(),
+      timeoutMs: 9e4
+    },
+    "Instagram publicar"
+  );
   if (!publishRes.ok) {
     const err = await publishRes.text();
-    throw new Error(`IG media_publish failed: ${publishRes.status} ${err}`);
+    throw new Error(`Instagram publish (${publishRes.status}): ${err.slice(0, 300)}`);
   }
   const { id: mediaId } = await publishRes.json();
   const permalink = `https://www.instagram.com/p/${mediaId}/`;
@@ -2434,10 +2508,8 @@ async function runAutonomousAgent(options) {
     try {
       if (rawImageUrl?.startsWith("data:")) {
         console.log(`[Agent] Post ${post.id}: convertendo data URL \u2192 Supabase`);
-        const proxyUrl = await uploadDataUrlToStorage(rawImageUrl, "published");
-        await updateFirstPostMediaUrl(post.id, proxyUrl);
-        const idx = proxyUrl.search(/\/(storage|manus-storage)\//);
-        imageUrl = idx >= 0 ? await storageGetSignedUrl(proxyUrl.slice(idx)) : proxyUrl;
+        imageUrl = await uploadDataUrlToStorage(rawImageUrl, "published");
+        await updateFirstPostMediaUrl(post.id, imageUrl);
       } else if (rawImageUrl) {
         imageUrl = await resolveMediaUrlForInstagram(rawImageUrl);
       }
@@ -2577,6 +2649,107 @@ async function publishToOtherPlatforms(postId, caption, imageUrl, allAccounts) {
     } catch (e) {
       console.error(`[Agent] Facebook falhou para post ${postId}:`, e.message);
     }
+  }
+}
+
+// server/publishPostNow.ts
+init_db();
+async function resolveImageForInstagram(postId, rawUrl) {
+  if (rawUrl.startsWith("data:")) {
+    console.log(`[PublishNow] Post ${postId}: data URL \u2192 Supabase`);
+    const publicUrl = await uploadDataUrlToStorage(rawUrl, "published");
+    await updateFirstPostMediaUrl(postId, publicUrl);
+    return publicUrl;
+  }
+  const key = extractStorageKey(rawUrl);
+  if (key) {
+    return supabasePublicObjectUrl(key);
+  }
+  if (rawUrl.startsWith("http://") || rawUrl.startsWith("https://")) {
+    return rawUrl;
+  }
+  if (rawUrl.startsWith("/storage/") || rawUrl.startsWith("/manus-storage/")) {
+    const k = rawUrl.replace(/^\/(?:storage|manus-storage)\//, "");
+    return supabasePublicObjectUrl(k);
+  }
+  throw new Error(`URL de imagem inv\xE1lida: ${rawUrl.slice(0, 80)}`);
+}
+async function publishPostNow(postId) {
+  const post = await getPostById(postId);
+  if (!post) {
+    return { success: false, published: false, message: "Post n\xE3o encontrado" };
+  }
+  await updatePost(postId, {
+    status: "approved",
+    mcpPending: 0,
+    retryCount: 0,
+    nextRetryAt: null
+  });
+  const { token: envIgToken, source: tokenSource } = resolveIgAccessTokenFromEnv();
+  const igUserId = ENV.igUserId?.trim();
+  if (!envIgToken) {
+    return {
+      success: false,
+      published: false,
+      message: "IG_ACCESS_TOKEN n\xE3o configurado no Vercel (Production)."
+    };
+  }
+  if (!igUserId) {
+    return {
+      success: false,
+      published: false,
+      message: "IG_USER_ID n\xE3o configurado no Vercel. Use 17841477720751822."
+    };
+  }
+  const media = await getPostMedia(postId);
+  if (!media?.length || !media[0]?.mediaUrl) {
+    return {
+      success: false,
+      published: false,
+      message: "Post sem imagem \u2014 Instagram exige pelo menos uma imagem."
+    };
+  }
+  await updatePost(postId, { mcpPending: 1 });
+  const prevLogs = await getPublicationLogsByPost(postId);
+  const attempt = prevLogs.length + 1;
+  try {
+    const imageUrl = await resolveImageForInstagram(postId, media[0].mediaUrl);
+    console.log(`[PublishNow] Post ${postId} imageUrl=${imageUrl.slice(0, 100)}... token=${tokenSource}`);
+    const igRes = await publishToInstagram({
+      igUserId,
+      accessToken: envIgToken,
+      caption: post.caption ?? "",
+      imageUrl
+    });
+    await updatePost(postId, {
+      status: "published",
+      publishedAt: /* @__PURE__ */ new Date(),
+      instagramPostId: igRes.postId,
+      instagramPermalink: igRes.permalink,
+      mcpPending: 0,
+      retryCount: 0
+    });
+    await createPublicationLog({
+      postId,
+      attempt,
+      status: "success",
+      instagramPostId: igRes.postId,
+      permalink: igRes.permalink
+    });
+    return {
+      success: true,
+      published: true,
+      permalink: igRes.permalink,
+      message: "Post publicado no Instagram com sucesso!"
+    };
+  } catch (err) {
+    const msg = formatFetchError(err, `Post ${postId}`);
+    console.error(`[PublishNow] Falha post ${postId}:`, msg);
+    await updatePost(postId, { mcpPending: 0, retryCount: attempt }).catch(() => {
+    });
+    await createPublicationLog({ postId, attempt, status: "failed", error: msg }).catch(() => {
+    });
+    return { success: false, published: false, message: msg };
   }
 }
 
@@ -3202,58 +3375,16 @@ Inclua hashtags estrat\xE9gicas do nicho tech/inova\xE7\xE3o, CTA claro para tri
       postId: z3.number(),
       approveFirst: z3.boolean().optional()
     })).mutation(async ({ input }) => {
-      const post = await getPostById(input.postId);
-      if (!post) throw new Error("Post n\xE3o encontrado");
-      if (input.approveFirst && post.status === "pending") {
-        await updatePost(input.postId, { status: "approved", mcpPending: 0, retryCount: 0, nextRetryAt: null });
-      } else {
-        await updatePost(input.postId, { status: "approved", mcpPending: 0, retryCount: 0, nextRetryAt: null });
-      }
-      const { token: envIgToken } = resolveIgAccessTokenFromEnv();
-      const hasEnvToken = Boolean(envIgToken);
-      const hasIgUserId = Boolean(process.env.IG_USER_ID?.trim());
-      if (!hasEnvToken) {
-        const accounts = await getAllAccounts();
-        const igAcc = accounts.find((a) => a.platform === "instagram" && a.accessToken);
-        if (!igAcc) {
-          throw new Error(
-            "Nenhum Page token no Vercel (Production). Use IG_ACCESS_TOKEN ou FB_PAGE_TOKEN, ou conecte Instagram em Contas."
-          );
-        }
-      } else if (!hasIgUserId) {
-        throw new Error("IG_USER_ID n\xE3o est\xE1 definido no Vercel (Production). Use 17841477720751822.");
-      }
-      const media = await getPostMedia(input.postId);
-      if (!media?.length) {
-        throw new Error("Post sem imagem \u2014 Instagram exige pelo menos uma imagem para publicar.");
-      }
-      let result;
-      try {
-        result = await runAutonomousAgent({ postId: input.postId });
-      } catch (err) {
-        await updatePost(input.postId, { mcpPending: 0 }).catch(() => {
-        });
-        throw err;
-      }
-      const refreshed = await getPostById(input.postId);
-      if (refreshed?.status === "published") {
+      const result = await publishPostNow(input.postId);
+      if (result.published) {
         return {
           success: true,
           published: true,
-          permalink: refreshed.instagramPermalink,
-          message: "Post publicado no Instagram com sucesso!"
+          permalink: result.permalink,
+          message: result.message
         };
       }
-      if (result.errors.length > 0) {
-        await updatePost(input.postId, { mcpPending: 0 }).catch(() => {
-        });
-        throw new Error(result.errors[0]);
-      }
-      await updatePost(input.postId, { mcpPending: 0 }).catch(() => {
-      });
-      throw new Error(
-        hasEnvToken ? "Publica\xE7\xE3o n\xE3o conclu\xEDda. Verifique token IG e imagem do post." : "Configure IG_ACCESS_TOKEN no Vercel ou conecte Instagram em Contas."
-      );
+      throw new Error(result.message);
     }),
     getLogs: protectedProcedure.query(async () => {
       return getPublicationLogs(100);

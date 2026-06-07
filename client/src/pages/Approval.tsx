@@ -189,12 +189,18 @@ export default function Approval() {
     onSuccess: (data) => {
       invalidateAll();
       if (data.published) {
-        toast.success("✅ Post publicado!", { description: data.message });
+        toast.success("✅ Post publicado!", { description: data.message, duration: 8000 });
       } else {
         toast.info("Post processado", { description: data.message });
       }
     },
-    onError: (err) => toast.error("Erro ao publicar", { description: err.message }),
+    onError: (err) => {
+      invalidateAll();
+      const msg = err.message.includes("fetch failed")
+        ? "Falha de rede ao publicar. Aguarde o deploy mais recente e tente de novo — a mensagem detalhada aparecerá após atualizar."
+        : err.message;
+      toast.error("Erro ao publicar", { description: msg, duration: 12000 });
+    },
   });
 
   const getAccount = useCallback(
@@ -205,7 +211,13 @@ export default function Approval() {
   const handleApprove = useCallback((id: number) => approve.mutate({ id }), [approve]);
   const handleReject = useCallback((id: number) => reject.mutate({ id }), [reject]);
   const handlePublishNow = useCallback((postId: number, needsApprove: boolean) => {
-    publishNow.mutate({ postId, approveFirst: needsApprove });
+    const toastId = toast.loading("Publicando no Instagram...", {
+      description: "Pode levar 30–90s (upload da imagem + Meta API).",
+    });
+    publishNow.mutate(
+      { postId, approveFirst: needsApprove },
+      { onSettled: () => toast.dismiss(toastId) }
+    );
   }, [publishNow]);
 
   const pendingCount = pendingPosts?.length ?? 0;

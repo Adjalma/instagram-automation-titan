@@ -22,6 +22,7 @@ import { notifyOwner } from "./_core/notification";
 import { storagePut } from "./storage";
 import { processScheduledPosts, fetchPostInsights } from "./instagram";
 import { runAutonomousAgent } from "./autonomousAgent";
+import { publishPostNow } from "./publishPostNow";
 import { resolveIgAccessTokenFromEnv } from "./_core/env";
 import { researchRouter } from "./routers/research";
 import { seedTriarcContent, TRIARC_SERVICES, TRIARC_PROJECTS } from "./seed-triarc";
@@ -469,64 +470,18 @@ export const appRouter = router({
       postId: z.number(),
       approveFirst: z.boolean().optional(),
     })).mutation(async ({ input }) => {
-      const post = await getPostById(input.postId);
-      if (!post) throw new Error("Post não encontrado");
+      const result = await publishPostNow(input.postId);
 
-      if (input.approveFirst && post.status === "pending") {
-        await updatePost(input.postId, { status: "approved", mcpPending: 0, retryCount: 0, nextRetryAt: null });
-      } else {
-        await updatePost(input.postId, { status: "approved", mcpPending: 0, retryCount: 0, nextRetryAt: null });
-      }
-
-      const { token: envIgToken } = resolveIgAccessTokenFromEnv();
-      const hasEnvToken = Boolean(envIgToken);
-      const hasIgUserId = Boolean(process.env.IG_USER_ID?.trim());
-      if (!hasEnvToken) {
-        const accounts = await getAllAccounts() as any[];
-        const igAcc = accounts.find((a: any) => a.platform === "instagram" && a.accessToken);
-        if (!igAcc) {
-          throw new Error(
-            "Nenhum Page token no Vercel (Production). Use IG_ACCESS_TOKEN ou FB_PAGE_TOKEN, ou conecte Instagram em Contas."
-          );
-        }
-      } else if (!hasIgUserId) {
-        throw new Error("IG_USER_ID não está definido no Vercel (Production). Use 17841477720751822.");
-      }
-
-      const media = await getPostMedia(input.postId);
-      if (!media?.length) {
-        throw new Error("Post sem imagem — Instagram exige pelo menos uma imagem para publicar.");
-      }
-
-      let result;
-      try {
-        result = await runAutonomousAgent({ postId: input.postId });
-      } catch (err) {
-        await updatePost(input.postId, { mcpPending: 0 }).catch(() => {});
-        throw err;
-      }
-      const refreshed = await getPostById(input.postId);
-
-      if (refreshed?.status === "published") {
+      if (result.published) {
         return {
           success: true,
           published: true,
-          permalink: (refreshed as any).instagramPermalink,
-          message: "Post publicado no Instagram com sucesso!",
+          permalink: result.permalink,
+          message: result.message,
         };
       }
 
-      if (result.errors.length > 0) {
-        await updatePost(input.postId, { mcpPending: 0 }).catch(() => {});
-        throw new Error(result.errors[0]);
-      }
-
-      await updatePost(input.postId, { mcpPending: 0 }).catch(() => {});
-      throw new Error(
-        hasEnvToken
-          ? "Publicação não concluída. Verifique token IG e imagem do post."
-          : "Configure IG_ACCESS_TOKEN no Vercel ou conecte Instagram em Contas."
-      );
+      throw new Error(result.message);
     }),
 
     getLogs: protectedProcedure.query(async () => {

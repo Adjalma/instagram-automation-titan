@@ -1,4 +1,5 @@
 import { ENV } from "./_core/env";
+import { fetchWithRetry } from "./httpFetch";
 
 const STORAGE_BUCKET = process.env.SUPABASE_STORAGE_BUCKET ?? "triarc-social";
 
@@ -27,6 +28,27 @@ function supabaseHeaders(contentType?: string) {
 export function publicStorageUrl(key: string): string {
   const base = (ENV.appUrl || "https://tsm.triarcsolutions.com.br").replace(/\/$/, "");
   return `${base}/storage/${key}`;
+}
+
+/** URL direta Supabase (Meta/Instagram exige HTTPS sem redirect do app). */
+export function supabasePublicObjectUrl(key: string): string {
+  if (!ENV.supabaseUrl) {
+    return publicStorageUrl(key);
+  }
+  const normalized = normalizeKey(key);
+  return `${ENV.supabaseUrl.replace(/\/$/, "")}/storage/v1/object/public/${STORAGE_BUCKET}/${normalized}`;
+}
+
+export function extractStorageKey(mediaUrl: string): string | null {
+  const fromProxy = mediaUrl.match(/\/(?:storage|manus-storage)\/([^?#]+)/);
+  if (fromProxy) return decodeURIComponent(fromProxy[1]);
+
+  const fromSupabase = mediaUrl.match(
+    /\/storage\/v1\/object\/(?:public|sign)\/[^/]+\/([^?#]+)/
+  );
+  if (fromSupabase) return decodeURIComponent(fromSupabase[1]);
+
+  return null;
 }
 
 export async function ensureStorageBucket(): Promise<void> {
@@ -77,9 +99,9 @@ async function uploadBytes(key: string, raw: Buffer, contentType: string): Promi
     "cache-control": "3600",
   };
 
-  let res = await fetch(uploadUrl, { method: "POST", headers, body: raw as unknown as BodyInit });
+  let res = await fetchWithRetry(uploadUrl, { method: "POST", headers, body: raw as unknown as BodyInit, timeoutMs: 120_000 }, "upload Supabase");
   if (!res.ok && (res.status === 400 || res.status === 405)) {
-    res = await fetch(uploadUrl, { method: "PUT", headers, body: raw as unknown as BodyInit });
+    res = await fetchWithRetry(uploadUrl, { method: "PUT", headers, body: raw as unknown as BodyInit, timeoutMs: 120_000 }, "upload Supabase (PUT)");
   }
 
   if (!res.ok) {
@@ -104,7 +126,7 @@ export async function storagePut(
 
   await uploadBytes(key, raw, contentType);
 
-  return { key, url: publicStorageUrl(key) };
+  return { key, url: supabasePublicObjectUrl(key) };
 }
 
 export async function uploadDataUrlToStorage(
@@ -115,6 +137,9 @@ export async function uploadDataUrlToStorage(
   if (!match) throw new Error("data URL inválida");
   const mimeType = match[1];
   const buffer = Buffer.from(match[2], "base64");
+  if (buffer.length > 8 * 1024 * 1024) {
+    throw new Error("Imagem muito grande (>8MB). Gere a imagem de novo com Gerar Imagem.");
+  }
   const ext = mimeType.split("/")[1]?.replace("jpeg", "jpg") ?? "png";
   const { url } = await storagePut(`${relKeyPrefix}/${Date.now()}.${ext}`, buffer, mimeType);
   return url;
