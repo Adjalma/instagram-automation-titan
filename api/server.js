@@ -863,11 +863,16 @@ function appendHashSuffix(relKey) {
 function normalizeKey(relKey) {
   return relKey.replace(/^\/+/, "").replace(/^(storage|manus-storage)\//, "");
 }
-function supabaseHeaders() {
+function supabaseHeaders(contentType) {
   return {
     Authorization: `Bearer ${ENV.supabaseServiceRoleKey}`,
-    apikey: ENV.supabaseServiceRoleKey
+    apikey: ENV.supabaseServiceRoleKey,
+    ...contentType ? { "content-type": contentType } : {}
   };
+}
+function publicStorageUrl(key) {
+  const base = (ENV.appUrl || "https://tsm.triarcsolutions.com.br").replace(/\/$/, "");
+  return `${base}/storage/${key}`;
 }
 async function ensureStorageBucket() {
   if (bucketEnsured) return;
@@ -886,7 +891,7 @@ async function ensureStorageBucket() {
   }
   const createRes = await fetch(`${ENV.supabaseUrl}/storage/v1/bucket`, {
     method: "POST",
-    headers: { ...supabaseHeaders(), "content-type": "application/json" },
+    headers: { ...supabaseHeaders("application/json"), "content-type": "application/json" },
     body: JSON.stringify({
       id: STORAGE_BUCKET,
       name: STORAGE_BUCKET,
@@ -900,9 +905,24 @@ async function ensureStorageBucket() {
     return;
   }
   const err = await createRes.text().catch(() => "");
-  throw new Error(
-    `N\xE3o foi poss\xEDvel criar bucket "${STORAGE_BUCKET}" (${createRes.status}): ${err.slice(0, 200)}`
-  );
+  console.warn(`[Storage] Bucket create ${createRes.status}: ${err.slice(0, 150)}`);
+  bucketEnsured = true;
+}
+async function uploadBytes(key, raw, contentType) {
+  const uploadUrl = `${ENV.supabaseUrl}/storage/v1/object/${STORAGE_BUCKET}/${key}`;
+  const headers = {
+    ...supabaseHeaders(contentType),
+    "x-upsert": "true",
+    "cache-control": "3600"
+  };
+  let res = await fetch(uploadUrl, { method: "POST", headers, body: raw });
+  if (!res.ok && (res.status === 400 || res.status === 405)) {
+    res = await fetch(uploadUrl, { method: "PUT", headers, body: raw });
+  }
+  if (!res.ok) {
+    const err = await res.text().catch(() => "");
+    throw new Error(`Supabase upload (${res.status}): ${err.slice(0, 250)}`);
+  }
 }
 async function storagePut(relKey, data, contentType = "application/octet-stream") {
   if (!ENV.supabaseUrl || !ENV.supabaseServiceRoleKey) {
@@ -910,34 +930,19 @@ async function storagePut(relKey, data, contentType = "application/octet-stream"
   }
   await ensureStorageBucket();
   const key = appendHashSuffix(normalizeKey(relKey));
-  const uploadUrl = `${ENV.supabaseUrl}/storage/v1/object/${STORAGE_BUCKET}/${key}`;
-  const raw = typeof data === "string" ? Buffer.from(data) : data;
-  const res = await fetch(uploadUrl, {
-    method: "POST",
-    headers: {
-      ...supabaseHeaders(),
-      "content-type": contentType,
-      "x-upsert": "true",
-      "cache-control": "3600"
-    },
-    body: raw
-  });
-  if (!res.ok) {
-    const err = await res.text().catch(() => "");
-    throw new Error(`Supabase storage upload failed (${res.status}): ${err.slice(0, 300)}`);
-  }
-  const publicUrl = `${ENV.supabaseUrl}/storage/v1/object/public/${STORAGE_BUCKET}/${key}`;
-  return { key, url: publicUrl };
+  const raw = typeof data === "string" ? Buffer.from(data) : Buffer.from(data);
+  await uploadBytes(key, raw, contentType);
+  return { key, url: publicStorageUrl(key) };
 }
 async function storageGetSignedUrl(relKey) {
   if (!ENV.supabaseUrl || !ENV.supabaseServiceRoleKey) {
-    throw new Error("SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY n\xE3o configurados");
+    return publicStorageUrl(normalizeKey(relKey));
   }
   const key = normalizeKey(relKey);
   const signUrl = `${ENV.supabaseUrl}/storage/v1/object/sign/${STORAGE_BUCKET}/${key}`;
   const res = await fetch(signUrl, {
     method: "POST",
-    headers: { ...supabaseHeaders(), "content-type": "application/json" },
+    headers: { ...supabaseHeaders("application/json"), "content-type": "application/json" },
     body: JSON.stringify({ expiresIn: 3600 })
   });
   if (!res.ok) {
@@ -1146,158 +1151,131 @@ async function invokeAnthropicRest(params, apiKey) {
 }
 
 // server/_core/imageGeneration.ts
-var GEMINI_TIMEOUT_MS = 55e3;
-var MAX_RETRIES_PER_MODEL = 2;
+var GEMINI_TIMEOUT_MS = 9e4;
+var MAX_RETRIES = 3;
 var RETRYABLE_STATUSES = /* @__PURE__ */ new Set([429, 500, 503]);
-var IMAGE_NO_TEXT_RULES = `CRITICAL RULES: Do NOT render any text, letters, words, numbers, typography, headlines, titles or captions inside the image. No Portuguese or English visible. Convey the topic only through abstract visuals, icons, symbols, colors and composition. All readable text belongs in the Instagram caption, not in the image.`;
-var TRIARC_VISUAL_STYLE = "Modern premium tech aesthetic, cyan (#00BFFF) and dark navy (#0A1628), minimalist corporate design, subtle circuit patterns and holographic glow. Place the Triarc Solutions logo emblem (circular tech badge with gears) in the bottom-right corner. 1080x1080 square, magazine quality.";
-var GEMINI_IMAGE_MODEL_FALLBACKS = [
-  "gemini-2.5-flash-image",
-  "gemini-3.1-flash-image-preview"
-];
+var IMAGE_NO_TEXT = "No text, letters or words in the image \u2014 visual only.";
+var COMPACT_STYLE = "Triarc Solutions tech brand, cyan #00BFFF and navy #0A1628, modern minimal square 1080x1080, abstract visuals.";
 function buildTriarcImagePrompt(topic) {
-  return `Premium Instagram visual for Triarc Solutions, a Brazilian tech company. Visual mood inspired by the concept: "${topic}". ${TRIARC_VISUAL_STYLE} ${IMAGE_NO_TEXT_RULES}`;
+  return `Instagram visual for Triarc Solutions (Brazilian tech). Theme: "${topic}". ${COMPACT_STYLE} ${IMAGE_NO_TEXT}`;
+}
+function buildCompactImagePrompt(topic) {
+  return `Square tech Instagram art, Triarc brand cyan/navy. Topic: "${topic}". ${IMAGE_NO_TEXT}`;
 }
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 function formatGeminiHttpError(status, model, detail) {
   if (status === 503 || detail.includes("high demand") || detail.includes("UNAVAILABLE")) {
-    return "Servidor Gemini sobrecarregado (alta demanda tempor\xE1ria). Aguarde 1\u20132 minutos e clique em Gerar Imagem novamente.";
+    return "Gemini sobrecarregado (alta demanda). Aguarde 1\u20132 minutos e tente novamente.";
   }
   if (status === 429) {
-    const isFreeTierZero = detail.includes("free_tier") && (detail.includes("limit: 0") || detail.includes('"limit":0'));
-    if (isFreeTierZero) {
-      return "Gera\xE7\xE3o de IMAGEM no Gemini est\xE1 com cota 0 no tier gratuito \u2014 separado do saldo de texto. Vincule billing ao projeto da API key, crie NOVA GEMINI_API_KEY, atualize no Vercel.";
+    if (detail.includes("free_tier") && detail.includes("limit: 0")) {
+      return "Cota de IMAGEM Gemini = 0. Verifique billing e GEMINI_API_KEY no Vercel.";
     }
-    return "Limite Gemini atingido. Aguarde ~1 minuto ou cole URL de imagem manualmente.";
+    return "Limite Gemini atingido. Aguarde ~1 minuto.";
   }
   if (status === 403) {
-    return "GEMINI_API_KEY inv\xE1lida ou sem permiss\xE3o. Verifique ai.google.dev.";
+    return "GEMINI_API_KEY inv\xE1lida. Verifique ai.google.dev.";
   }
-  if (status === 400 && detail.includes("responseModalities")) {
-    return `Configura\xE7\xE3o Gemini inv\xE1lida [${model}]. Contate suporte \u2014 responseModalities.`;
-  }
-  return `Gemini falhou (${status}) [${model}]: ${detail.slice(0, 400)}`;
+  return `Gemini erro ${status} [${model}]: ${detail.slice(0, 200)}`;
 }
-function uniqueModels(primary) {
-  const seen = /* @__PURE__ */ new Set();
-  return [primary, ...GEMINI_IMAGE_MODEL_FALLBACKS].filter((m) => {
-    if (seen.has(m)) return false;
-    seen.add(m);
-    return true;
-  });
-}
-async function callGeminiImage(model, body) {
+async function callGemini(model, prompt) {
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${ENV.geminiApiKey}`;
+  const body = {
+    contents: [{ role: "user", parts: [{ text: prompt }] }],
+    generationConfig: { responseModalities: ["TEXT", "IMAGE"] }
+  };
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), GEMINI_TIMEOUT_MS);
-  const started = Date.now();
+  const t0 = Date.now();
   try {
-    const response = await fetch(endpoint, {
+    const res = await fetch(endpoint, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(body),
       signal: controller.signal
     });
-    console.log(`[Gemini] ${model} \u2192 HTTP ${response.status} em ${Date.now() - started}ms`);
-    return response;
+    console.log(`[Gemini] ${model} \u2192 ${res.status} (${Date.now() - t0}ms)`);
+    return res;
   } catch (err) {
     if (err instanceof Error && err.name === "AbortError") {
-      throw new Error(
-        `Gemini (${model}) excedeu ${GEMINI_TIMEOUT_MS / 1e3}s. Tente novamente ou cole URL manualmente.`
-      );
+      throw new Error(`Gemini demorou mais de ${GEMINI_TIMEOUT_MS / 1e3}s. Tente novamente.`);
     }
     throw err;
   } finally {
     clearTimeout(timer);
   }
 }
-async function callGeminiWithRetry(model, body) {
+async function callGeminiWithRetry(model, prompt) {
   let lastDetail = "";
-  for (let attempt = 1; attempt <= MAX_RETRIES_PER_MODEL; attempt++) {
-    const response = await callGeminiImage(model, body);
-    if (response.ok || response.status === 404) {
-      return response;
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    const res = await callGemini(model, prompt);
+    if (res.ok || res.status === 404) return res;
+    lastDetail = await res.text().catch(() => "");
+    if (!RETRYABLE_STATUSES.has(res.status)) {
+      throw new Error(formatGeminiHttpError(res.status, model, lastDetail));
     }
-    lastDetail = await response.text().catch(() => "");
-    if (!RETRYABLE_STATUSES.has(response.status)) {
-      throw new Error(formatGeminiHttpError(response.status, model, lastDetail));
-    }
-    if (attempt < MAX_RETRIES_PER_MODEL) {
-      const delayMs = attempt * 2e3;
-      console.warn(
-        `[Gemini] ${model} HTTP ${response.status} \u2014 retry ${attempt}/${MAX_RETRIES_PER_MODEL} em ${delayMs}ms`
-      );
-      await sleep(delayMs);
+    if (attempt < MAX_RETRIES) {
+      const wait = attempt * 3e3;
+      console.warn(`[Gemini] retry ${attempt}/${MAX_RETRIES} em ${wait}ms (${res.status})`);
+      await sleep(wait);
     }
   }
-  console.warn(`[Gemini] ${model} esgotou retries (${lastDetail.slice(0, 120)})`);
+  throw new Error(formatGeminiHttpError(503, model, lastDetail || "high demand"));
+}
+function extractImageB64(result) {
+  const r = result;
+  if (r.promptFeedback?.blockReason) {
+    throw new Error(`Gemini bloqueou o prompt: ${r.promptFeedback.blockReason}`);
+  }
+  for (const part of r.candidates?.[0]?.content?.parts ?? []) {
+    if (part.inlineData?.data) {
+      return { data: part.inlineData.data, mimeType: part.inlineData.mimeType || "image/png" };
+    }
+  }
   return null;
 }
-function extractImagePart(result) {
-  if (result.promptFeedback?.blockReason) {
-    throw new Error(`Gemini bloqueou o prompt: ${result.promptFeedback.blockReason}`);
+async function persistImage(b64Data, mimeType) {
+  const buffer = Buffer.from(b64Data, "base64");
+  const ext = mimeType.split("/")[1]?.replace("jpeg", "jpg") ?? "png";
+  const relKey = `generated/${Date.now()}.${ext}`;
+  try {
+    const { url } = await storagePut(relKey, buffer, mimeType);
+    return url;
+  } catch (storageErr) {
+    const msg = storageErr instanceof Error ? storageErr.message : String(storageErr);
+    console.error("[Gemini] Storage falhou, usando data URL:", msg);
+    return `data:${mimeType};base64,${b64Data}`;
   }
-  const candidate = result.candidates?.[0];
-  if (!candidate) {
-    throw new Error("Gemini n\xE3o retornou candidatos \u2014 prompt pode ter sido bloqueado.");
-  }
-  if (candidate.finishReason && candidate.finishReason !== "STOP") {
-    console.warn(`[Gemini] finishReason=${candidate.finishReason}`);
-  }
-  return candidate.content?.parts?.find((p) => p.inlineData?.data);
 }
 async function generateImage(options) {
   if (!ENV.geminiApiKey) {
     throw new Error("GEMINI_API_KEY n\xE3o configurada no Vercel.");
   }
-  const prompt = options.prompt.includes("Do NOT render any text") ? options.prompt : `${options.prompt}
-
-${IMAGE_NO_TEXT_RULES}`;
-  const body = {
-    contents: [{ role: "user", parts: [{ text: prompt }] }],
-    generationConfig: {
-      responseModalities: ["TEXT", "IMAGE"]
-    }
-  };
-  const models = uniqueModels(ENV.geminiImageModel);
-  let lastError = "";
-  let saw503 = false;
+  const prompt = options.compact || options.prompt.length <= 500 ? options.prompt : buildCompactImagePrompt(options.prompt.slice(0, 150));
+  const models = [ENV.geminiImageModel, "gemini-2.5-flash-image"].filter(
+    (m, i, a) => a.indexOf(m) === i
+  );
+  let last404 = "";
   for (const model of models) {
-    const response = await callGeminiWithRetry(model, body);
-    if (!response) {
-      saw503 = true;
-      lastError = `modelo ${model} indispon\xEDvel (503/429)`;
-      continue;
-    }
+    const response = await callGeminiWithRetry(model, prompt);
     if (response.status === 404) {
-      lastError = await response.text().catch(() => `model ${model} not found`);
-      console.warn(`[Gemini] Modelo ${model} indispon\xEDvel (404)`);
+      last404 = model;
       continue;
     }
-    let result;
-    try {
-      result = await response.json();
-    } catch {
-      throw new Error(`Gemini (${model}) retornou JSON inv\xE1lido.`);
+    const result = await response.json().catch(() => null);
+    if (!result) throw new Error("Gemini retornou resposta inv\xE1lida.");
+    const image = extractImageB64(result);
+    if (!image) {
+      throw new Error("Gemini n\xE3o retornou imagem \u2014 tente outro tema.");
     }
-    const imagePart = extractImagePart(result);
-    if (!imagePart?.inlineData) {
-      throw new Error(`Gemini (${model}) n\xE3o retornou imagem \u2014 tente outro tema ou URL manual.`);
-    }
-    const { data: b64Data, mimeType } = imagePart.inlineData;
-    const buffer = Buffer.from(b64Data, "base64");
-    const ext = mimeType.split("/")[1]?.replace("jpeg", "jpg") ?? "png";
-    const { url } = await storagePut(`generated/${Date.now()}.${ext}`, buffer, mimeType);
-    console.log(`[Gemini] Imagem OK (${model}) \u2192 ${url.slice(0, 80)}...`);
+    const url = await persistImage(image.data, image.mimeType);
+    console.log(`[Gemini] OK ${model} \u2192 ${url.slice(0, 80)}`);
     return { url };
   }
-  if (saw503) {
-    throw new Error(formatGeminiHttpError(503, models[0] ?? "gemini", "high demand"));
-  }
   throw new Error(
-    `Nenhum modelo Gemini de imagem dispon\xEDvel. ${lastError}. Verifique GEMINI_API_KEY e ai.dev/rate-limit.`
+    last404 ? `Modelo Gemini indispon\xEDvel (${last404}). Configure GEMINI_IMAGE_MODEL=gemini-2.5-flash-image` : "Falha ao gerar imagem com Gemini."
   );
 }
 async function probeImageStack() {
@@ -1305,7 +1283,8 @@ async function probeImageStack() {
     geminiKey: !!ENV.geminiApiKey,
     geminiModel: ENV.geminiImageModel,
     supabase: !!(ENV.supabaseUrl && ENV.supabaseServiceRoleKey),
-    bucket: process.env.SUPABASE_STORAGE_BUCKET ?? "triarc-social"
+    bucket: process.env.SUPABASE_STORAGE_BUCKET ?? "triarc-social",
+    appUrl: ENV.appUrl || "(not set)"
   };
 }
 
@@ -2197,7 +2176,7 @@ async function sendLinkedInConnectionRequests(accessToken, dailyLimit = 100) {
   console.log(`[LinkedIn] Enviados ${sent} convites de conex\xE3o`);
   return sent;
 }
-var MAX_RETRIES = 3;
+var MAX_RETRIES2 = 3;
 var dailyConnectionsSent = 0;
 var lastConnectionReset = (/* @__PURE__ */ new Date()).toDateString();
 async function runAutonomousAgent() {
@@ -2221,7 +2200,7 @@ async function runAutonomousAgent() {
   }
   const readyPosts = approved.filter((p) => {
     if (p.mcpPending) return false;
-    if ((p.retryCount ?? 0) >= MAX_RETRIES) return false;
+    if ((p.retryCount ?? 0) >= MAX_RETRIES2) return false;
     if (p.nextRetryAt && new Date(p.nextRetryAt) > now) return false;
     return true;
   });
@@ -2271,9 +2250,9 @@ async function runAutonomousAgent() {
       await publishToOtherPlatforms(post.id, post.caption ?? "", imageUrl, allAccounts);
     } catch (err) {
       await createPublicationLog({ postId: post.id, attempt, status: "failed", error: err.message });
-      if (attempt >= MAX_RETRIES) {
+      if (attempt >= MAX_RETRIES2) {
         await updatePost(post.id, { status: "rejected", mcpPending: 0, retryCount: attempt });
-        await notifyOwner({ title: "\u274C Falha ao publicar", content: `Post #${post.id} falhou ap\xF3s ${MAX_RETRIES} tentativas: ${err.message}` });
+        await notifyOwner({ title: "\u274C Falha ao publicar", content: `Post #${post.id} falhou ap\xF3s ${MAX_RETRIES2} tentativas: ${err.message}` });
       } else {
         const nextRetryAt = new Date(Date.now() + 5 * 60 * 1e3);
         await updatePost(post.id, { mcpPending: 0, retryCount: attempt, nextRetryAt });
@@ -3274,7 +3253,7 @@ async function createContext(opts) {
 
 // server/scheduledRoutes.ts
 init_db();
-var MAX_RETRIES2 = 3;
+var MAX_RETRIES3 = 3;
 async function getUser(req) {
   try {
     return await sdk.authenticateRequest(req);
@@ -3359,7 +3338,7 @@ function registerScheduledRoutes(app2) {
       const pendingPosts = approved.filter((p) => {
         if (!instagramAccountIds.has(p.accountId)) return false;
         if (p.mcpPending) return false;
-        if ((p.retryCount ?? 0) >= MAX_RETRIES2) return false;
+        if ((p.retryCount ?? 0) >= MAX_RETRIES3) return false;
         if (p.nextRetryAt && new Date(p.nextRetryAt) > now) return false;
         return true;
       });
@@ -3439,19 +3418,19 @@ Link: ${permalink || "N/A"}`
           error: error ? String(error) : "Erro desconhecido"
         });
         const newRetryCount = attempt;
-        if (newRetryCount < MAX_RETRIES2) {
+        if (newRetryCount < MAX_RETRIES3) {
           const nextRetryAt = new Date(Date.now() + 5 * 60 * 1e3);
           await updatePost(postIdNum, { mcpPending: 0, retryCount: newRetryCount, nextRetryAt });
-          console.warn(`[ScheduledRoutes] Post ${postIdNum} falhou (${newRetryCount}/${MAX_RETRIES2}), pr\xF3xima tentativa em ${nextRetryAt.toISOString()}`);
+          console.warn(`[ScheduledRoutes] Post ${postIdNum} falhou (${newRetryCount}/${MAX_RETRIES3}), pr\xF3xima tentativa em ${nextRetryAt.toISOString()}`);
           return res.json({ ok: false, error, willRetry: true, attempt: newRetryCount, nextRetryAt });
         } else {
           await updatePost(postIdNum, { mcpPending: 0, retryCount: newRetryCount, status: "rejected" });
           await notifyOwner({
             title: "\u274C Falha ao publicar post no Instagram",
-            content: `Post #${postIdNum} falhou ap\xF3s ${MAX_RETRIES2} tentativas.
+            content: `Post #${postIdNum} falhou ap\xF3s ${MAX_RETRIES3} tentativas.
 Erro: ${error || "Desconhecido"}`
           });
-          console.error(`[ScheduledRoutes] Post ${postIdNum} rejeitado ap\xF3s ${MAX_RETRIES2} tentativas`);
+          console.error(`[ScheduledRoutes] Post ${postIdNum} rejeitado ap\xF3s ${MAX_RETRIES3} tentativas`);
           return res.json({ ok: false, error, willRetry: false, maxRetriesReached: true });
         }
       }
@@ -3491,30 +3470,20 @@ Erro: ${error || "Desconhecido"}`
 
 // server/imageRoutes.ts
 init_db();
-var TOTAL_GENERATION_MS = 1e5;
-function buildPrompt(theme, description) {
-  let prompt = buildTriarcImagePrompt(theme.trim());
-  const extra = description?.trim().slice(0, 500);
-  if (extra) prompt += `
-Visual context: ${extra}`;
-  return prompt;
-}
-async function generateWithBudget(prompt) {
-  const budget = new Promise((_, reject) => {
-    setTimeout(
-      () => reject(new Error("Gera\xE7\xE3o excedeu 100s. Tente novamente em 1 minuto.")),
-      TOTAL_GENERATION_MS
-    );
-  });
-  const { url } = await Promise.race([generateImage({ prompt }), budget]);
-  if (!url) throw new Error("Gemini n\xE3o retornou URL da imagem");
-  return url;
-}
+var TOTAL_MS = 11e4;
 function registerImageRoutes(app2) {
   app2.post("/api/generate-image", async (req, res) => {
-    const started = Date.now();
+    const t0 = Date.now();
     try {
-      const user = await sdk.authenticateRequest(req);
+      let user;
+      try {
+        user = await sdk.authenticateRequest(req);
+      } catch (authErr) {
+        if (authErr instanceof HttpError) {
+          return res.status(authErr.statusCode).json({ error: authErr.message });
+        }
+        return res.status(401).json({ error: "Sess\xE3o expirada. Fa\xE7a login novamente." });
+      }
       const { accountId, theme, description } = req.body ?? {};
       if (!accountId || !theme?.trim()) {
         return res.status(400).json({ error: "Conta e tema s\xE3o obrigat\xF3rios" });
@@ -3523,14 +3492,22 @@ function registerImageRoutes(app2) {
       if (!account) {
         return res.status(404).json({ error: "Conta n\xE3o encontrada" });
       }
-      const prompt = buildPrompt(String(theme), description ? String(description) : void 0);
+      let prompt = buildCompactImagePrompt(String(theme).trim());
+      const extra = description?.trim().slice(0, 150);
+      if (extra) prompt += ` Context: ${extra}.`;
       console.log(`[generate-image] user=${user.id} theme="${theme}"`);
-      const url = await generateWithBudget(prompt);
-      console.log(`[generate-image] OK em ${Date.now() - started}ms`);
+      const budget = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error("Tempo esgotado (110s). Tente novamente.")), TOTAL_MS);
+      });
+      const { url } = await Promise.race([
+        generateImage({ prompt, compact: true }),
+        budget
+      ]);
+      console.log(`[generate-image] OK ${Date.now() - t0}ms`);
       return res.json({ url });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.error(`[generate-image] FALHA em ${Date.now() - started}ms:`, msg);
+      console.error(`[generate-image] ERRO ${Date.now() - t0}ms:`, msg);
       return res.status(500).json({ error: msg });
     }
   });
@@ -3582,7 +3559,8 @@ app.get("/api/health", async (_req, res) => {
       SUPABASE_URL: process.env.SUPABASE_URL ? "set" : "not set",
       GEMINI_API_KEY: process.env.GEMINI_API_KEY ? "set" : "not set",
       GEMINI_IMAGE_MODEL: process.env.GEMINI_IMAGE_MODEL ?? "gemini-2.5-flash-image (default)",
-      SUPABASE_STORAGE_BUCKET: process.env.SUPABASE_STORAGE_BUCKET ?? "triarc-social (default)"
+      SUPABASE_STORAGE_BUCKET: process.env.SUPABASE_STORAGE_BUCKET ?? "triarc-social (default)",
+      APP_URL: process.env.APP_URL ?? "(not set)"
     },
     imageStack: await probeImageStack(),
     ts: (/* @__PURE__ */ new Date()).toISOString()
@@ -3633,7 +3611,7 @@ seedTriarcContent().catch((e) => console.error("[Seed] Erro triac_content:", e))
 seedContentThemes().catch((e) => console.error("[Seed] Erro content_themes:", e));
 ensureStorageBucket().catch((e) => console.error("[Storage] Bucket:", e.message));
 ensureImageJobsTable().catch((e) => console.error("[ImageJob] Tabela:", e.message));
-var config = { maxDuration: 120 };
+var config = { maxDuration: 300 };
 var vercel_default = app;
 export {
   config,

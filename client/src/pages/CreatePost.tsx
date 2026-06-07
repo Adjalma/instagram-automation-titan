@@ -76,7 +76,7 @@ export default function CreatePost() {
 
     try {
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 130_000);
+      const timer = setTimeout(() => controller.abort(), 115_000);
 
       const res = await fetch("/api/generate-image", {
         method: "POST",

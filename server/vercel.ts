@@ -68,6 +68,7 @@ app.get("/api/health", async (_req, res) => {
       GEMINI_API_KEY: process.env.GEMINI_API_KEY ? "set" : "not set",
       GEMINI_IMAGE_MODEL: process.env.GEMINI_IMAGE_MODEL ?? "gemini-2.5-flash-image (default)",
       SUPABASE_STORAGE_BUCKET: process.env.SUPABASE_STORAGE_BUCKET ?? "triarc-social (default)",
+      APP_URL: process.env.APP_URL ?? "(not set)",
     },
     imageStack: await probeImageStack(),
     ts: new Date().toISOString(),
@@ -127,6 +128,6 @@ ensureStorageBucket().catch(e => console.error("[Storage] Bucket:", e.message));
 ensureImageJobsTable().catch(e => console.error("[ImageJob] Tabela:", e.message));
 
 /** Geração de imagem Gemini pode levar 15–120s. */
-export const config = { maxDuration: 120 };
+export const config = { maxDuration: 300 };
 
 export default app;

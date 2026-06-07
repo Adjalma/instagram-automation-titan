@@ -15,14 +15,20 @@ function normalizeKey(relKey: string): string {
   return relKey.replace(/^\/+/, "").replace(/^(storage|manus-storage)\//, "");
 }
 
-function supabaseHeaders() {
+function supabaseHeaders(contentType?: string) {
   return {
     Authorization: `Bearer ${ENV.supabaseServiceRoleKey}`,
     apikey: ENV.supabaseServiceRoleKey,
+    ...(contentType ? { "content-type": contentType } : {}),
   };
 }
 
-/** Cria bucket público se não existir (evita 404 no upload). */
+/** URL pública via proxy do app (funciona mesmo se bucket Supabase for privado). */
+export function publicStorageUrl(key: string): string {
+  const base = (ENV.appUrl || "https://tsm.triarcsolutions.com.br").replace(/\/$/, "");
+  return `${base}/storage/${key}`;
+}
+
 export async function ensureStorageBucket(): Promise<void> {
   if (bucketEnsured) return;
   if (!ENV.supabaseUrl || !ENV.supabaseServiceRoleKey) {
@@ -43,7 +49,7 @@ export async function ensureStorageBucket(): Promise<void> {
 
   const createRes = await fetch(`${ENV.supabaseUrl}/storage/v1/bucket`, {
     method: "POST",
-    headers: { ...supabaseHeaders(), "content-type": "application/json" },
+    headers: { ...supabaseHeaders("application/json"), "content-type": "application/json" },
     body: JSON.stringify({
       id: STORAGE_BUCKET,
       name: STORAGE_BUCKET,
@@ -59,9 +65,27 @@ export async function ensureStorageBucket(): Promise<void> {
   }
 
   const err = await createRes.text().catch(() => "");
-  throw new Error(
-    `Não foi possível criar bucket "${STORAGE_BUCKET}" (${createRes.status}): ${err.slice(0, 200)}`
-  );
+  console.warn(`[Storage] Bucket create ${createRes.status}: ${err.slice(0, 150)}`);
+  bucketEnsured = true;
+}
+
+async function uploadBytes(key: string, raw: Buffer, contentType: string): Promise<void> {
+  const uploadUrl = `${ENV.supabaseUrl}/storage/v1/object/${STORAGE_BUCKET}/${key}`;
+  const headers = {
+    ...supabaseHeaders(contentType),
+    "x-upsert": "true",
+    "cache-control": "3600",
+  };
+
+  let res = await fetch(uploadUrl, { method: "POST", headers, body: raw as unknown as BodyInit });
+  if (!res.ok && (res.status === 400 || res.status === 405)) {
+    res = await fetch(uploadUrl, { method: "PUT", headers, body: raw as unknown as BodyInit });
+  }
+
+  if (!res.ok) {
+    const err = await res.text().catch(() => "");
+    throw new Error(`Supabase upload (${res.status}): ${err.slice(0, 250)}`);
+  }
 }
 
 export async function storagePut(
@@ -76,39 +100,21 @@ export async function storagePut(
   await ensureStorageBucket();
 
   const key = appendHashSuffix(normalizeKey(relKey));
-  const uploadUrl = `${ENV.supabaseUrl}/storage/v1/object/${STORAGE_BUCKET}/${key}`;
+  const raw = typeof data === "string" ? Buffer.from(data) : Buffer.from(data);
 
-  const raw = typeof data === "string" ? Buffer.from(data) : data;
+  await uploadBytes(key, raw, contentType);
 
-  const res = await fetch(uploadUrl, {
-    method: "POST",
-    headers: {
-      ...supabaseHeaders(),
-      "content-type": contentType,
-      "x-upsert": "true",
-      "cache-control": "3600",
-    },
-    body: raw as unknown as BodyInit,
-  });
-
-  if (!res.ok) {
-    const err = await res.text().catch(() => "");
-    throw new Error(`Supabase storage upload failed (${res.status}): ${err.slice(0, 300)}`);
-  }
-
-  const publicUrl = `${ENV.supabaseUrl}/storage/v1/object/public/${STORAGE_BUCKET}/${key}`;
-  return { key, url: publicUrl };
+  return { key, url: publicStorageUrl(key) };
 }
 
 export async function storageGet(relKey: string): Promise<{ key: string; url: string }> {
   const key = normalizeKey(relKey);
-  const publicUrl = `${ENV.supabaseUrl}/storage/v1/object/public/${STORAGE_BUCKET}/${key}`;
-  return { key, url: publicUrl };
+  return { key, url: publicStorageUrl(key) };
 }
 
 export async function storageGetSignedUrl(relKey: string): Promise<string> {
   if (!ENV.supabaseUrl || !ENV.supabaseServiceRoleKey) {
-    throw new Error("SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY não configurados");
+    return publicStorageUrl(normalizeKey(relKey));
   }
 
   const key = normalizeKey(relKey);
@@ -116,7 +122,7 @@ export async function storageGetSignedUrl(relKey: string): Promise<string> {
 
   const res = await fetch(signUrl, {
     method: "POST",
-    headers: { ...supabaseHeaders(), "content-type": "application/json" },
+    headers: { ...supabaseHeaders("application/json"), "content-type": "application/json" },
     body: JSON.stringify({ expiresIn: 3600 }),
   });
 
