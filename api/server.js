@@ -186,23 +186,22 @@ async function seedContentThemes() {
 async function ensureContentThemes() {
   const db = await getDb();
   if (!db) return [];
-  const existing = await db.select({ id: contentThemes.id }).from(contentThemes).limit(1);
-  if (existing.length === 0) {
-    await seedContentThemes();
-  }
+  await db.insert(contentThemes).values([...DEFAULT_CONTENT_THEMES]).onConflictDoNothing({ target: contentThemes.slug });
   return db.select().from(contentThemes);
 }
 async function seedTriarcContent() {
   const db = await getDb();
   if (!db) return;
-  const existing = await db.select({ id: triacContent.id }).from(triacContent).limit(1);
-  if (existing.length > 0) return;
+  const existing = await db.select({ name: triacContent.name }).from(triacContent);
+  const names = new Set(existing.map((r) => r.name));
   const allItems = [
     ...TRIARC_SERVICES,
     ...TRIARC_PROJECTS.map((p) => ({ ...p, type: "projeto" }))
   ];
-  await db.insert(triacContent).values(allItems);
-  console.log(`[Seed] ${allItems.length} itens Triarc inseridos (${TRIARC_SERVICES.length} servi\xE7os + ${TRIARC_PROJECTS.length} projetos)`);
+  const toInsert = allItems.filter((i) => !names.has(i.name));
+  if (toInsert.length === 0) return;
+  await db.insert(triacContent).values(toInsert);
+  console.log(`[Seed] ${toInsert.length} itens Triarc adicionados ao cat\xE1logo`);
 }
 var DEFAULT_CONTENT_THEMES, TRIARC_SERVICES, TRIARC_PROJECTS;
 var init_seed_triarc = __esm({
@@ -1106,6 +1105,33 @@ function registerStorageProxy(app2) {
   app2.get("/storage/*", handleStorage);
   app2.get("/manus-storage/*", handleStorage);
 }
+
+// shared/triarcSocial.ts
+var SOCIAL_EXCLUDED_APPS = [
+  "Legend\xE1rios Maca\xE9",
+  "Plataforma de Eventos Legend\xE1rios",
+  "Sentinela",
+  "Farol das Escrituras",
+  "Mir Maca\xE9",
+  "Rede Si\xE3o",
+  "Titan App"
+];
+function parseSocialExcludeEnv(raw) {
+  if (!raw?.trim()) return [];
+  return raw.split(",").map((s) => s.trim()).filter(Boolean);
+}
+function isAllowedForSocial(name, status, extraExcluded = []) {
+  if (status && status !== "ativo") return false;
+  const blocked = [...SOCIAL_EXCLUDED_APPS, ...extraExcluded];
+  const lower = name.toLowerCase();
+  return !blocked.some(
+    (ex) => lower.includes(ex.toLowerCase()) || ex.toLowerCase().includes(lower)
+  );
+}
+function filterTriacForSocial(items, extraExcluded = []) {
+  return items.filter((i) => isAllowedForSocial(i.name, i.status ?? "ativo", extraExcluded));
+}
+var TRIARC_SOCIAL_APP_CONTEXT = "A Triarc Solutions \xE9 uma empresa de tecnologia e inova\xE7\xE3o em Maca\xE9/RJ (triarcsolutions.com.br). Servi\xE7os: desenvolvimento de software sob encomenda, IA e automa\xE7\xE3o, gest\xE3o empresarial, suporte TI, data science. Projetos em destaque: TopFlow.ai, COPE, SS-Milhas, TransCarga, TRIARC CRM, Grupo Conecta, Axis, Logos, Sintaxe, CB Integrativa. O Triarc Social Manager \xE9 a plataforma interna de automa\xE7\xE3o de conte\xFAdo para Instagram.";
 
 // server/_core/systemRouter.ts
 import { z } from "zod";
@@ -2557,9 +2583,6 @@ async function publishToOtherPlatforms(postId, caption, imageUrl, allAccounts) {
   }
 }
 
-// server/routers.ts
-import { waitUntil as waitUntil2 } from "@vercel/functions";
-
 // server/routers/research.ts
 init_db();
 init_schema();
@@ -2768,7 +2791,7 @@ var researchRouter = router({
 init_seed_triarc();
 init_schema();
 init_db();
-var APP_CONTEXT2 = `A Triarc Solutions \xE9 uma empresa de tecnologia e inova\xE7\xE3o com sede em Maca\xE9/RJ. Site oficial: triarcsolutions.com.br. Pilares: Gest\xE3o, Treinamento e Tecnologia. Servi\xE7os: desenvolvimento de software sob encomenda, IA e automa\xE7\xE3o, gest\xE3o empresarial, suporte t\xE9cnico em TI, automa\xE7\xE3o industrial, treinamento profissional, licenciamento de software e data science. Projetos em destaque: TopFlow.ai (SEO com IA), COPE (plataforma de conex\xE3o de profissionais), SS-Milhas (gest\xE3o de milhas), TransCarga (log\xEDstica inteligente), TRIARC CRM, NutriSystem, Grupo Conecta e mais de 36 projetos entregues. O Triarc Social Manager \xE9 a plataforma interna de automa\xE7\xE3o de conte\xFAdo para Instagram da Triarc Solutions.`;
+var APP_CONTEXT2 = TRIARC_SOCIAL_APP_CONTEXT;
 var TRIARC_TONE2 = `Use um tom corporativo profissional, moderno e acess\xEDvel. Posicione a Triarc Solutions como refer\xEAncia em tecnologia e inova\xE7\xE3o. Destaque expertise t\xE9cnica, resultados concretos e valor para o cliente. Sempre inclua CTA direcionando para triarcsolutions.com.br. Use hashtags do nicho tech/inova\xE7\xE3o/neg\xF3cios.`;
 var CAPTION_PT_RULES = `REGRAS DE PORTUGU\xCAS (obrigat\xF3rio):
 - Portugu\xEAs brasileiro correto, com acentua\xE7\xE3o perfeita (\xE7\xE3o, \xE3, \xF5es, etc.)
@@ -2981,8 +3004,21 @@ var appRouter = router({
       if (targetAccounts.length === 0) throw new Error("Nenhuma conta encontrada");
       const db = await getDb();
       const triacItems = db ? await db.select().from(triacContent) : [];
-      const contentItems = triacItems.length > 0 ? triacItems : TRIARC_PROJECTS.map((p, i) => ({ id: i + 1, name: p.name, subtitle: p.subtitle, description: p.description, category: p.category, type: "projeto" }));
-      if (contentItems.length === 0) throw new Error("Nenhum conte\xFAdo Triarc encontrado");
+      const rawItems = triacItems.length > 0 ? triacItems : [
+        ...TRIARC_SERVICES,
+        ...TRIARC_PROJECTS.map((p, i) => ({
+          id: i + 100,
+          name: p.name,
+          subtitle: p.subtitle,
+          description: p.description,
+          category: p.category,
+          type: "projeto",
+          status: p.status
+        }))
+      ];
+      const extraExcluded = parseSocialExcludeEnv(process.env.TRIARC_SOCIAL_EXCLUDE);
+      const contentItems = filterTriacForSocial(rawItems, extraExcluded);
+      if (contentItems.length === 0) throw new Error("Nenhum app/servi\xE7o Triarc ativo para redes (ver filtro SOCIAL_EXCLUDED)");
       const bestTimes = [
         { hour: 8, minute: 0 },
         // Manhã cedo
@@ -3194,23 +3230,22 @@ Inclua hashtags estrat\xE9gicas do nicho tech/inova\xE7\xE3o, CTA claro para tri
       if (!media?.length) {
         throw new Error("Post sem imagem \u2014 Instagram exige pelo menos uma imagem para publicar.");
       }
-      const postId = input.postId;
-      waitUntil2(
-        runAutonomousAgent({ postId }).then((result) => {
-          console.log(`[publishNow] post ${postId} conclu\xEDdo:`, result);
-        }).catch(async (err) => {
-          console.error(`[publishNow] post ${postId} falhou:`, err);
-          await updatePost(postId, { mcpPending: 0 }).catch(() => {
-          });
-        })
+      const result = await runAutonomousAgent({ postId: input.postId });
+      const refreshed = await getPostById(input.postId);
+      if (refreshed?.status === "published") {
+        return {
+          success: true,
+          published: true,
+          permalink: refreshed.instagramPermalink,
+          message: "Post publicado no Instagram com sucesso!"
+        };
+      }
+      if (result.errors.length > 0) {
+        throw new Error(result.errors[0]);
+      }
+      throw new Error(
+        hasEnvToken ? "Publica\xE7\xE3o n\xE3o conclu\xEDda. Verifique token IG e imagem do post." : "Configure IG_ACCESS_TOKEN no Vercel ou conecte Instagram em Contas."
       );
-      return {
-        success: true,
-        started: true,
-        published: false,
-        postId,
-        message: "Publica\xE7\xE3o iniciada. Aguarde alguns instantes\u2026"
-      };
     }),
     getLogs: protectedProcedure.query(async () => {
       return getPublicationLogs(100);
@@ -3233,11 +3268,18 @@ Inclua hashtags estrat\xE9gicas do nicho tech/inova\xE7\xE3o, CTA claro para tri
   }),
   triacContent: router({
     list: protectedProcedure.input(z3.object({
-      type: z3.enum(["servico", "projeto", "all"]).optional()
+      type: z3.enum(["servico", "projeto", "all"]).optional(),
+      /** Default true — oculta apps pessoais/religiosos do catálogo social */
+      socialOnly: z3.boolean().optional()
     }).optional()).query(async ({ input }) => {
       const db = await getDb();
       if (!db) return [];
-      const items = await db.select().from(triacContent);
+      let items = await db.select().from(triacContent);
+      const socialOnly = input?.socialOnly !== false;
+      if (socialOnly) {
+        const extraExcluded = parseSocialExcludeEnv(process.env.TRIARC_SOCIAL_EXCLUDE);
+        items = filterTriacForSocial(items, extraExcluded);
+      }
       if (input?.type && input.type !== "all") {
         return items.filter((i) => i.type === input.type);
       }

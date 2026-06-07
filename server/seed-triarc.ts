@@ -23,10 +23,10 @@ export async function seedContentThemes() {
 export async function ensureContentThemes() {
   const db = await getDb();
   if (!db) return [];
-  const existing = await db.select({ id: contentThemes.id }).from(contentThemes).limit(1);
-  if (existing.length === 0) {
-    await seedContentThemes();
-  }
+  // Garante os 5 pilares editoriais mesmo se a tabela foi parcialmente apagada
+  await db.insert(contentThemes)
+    .values([...DEFAULT_CONTENT_THEMES])
+    .onConflictDoNothing({ target: contentThemes.slug });
   return db.select().from(contentThemes);
 }
 
@@ -154,14 +154,16 @@ export const TRIARC_PROJECTS = [
 export async function seedTriarcContent() {
   const db = await getDb();
   if (!db) return;
-  const existing = await db.select({ id: triacContent.id }).from(triacContent).limit(1);
-  if (existing.length > 0) return; // já populado
+  const existing = await db.select({ name: triacContent.name }).from(triacContent);
+  const names = new Set(existing.map((r) => r.name));
 
   const allItems = [
     ...TRIARC_SERVICES,
-    ...TRIARC_PROJECTS.map(p => ({ ...p, type: "projeto" as const })),
+    ...TRIARC_PROJECTS.map((p) => ({ ...p, type: "projeto" as const })),
   ];
+  const toInsert = allItems.filter((i) => !names.has(i.name));
+  if (toInsert.length === 0) return;
 
-  await db.insert(triacContent).values(allItems);
-  console.log(`[Seed] ${allItems.length} itens Triarc inseridos (${TRIARC_SERVICES.length} serviços + ${TRIARC_PROJECTS.length} projetos)`);
+  await db.insert(triacContent).values(toInsert);
+  console.log(`[Seed] ${toInsert.length} itens Triarc adicionados ao catálogo`);
 }

@@ -70,7 +70,7 @@ const trpcClient = trpc.createClient({
         const isLongOp = /publishNow|generateArt|generate-image/i.test(url);
         const controller = new AbortController();
         const isAuthMe = /auth\.me/i.test(url);
-        const timeoutMs = isLongOp ? 120_000 : isAuthMe ? 15_000 : 45_000;
+        const timeoutMs = isLongOp ? 300_000 : isAuthMe ? 15_000 : 45_000;
         const timer = setTimeout(() => controller.abort(), timeoutMs);
         return globalThis
           .fetch(input, {
@@ -82,7 +82,7 @@ const trpcClient = trpc.createClient({
             if (err?.name === "AbortError") {
               throw new Error(
                 isLongOp
-                  ? "Tempo esgotado (120s). A publicação pode continuar no servidor — atualize a página."
+                  ? "Tempo esgotado (5 min). Verifique Logs de publicação ou tente de novo."
                   : isAuthMe
                   ? "Autenticação demorou (15s). Tente /login ou atualize a página."
                   : "Servidor demorou para responder (45s). Tente atualizar a página."

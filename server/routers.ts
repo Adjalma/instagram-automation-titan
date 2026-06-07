@@ -1,4 +1,5 @@
 import { COOKIE_NAME, TRIARC_LOGO_URL } from "@shared/const";
+import { filterTriacForSocial, parseSocialExcludeEnv, TRIARC_SOCIAL_APP_CONTEXT } from "@shared/triarcSocial";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
@@ -22,13 +23,12 @@ import { storagePut } from "./storage";
 import { processScheduledPosts, fetchPostInsights } from "./instagram";
 import { runAutonomousAgent } from "./autonomousAgent";
 import { resolveIgAccessTokenFromEnv } from "./_core/env";
-import { waitUntil } from "@vercel/functions";
 import { researchRouter } from "./routers/research";
 import { seedTriarcContent, TRIARC_SERVICES, TRIARC_PROJECTS } from "./seed-triarc";
 import { triacContent, TriacContent } from "../drizzle/schema";
 import { getDb } from "./db";
 
-const APP_CONTEXT = `A Triarc Solutions é uma empresa de tecnologia e inovação com sede em Macaé/RJ. Site oficial: triarcsolutions.com.br. Pilares: Gestão, Treinamento e Tecnologia. Serviços: desenvolvimento de software sob encomenda, IA e automação, gestão empresarial, suporte técnico em TI, automação industrial, treinamento profissional, licenciamento de software e data science. Projetos em destaque: TopFlow.ai (SEO com IA), COPE (plataforma de conexão de profissionais), SS-Milhas (gestão de milhas), TransCarga (logística inteligente), TRIARC CRM, NutriSystem, Grupo Conecta e mais de 36 projetos entregues. O Triarc Social Manager é a plataforma interna de automação de conteúdo para Instagram da Triarc Solutions.`;
+const APP_CONTEXT = TRIARC_SOCIAL_APP_CONTEXT;
 
 const TRIARC_TONE = `Use um tom corporativo profissional, moderno e acessível. Posicione a Triarc Solutions como referência em tecnologia e inovação. Destaque expertise técnica, resultados concretos e valor para o cliente. Sempre inclua CTA direcionando para triarcsolutions.com.br. Use hashtags do nicho tech/inovação/negócios.`;
 
@@ -255,8 +255,23 @@ export const appRouter = router({
       // Busca projetos e serviços reais da Triarc como base de conteúdo
       const db = await getDb();
       const triacItems = db ? await db.select().from(triacContent) : [];
-      const contentItems = triacItems.length > 0 ? triacItems : TRIARC_PROJECTS.map((p, i) => ({ id: i + 1, name: p.name, subtitle: p.subtitle, description: p.description, category: p.category, type: "projeto" as const }));
-      if (contentItems.length === 0) throw new Error("Nenhum conteúdo Triarc encontrado");
+      const rawItems = triacItems.length > 0
+        ? triacItems
+        : [
+            ...TRIARC_SERVICES,
+            ...TRIARC_PROJECTS.map((p, i) => ({
+              id: i + 100,
+              name: p.name,
+              subtitle: p.subtitle,
+              description: p.description,
+              category: p.category,
+              type: "projeto" as const,
+              status: p.status,
+            })),
+          ];
+      const extraExcluded = parseSocialExcludeEnv(process.env.TRIARC_SOCIAL_EXCLUDE);
+      const contentItems = filterTriacForSocial(rawItems as any[], extraExcluded);
+      if (contentItems.length === 0) throw new Error("Nenhum app/serviço Triarc ativo para redes (ver filtro SOCIAL_EXCLUDED)");
 
       // Best posting times (Brazilian timezone UTC-3)
       const bestTimes = [
@@ -483,25 +498,27 @@ export const appRouter = router({
         throw new Error("Post sem imagem — Instagram exige pelo menos uma imagem para publicar.");
       }
 
-      const postId = input.postId;
-      waitUntil(
-        runAutonomousAgent({ postId })
-          .then((result) => {
-            console.log(`[publishNow] post ${postId} concluído:`, result);
-          })
-          .catch(async (err) => {
-            console.error(`[publishNow] post ${postId} falhou:`, err);
-            await updatePost(postId, { mcpPending: 0 }).catch(() => {});
-          })
-      );
+      const result = await runAutonomousAgent({ postId: input.postId });
+      const refreshed = await getPostById(input.postId);
 
-      return {
-        success: true,
-        started: true,
-        published: false,
-        postId,
-        message: "Publicação iniciada. Aguarde alguns instantes…",
-      };
+      if (refreshed?.status === "published") {
+        return {
+          success: true,
+          published: true,
+          permalink: (refreshed as any).instagramPermalink,
+          message: "Post publicado no Instagram com sucesso!",
+        };
+      }
+
+      if (result.errors.length > 0) {
+        throw new Error(result.errors[0]);
+      }
+
+      throw new Error(
+        hasEnvToken
+          ? "Publicação não concluída. Verifique token IG e imagem do post."
+          : "Configure IG_ACCESS_TOKEN no Vercel ou conecte Instagram em Contas."
+      );
     }),
 
     getLogs: protectedProcedure.query(async () => {
@@ -529,10 +546,17 @@ export const appRouter = router({
   triacContent: router({
     list: protectedProcedure.input(z.object({
       type: z.enum(["servico", "projeto", "all"]).optional(),
+      /** Default true — oculta apps pessoais/religiosos do catálogo social */
+      socialOnly: z.boolean().optional(),
     }).optional()).query(async ({ input }) => {
       const db = await getDb();
       if (!db) return [];
-      const items = await db.select().from(triacContent);
+      let items = await db.select().from(triacContent);
+      const socialOnly = input?.socialOnly !== false;
+      if (socialOnly) {
+        const extraExcluded = parseSocialExcludeEnv(process.env.TRIARC_SOCIAL_EXCLUDE);
+        items = filterTriacForSocial(items as any[], extraExcluded) as typeof items;
+      }
       if (input?.type && input.type !== "all") {
         return items.filter((i: TriacContent) => i.type === input.type);
       }

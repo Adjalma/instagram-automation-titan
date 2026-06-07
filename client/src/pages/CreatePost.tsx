@@ -29,6 +29,7 @@ export default function CreatePost() {
 
   const { data: accounts } = trpc.accounts.list.useQuery();
   const { data: themes, isLoading: themesLoading, isError: themesError, error: themesErr, refetch: refetchThemes } = trpc.themes.list.useQuery();
+  const { data: catalog } = trpc.triacContent.list.useQuery({ socialOnly: true });
   const utils = trpc.useUtils();
 
   const createPost = trpc.posts.create.useMutation({
@@ -228,7 +229,7 @@ export default function CreatePost() {
 
           {/* Tema */}
           <div className="space-y-2">
-            <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Tema</label>
+            <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Pilar editorial</label>
             {themesLoading ? (
               <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
                 <Loader2 className="h-4 w-4 animate-spin" /> Carregando temas...
@@ -257,22 +258,49 @@ export default function CreatePost() {
                 {(!themes || themes.length === 0) && (
                   <p className="text-xs text-amber-600 flex items-center gap-1">
                     <AlertCircle className="h-3 w-3" />
-                    Nenhum tema no banco — use o campo abaixo ou acesse Cronograma após o deploy.
+                    Nenhum pilar no banco — acesse Cronograma após o deploy.
                   </p>
                 )}
-                <Input
-                  placeholder="Ou digite um tema customizado"
-                  value={customTheme}
-                  onChange={(e) => {
-                    setCustomTheme(e.target.value);
-                    if (e.target.value) setSelectedTheme("");
-                  }}
-                  className="text-sm"
-                />
-                {theme && (
-                  <p className="text-xs text-muted-foreground">Tema selecionado: <strong>{theme}</strong></p>
-                )}
               </>
+            )}
+          </div>
+
+          {/* App / serviço Triarc */}
+          <div className="space-y-2">
+            <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              App ou serviço Triarc (opcional)
+            </label>
+            <p className="text-xs text-muted-foreground">
+              Sobre qual produto falar. Apps excluídos do Instagram corporativo não aparecem aqui.
+            </p>
+            <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto">
+              {catalog?.map((item: any) => (
+                <Button
+                  key={item.id}
+                  type="button"
+                  variant={customTheme === item.name ? "default" : "outline"}
+                  size="sm"
+                  className="text-xs"
+                  onClick={() => {
+                    setCustomTheme(item.name);
+                    setSelectedTheme("");
+                  }}
+                >
+                  {item.name}
+                </Button>
+              ))}
+            </div>
+            <Input
+              placeholder="Ou digite manualmente (app, serviço ou pilar)"
+              value={customTheme}
+              onChange={(e) => {
+                setCustomTheme(e.target.value);
+                if (e.target.value) setSelectedTheme("");
+              }}
+              className="text-sm"
+            />
+            {theme && (
+              <p className="text-xs text-muted-foreground">Tema do post: <strong>{theme}</strong></p>
             )}
           </div>
 
