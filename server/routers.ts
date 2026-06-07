@@ -609,10 +609,9 @@ export const appRouter = router({
       theme: z.string(),
       extraContext: z.string().optional(),
     })).mutation(async ({ input }) => {
-      const account = await getAccountById(input.accountId);
-      if (!account) throw new Error("Account not found");
       const toneInstruction = TRIARC_TONE;
       const response = await invokeLLM({
+        maxTokens: 2048,
         messages: [
           {
             role: "system",
@@ -624,7 +623,10 @@ export const appRouter = router({
           },
         ],
       });
-      const caption = response.choices?.[0]?.message?.content ?? "Erro ao gerar legenda.";
+      const caption = response.choices?.[0]?.message?.content?.trim();
+      if (!caption) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "IA não retornou legenda. Tente novamente." });
+      }
       return { caption };
     }),
     generateArt: protectedProcedure.input(z.object({

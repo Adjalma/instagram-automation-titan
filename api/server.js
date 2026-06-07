@@ -1327,7 +1327,7 @@ async function invokeLLM(params) {
     return invokeAnthropicRest(params, ENV.anthropicApiKey);
   }
 }
-async function invokeOpenAICompat(params, apiUrl, apiKey, model) {
+async function invokeOpenAICompat(params, apiUrl, apiKey, model, timeoutMs = 6e4) {
   const messages = params.messages.map(normalizeMessage);
   if (needsJson(params)) {
     const sys = messages.find((m) => m.role === "system");
@@ -1345,16 +1345,28 @@ async function invokeOpenAICompat(params, apiUrl, apiKey, model) {
   if (needsJson(params)) {
     payload.response_format = { type: "json_object" };
   }
-  const response = await fetch(apiUrl, {
-    method: "POST",
-    headers: { "content-type": "application/json", authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify(payload)
-  });
-  if (!response.ok) {
-    const err = await response.text().catch(() => "");
-    throw new Error(`LLM request failed (${response.status}): ${err}`);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(apiUrl, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify(payload),
+      signal: controller.signal
+    });
+    if (!response.ok) {
+      const err = await response.text().catch(() => "");
+      throw new Error(`LLM request failed (${response.status}): ${err.slice(0, 300)}`);
+    }
+    return response.json();
+  } catch (err) {
+    if (err instanceof Error && err.name === "AbortError") {
+      throw new Error(`LLM demorou mais de ${timeoutMs / 1e3}s. Tente novamente.`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
   }
-  return response.json();
 }
 async function invokeAnthropicRest(params, apiKey) {
   const systemMsgs = params.messages.filter((m) => m.role === "system");
@@ -3491,10 +3503,9 @@ Inclua hashtags estrat\xE9gicas do nicho tech/inova\xE7\xE3o, CTA claro para tri
       theme: z3.string(),
       extraContext: z3.string().optional()
     })).mutation(async ({ input }) => {
-      const account = await getAccountById(input.accountId);
-      if (!account) throw new Error("Account not found");
       const toneInstruction = TRIARC_TONE2;
       const response = await invokeLLM({
+        maxTokens: 2048,
         messages: [
           {
             role: "system",
@@ -3521,7 +3532,10 @@ Destaque o impacto, tecnologias usadas e valor para o cliente.`
           }
         ]
       });
-      const caption = response.choices?.[0]?.message?.content ?? "Erro ao gerar legenda.";
+      const caption = response.choices?.[0]?.message?.content?.trim();
+      if (!caption) {
+        throw new TRPCError2({ code: "INTERNAL_SERVER_ERROR", message: "IA n\xE3o retornou legenda. Tente novamente." });
+      }
       return { caption };
     }),
     generateArt: protectedProcedure.input(z3.object({

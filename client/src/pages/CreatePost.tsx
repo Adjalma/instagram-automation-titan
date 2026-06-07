@@ -72,17 +72,7 @@ export default function CreatePost() {
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
   }, [isGeneratingImage, isGenerating, createPost.isPending]);
 
-  const generateCaption = trpc.ai.generateCaption.useMutation({
-    onSuccess: (data) => {
-      if (!mountedRef.current) return;
-      setCaption(data.caption);
-      toast.success("Legenda gerada!");
-    },
-    onError: (e) => {
-      if (!mountedRef.current) return;
-      toast.error("Erro ao gerar legenda", { description: e.message });
-    },
-  });
+  const generateCaption = trpc.ai.generateCaption.useMutation();
 
   const generateArt = trpc.ai.generateArt.useMutation();
 
@@ -91,12 +81,16 @@ export default function CreatePost() {
     if (!accountId) { toast.error("Selecione uma conta"); return; }
     if (!theme) { toast.error("Selecione ou informe um tema"); return; }
     setIsGenerating(true);
+    const toastId = toast.loading("Gerando legenda com IA...", { description: "Aguarde ~15–30 segundos." });
     try {
-      await generateCaption.mutateAsync({ accountId: Number(accountId), theme });
-    } catch {
-      // toast via onError (silenciado se saiu da página)
+      const data = await generateCaption.mutateAsync({ accountId: Number(accountId), theme });
+      setCaption(data.caption);
+      toast.success("Legenda gerada!", { id: toastId });
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      toast.error("Erro ao gerar legenda", { description: msg, id: toastId, duration: 8000 });
     } finally {
-      if (mountedRef.current) setIsGenerating(false);
+      setIsGenerating(false);
     }
   }, [accountId, theme, generateCaption]);
 

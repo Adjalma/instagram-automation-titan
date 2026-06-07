@@ -107,6 +107,7 @@ async function invokeOpenAICompat(
   apiUrl: string,
   apiKey: string,
   model: string,
+  timeoutMs = 60_000,
 ): Promise<InvokeResult> {
   const messages = params.messages.map(normalizeMessage);
 
@@ -129,18 +130,30 @@ async function invokeOpenAICompat(
     payload.response_format = { type: "json_object" };
   }
 
-  const response = await fetch(apiUrl, {
-    method: "POST",
-    headers: { "content-type": "application/json", authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify(payload),
-  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(apiUrl, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
 
-  if (!response.ok) {
-    const err = await response.text().catch(() => "");
-    throw new Error(`LLM request failed (${response.status}): ${err}`);
+    if (!response.ok) {
+      const err = await response.text().catch(() => "");
+      throw new Error(`LLM request failed (${response.status}): ${err.slice(0, 300)}`);
+    }
+
+    return response.json() as Promise<InvokeResult>;
+  } catch (err: unknown) {
+    if (err instanceof Error && err.name === "AbortError") {
+      throw new Error(`LLM demorou mais de ${timeoutMs / 1000}s. Tente novamente.`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
   }
-
-  return response.json() as Promise<InvokeResult>;
 }
 
 async function invokeAnthropicRest(params: InvokeParams, apiKey: string): Promise<InvokeResult> {

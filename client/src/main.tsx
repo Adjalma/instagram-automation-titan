@@ -67,10 +67,11 @@ const trpcClient = trpc.createClient({
       transformer: superjson,
       fetch(input, init) {
         const url = typeof input === "string" ? input : input.url;
-        const isLongOp = /publishNow|generateArt|generateCaption|generate-image/i.test(url);
+        const isLongOp = /publishNow|generateArt|generate-image/i.test(url);
+        const isCaption = /generateCaption/i.test(url);
         const controller = new AbortController();
         const isAuthMe = /auth\.me/i.test(url);
-        const timeoutMs = isLongOp ? 300_000 : isAuthMe ? 15_000 : 45_000;
+        const timeoutMs = isLongOp ? 300_000 : isCaption ? 90_000 : isAuthMe ? 15_000 : 45_000;
         const timer = setTimeout(() => controller.abort(), timeoutMs);
         return globalThis
           .fetch(input, {
@@ -83,6 +84,8 @@ const trpcClient = trpc.createClient({
               throw new Error(
                 isLongOp
                   ? "Tempo esgotado (5 min). Verifique Logs de publicação ou tente de novo."
+                  : isCaption
+                  ? "Geração de legenda demorou (90s). Tente novamente."
                   : isAuthMe
                   ? "Autenticação demorou (15s). Tente /login ou atualize a página."
                   : "Servidor demorou para responder (45s). Tente atualizar a página."
