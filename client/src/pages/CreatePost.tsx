@@ -23,6 +23,7 @@ export default function CreatePost() {
   const [scheduledAt, setScheduledAt] = useState("");
   const [mediaUrl, setMediaUrl] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
 
   const theme = customTheme.trim() || selectedTheme;
 
@@ -69,9 +70,16 @@ export default function CreatePost() {
     if (!accountId) { toast.error("Selecione uma conta"); return; }
     if (!theme) { toast.error("Informe o tema para gerar a imagem"); return; }
 
+    setIsGeneratingImage(true);
+    const started = Date.now();
     const toastId = toast.loading("Gerando imagem com Gemini...", {
-      description: "Pode levar 1–2 minutos. Não feche a página.",
+      description: "Aguarde — pode levar até 3 minutos. Não feche a página.",
     });
+
+    const statusLabel: Record<string, string> = {
+      pending: "Na fila...",
+      processing: "Gemini criando a arte...",
+    };
 
     try {
       const { jobId } = await generateImage.mutateAsync({
@@ -80,9 +88,11 @@ export default function CreatePost() {
         description: theme !== caption ? caption.slice(0, 200) || undefined : undefined,
       });
 
-      for (let i = 0; i < 90; i++) {
-        await new Promise((r) => setTimeout(r, 2000));
+      // 150 × 2s = até 5 min de polling
+      for (let i = 0; i < 150; i++) {
+        await new Promise((r) => setTimeout(r, i === 0 ? 1500 : 2000));
         const status = await utils.ai.generateArtStatus.fetch({ jobId });
+        const elapsed = Math.round((Date.now() - started) / 1000);
 
         if (status.status === "done" && status.url) {
           setMediaUrl(status.url);
@@ -92,12 +102,23 @@ export default function CreatePost() {
         if (status.status === "failed") {
           throw new Error(status.error ?? "Falha ao gerar imagem");
         }
+
+        if (i % 3 === 0) {
+          toast.loading("Gerando imagem com Gemini...", {
+            id: toastId,
+            description: `${statusLabel[status.status] ?? status.status} (${elapsed}s)`,
+          });
+        }
       }
 
-      throw new Error("Tempo esgotado aguardando a imagem. Tente novamente.");
+      throw new Error(
+        "Tempo esgotado após 5 minutos. O Gemini pode estar lento — tente novamente em 1–2 minutos."
+      );
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
-      toast.error("Erro ao gerar imagem", { description: msg, id: toastId, duration: 8000 });
+      toast.error("Erro ao gerar imagem", { description: msg, id: toastId, duration: 10000 });
+    } finally {
+      setIsGeneratingImage(false);
     }
   }, [accountId, theme, caption, generateImage, utils.ai.generateArtStatus]);
 
@@ -310,10 +331,10 @@ export default function CreatePost() {
               <Button
                 variant="outline" size="sm"
                 onClick={handleGenerateImage}
-                disabled={generateImage.isPending || !theme || !accountId}
+                disabled={isGeneratingImage || !theme || !accountId}
                 className="gap-1.5 h-7 text-xs"
               >
-                {generateImage.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Image className="h-3 w-3" />}
+                {isGeneratingImage ? <Loader2 className="h-3 w-3 animate-spin" /> : <Image className="h-3 w-3" />}
                 Gerar Imagem
               </Button>
             </div>

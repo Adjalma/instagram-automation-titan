@@ -1314,7 +1314,16 @@ async function probeImageStack() {
 init_db();
 import { sql as sql2 } from "drizzle-orm";
 import { waitUntil } from "@vercel/functions";
+var STALE_PROCESSING_MS = 4 * 60 * 1e3;
 var tableReady = false;
+function internalAuthSecret() {
+  return ENV.cronSecret || ENV.cookieSecret;
+}
+function appBaseUrl() {
+  if (ENV.appUrl) return ENV.appUrl.replace(/\/$/, "");
+  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
+  return "";
+}
 async function ensureImageJobsTable() {
   if (tableReady) return;
   const db = await getDb();
@@ -1333,6 +1342,18 @@ async function ensureImageJobsTable() {
   `);
   tableReady = true;
 }
+function mapJobRow(row) {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    prompt: row.prompt,
+    status: row.status,
+    url: row.url,
+    error: row.error,
+    createdAt: new Date(row.created_at),
+    updatedAt: new Date(row.updated_at)
+  };
+}
 async function createImageJob(userId, prompt) {
   await ensureImageJobsTable();
   const db = await getDb();
@@ -1346,26 +1367,23 @@ async function createImageJob(userId, prompt) {
   if (!id) throw new Error("Falha ao criar job de imagem");
   return id;
 }
-async function getImageJob(jobId, userId) {
+async function getImageJobById(jobId) {
   await ensureImageJobsTable();
   const db = await getDb();
   if (!db) return null;
   const rows = await db.execute(sql2`
-    SELECT id, user_id, prompt, status, url, error
+    SELECT id, user_id, prompt, status, url, error, created_at, updated_at
     FROM image_generation_jobs
-    WHERE id = ${jobId} AND user_id = ${userId}
+    WHERE id = ${jobId}
     LIMIT 1
   `);
   const row = rows[0];
-  if (!row) return null;
-  return {
-    id: row.id,
-    userId: row.user_id,
-    prompt: row.prompt,
-    status: row.status,
-    url: row.url,
-    error: row.error
-  };
+  return row ? mapJobRow(row) : null;
+}
+async function getImageJob(jobId, userId) {
+  const job = await getImageJobById(jobId);
+  if (!job || job.userId !== userId) return null;
+  return job;
 }
 async function markJobFailed(jobId, message) {
   const db = await getDb();
@@ -1375,6 +1393,16 @@ async function markJobFailed(jobId, message) {
     SET status = 'failed', error = ${message.slice(0, 500)}, updated_at = NOW()
     WHERE id = ${jobId}
   `);
+}
+async function resetJobToPending(jobId) {
+  const db = await getDb();
+  if (!db) return;
+  await db.execute(sql2`
+    UPDATE image_generation_jobs
+    SET status = 'pending', error = NULL, updated_at = NOW()
+    WHERE id = ${jobId} AND status = 'processing'
+  `);
+  console.warn(`[ImageJob] ${jobId} resetado de processing \u2192 pending (stale)`);
 }
 async function processImageJob(jobId) {
   await ensureImageJobsTable();
@@ -1407,13 +1435,47 @@ async function processImageJob(jobId) {
     await markJobFailed(jobId, msg);
   }
 }
-function scheduleImageJob(jobId) {
+function triggerRemoteProcessing(jobId) {
+  const secret = internalAuthSecret();
+  const base = appBaseUrl();
+  if (!secret || !base) {
+    console.warn("[ImageJob] Sem APP_URL ou secret \u2014 remote dispatch ignorado");
+    return;
+  }
+  const url = `${base}/api/internal/process-image-job/${jobId}`;
+  void fetch(url, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${secret}` }
+  }).catch((err) => console.warn(`[ImageJob] Remote dispatch ${jobId} falhou:`, err));
+}
+function dispatchImageJobProcessing(jobId) {
   const task = processImageJob(jobId);
   try {
     waitUntil(task);
   } catch {
     void task;
   }
+  triggerRemoteProcessing(jobId);
+}
+async function kickImageJob(jobId) {
+  const job = await getImageJobById(jobId);
+  if (!job || job.status === "done" || job.status === "failed") return;
+  if (job.status === "processing") {
+    if (Date.now() - job.updatedAt.getTime() > STALE_PROCESSING_MS) {
+      await resetJobToPending(jobId);
+      dispatchImageJobProcessing(jobId);
+    }
+    return;
+  }
+  const ageMs = Date.now() - job.createdAt.getTime();
+  if (ageMs > 3e3) {
+    dispatchImageJobProcessing(jobId);
+  }
+}
+function verifyInternalAuth(authHeader) {
+  const secret = internalAuthSecret();
+  if (!secret || !authHeader) return false;
+  return authHeader === `Bearer ${secret}`;
 }
 
 // server/instagram.ts
@@ -3082,7 +3144,7 @@ Visual context: ${extra}`;
       }
       try {
         const jobId = await createImageJob(ctx.user.id, prompt);
-        scheduleImageJob(jobId);
+        dispatchImageJobProcessing(jobId);
         console.log(`[generateArt] Job ${jobId} enfileirado theme="${input.theme}"`);
         return { jobId, status: "pending" };
       } catch (err) {
@@ -3094,6 +3156,7 @@ Visual context: ${extra}`;
     generateArtStatus: protectedProcedure.input(z3.object({
       jobId: z3.number()
     })).query(async ({ ctx, input }) => {
+      await kickImageJob(input.jobId);
       const job = await getImageJob(input.jobId, ctx.user.id);
       if (!job) {
         throw new TRPCError2({ code: "NOT_FOUND", message: "Job de imagem n\xE3o encontrado" });
@@ -3495,6 +3558,22 @@ app.get("/api/cron/tick", async (req, res) => {
     return res.json({ ok: true, ts: (/* @__PURE__ */ new Date()).toISOString() });
   } catch (err) {
     return res.status(500).json({ error: err.message });
+  }
+});
+app.post("/api/internal/process-image-job/:id", async (req, res) => {
+  if (!verifyInternalAuth(req.headers.authorization)) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+  const jobId = parseInt(String(req.params.id), 10);
+  if (!Number.isFinite(jobId)) {
+    return res.status(400).json({ error: "Invalid job id" });
+  }
+  try {
+    await processImageJob(jobId);
+    return res.json({ ok: true, jobId });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return res.status(500).json({ error: msg });
   }
 });
 app.use("/api/trpc", createExpressMiddleware({

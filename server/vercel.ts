@@ -15,7 +15,7 @@ import { getDb, getLastDbError } from "./db";
 import { sql } from "drizzle-orm";
 import { ensureStorageBucket } from "./storage";
 import { probeImageStack } from "./_core/imageGeneration";
-import { ensureImageJobsTable } from "./imageJobs";
+import { ensureImageJobsTable, processImageJob, verifyInternalAuth } from "./imageJobs";
 
 const app = express();
 app.use(express.json({ limit: "50mb" }));
@@ -88,6 +88,24 @@ app.get("/api/cron/tick", async (req, res) => {
     return res.json({ ok: true, ts: new Date().toISOString() });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
+  }
+});
+
+/** Processa job de imagem em invocação serverless dedicada (evita timeout do request pai). */
+app.post("/api/internal/process-image-job/:id", async (req, res) => {
+  if (!verifyInternalAuth(req.headers.authorization)) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+  const jobId = parseInt(String(req.params.id), 10);
+  if (!Number.isFinite(jobId)) {
+    return res.status(400).json({ error: "Invalid job id" });
+  }
+  try {
+    await processImageJob(jobId);
+    return res.json({ ok: true, jobId });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return res.status(500).json({ error: msg });
   }
 });
 

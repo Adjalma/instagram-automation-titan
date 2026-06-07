@@ -16,7 +16,7 @@ import {
 } from "./db";
 import { invokeLLM } from "./_core/llm";
 import { generateImage, buildTriarcImagePrompt } from "./_core/imageGeneration";
-import { createImageJob, getImageJob, scheduleImageJob } from "./imageJobs";
+import { createImageJob, getImageJob, kickImageJob, dispatchImageJobProcessing } from "./imageJobs";
 import { notifyOwner } from "./_core/notification";
 import { storagePut } from "./storage";
 import { processScheduledPosts, fetchPostInsights } from "./instagram";
@@ -633,7 +633,7 @@ export const appRouter = router({
 
       try {
         const jobId = await createImageJob(ctx.user.id, prompt);
-        scheduleImageJob(jobId);
+        dispatchImageJobProcessing(jobId);
         console.log(`[generateArt] Job ${jobId} enfileirado theme="${input.theme}"`);
         return { jobId, status: "pending" as const };
       } catch (err: unknown) {
@@ -645,6 +645,7 @@ export const appRouter = router({
     generateArtStatus: protectedProcedure.input(z.object({
       jobId: z.number(),
     })).query(async ({ ctx, input }) => {
+      await kickImageJob(input.jobId);
       const job = await getImageJob(input.jobId, ctx.user.id);
       if (!job) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Job de imagem não encontrado" });
