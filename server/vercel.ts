@@ -91,4 +91,7 @@ sdk.ensureAdminUser().catch(e => console.error("[Auth] Erro ao criar admin:", e)
 seedTriarcContent().catch(e => console.error("[Seed] Erro triac_content:", e));
 seedContentThemes().catch(e => console.error("[Seed] Erro content_themes:", e));
 
+/** Geração de imagem Gemini pode levar 15–60s — requer Pro no Vercel (Hobby = 10s max). */
+export const config = { maxDuration: 60 };
+
 export default app;

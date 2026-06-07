@@ -619,11 +619,13 @@ export const appRouter = router({
       includelogo: z.boolean().optional(),
     })).mutation(async ({ input }) => {
       const account = await getAccountById(input.accountId);
-      if (!account) throw new Error("Account not found");
-      const { url } = await generateImage({
-        prompt: buildTriarcImagePrompt(input.theme),
-        originalImages: [{ url: TRIARC_LOGO_URL, mimeType: "image/jpeg" }],
-      });
+      if (!account) throw new Error("Conta não encontrada");
+      let prompt = buildTriarcImagePrompt(input.theme);
+      if (input.description?.trim()) {
+        prompt += `\nVisual context: ${input.description.trim()}`;
+      }
+      const { url } = await generateImage({ prompt });
+      if (!url) throw new Error("Gemini não retornou URL da imagem");
       return { url };
     }),
   }),
