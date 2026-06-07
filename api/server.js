@@ -2028,14 +2028,25 @@ async function publishToFacebook(params) {
 }
 
 // server/autonomousAgent.ts
-var IG_GRAPH2 = "https://graph.facebook.com/v19.0";
-async function resolveMediaUrl(mediaUrl) {
-  if (mediaUrl.startsWith("/manus-storage/") || mediaUrl.startsWith("/storage/")) {
-    const appUrl = ENV.appUrl.replace(/\/$/, "");
+var IG_GRAPH2 = "https://graph.facebook.com/v21.0";
+async function resolveMediaUrlForInstagram(mediaUrl) {
+  if (mediaUrl.startsWith("data:")) {
+    throw new Error("Instagram n\xE3o aceita imagem em data: URL \u2014 gere ou envie a imagem de novo");
+  }
+  let storagePath = mediaUrl;
+  const storageIdx = mediaUrl.search(/\/(storage|manus-storage)\//);
+  if (storageIdx >= 0) {
+    storagePath = mediaUrl.slice(storageIdx);
+  }
+  if (storagePath.startsWith("/storage/") || storagePath.startsWith("/manus-storage/")) {
     try {
-      return await storageGetSignedUrl(mediaUrl);
+      return await storageGetSignedUrl(storagePath);
     } catch {
-      return `${appUrl}${mediaUrl}`;
+      const key = storagePath.replace(/^\/(storage|manus-storage)\//, "");
+      if (ENV.supabaseUrl) {
+        const bucket = process.env.SUPABASE_STORAGE_BUCKET ?? "triarc-social";
+        return `${ENV.supabaseUrl}/storage/v1/object/public/${bucket}/${key}`;
+      }
     }
   }
   if (mediaUrl.startsWith("/")) {
@@ -2052,7 +2063,6 @@ async function publishToInstagram(params) {
   };
   if (imageUrl) {
     containerBody.image_url = imageUrl;
-    containerBody.media_type = "IMAGE";
   } else {
     throw new Error("Instagram requer pelo menos uma imagem");
   }
@@ -2272,7 +2282,7 @@ async function runAutonomousAgent() {
     await updatePost(post.id, { mcpPending: 1 });
     const media = await getPostMedia(post.id);
     const rawImageUrl = media?.[0]?.mediaUrl || void 0;
-    const imageUrl = rawImageUrl ? await resolveMediaUrl(rawImageUrl) : void 0;
+    const imageUrl = rawImageUrl ? await resolveMediaUrlForInstagram(rawImageUrl) : void 0;
     const igAccount2 = allAccounts.find(
       (a) => a.id === post.accountId && a.platform === "instagram" && a.accessToken
     ) ?? allAccounts.find((a) => a.platform === "instagram" && a.accessToken);
@@ -3363,7 +3373,7 @@ async function getUser(req) {
     return null;
   }
 }
-async function resolveMediaUrl2(mediaUrl) {
+async function resolveMediaUrl(mediaUrl) {
   if (mediaUrl.startsWith("/manus-storage/")) {
     return storageGetSignedUrl(mediaUrl.replace("/manus-storage/", ""));
   }
@@ -3455,7 +3465,7 @@ function registerScheduledRoutes(app2) {
           const mediaWithUrls = await Promise.all(
             media.map(async (m) => ({
               ...m,
-              publicUrl: await resolveMediaUrl2(m.mediaUrl)
+              publicUrl: await resolveMediaUrl(m.mediaUrl)
             }))
           );
           return { ...post, media: mediaWithUrls };

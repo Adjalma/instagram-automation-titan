@@ -20,17 +20,32 @@ import { publishToLinkedIn } from "./linkedin";
 import { publishToFacebook } from "./facebook";
 import { storageGetSignedUrl } from "./storage";
 
-const IG_GRAPH = "https://graph.facebook.com/v19.0";
+const IG_GRAPH = "https://graph.facebook.com/v21.0";
 
-async function resolveMediaUrl(mediaUrl: string): Promise<string> {
-  if (mediaUrl.startsWith("/manus-storage/") || mediaUrl.startsWith("/storage/")) {
-    const appUrl = ENV.appUrl.replace(/\/$/, "");
+/** URL que os servidores da Meta conseguem baixar (HTTPS direto, sem redirect do app). */
+async function resolveMediaUrlForInstagram(mediaUrl: string): Promise<string> {
+  if (mediaUrl.startsWith("data:")) {
+    throw new Error("Instagram não aceita imagem em data: URL — gere ou envie a imagem de novo");
+  }
+
+  let storagePath = mediaUrl;
+  const storageIdx = mediaUrl.search(/\/(storage|manus-storage)\//);
+  if (storageIdx >= 0) {
+    storagePath = mediaUrl.slice(storageIdx);
+  }
+
+  if (storagePath.startsWith("/storage/") || storagePath.startsWith("/manus-storage/")) {
     try {
-      return await storageGetSignedUrl(mediaUrl);
+      return await storageGetSignedUrl(storagePath);
     } catch {
-      return `${appUrl}${mediaUrl}`;
+      const key = storagePath.replace(/^\/(storage|manus-storage)\//, "");
+      if (ENV.supabaseUrl) {
+        const bucket = process.env.SUPABASE_STORAGE_BUCKET ?? "triarc-social";
+        return `${ENV.supabaseUrl}/storage/v1/object/public/${bucket}/${key}`;
+      }
     }
   }
+
   if (mediaUrl.startsWith("/")) {
     return `${ENV.appUrl.replace(/\/$/, "")}${mediaUrl}`;
   }
@@ -56,7 +71,7 @@ export async function publishToInstagram(params: {
 
   if (imageUrl) {
     containerBody.image_url = imageUrl;
-    containerBody.media_type = "IMAGE";
+    // media_type só para VIDEO/REELS/STORIES/CAROUSEL — omitir em foto feed (#100 se IMAGE)
   } else {
     // Text-only not supported by IG; skip gracefully
     throw new Error("Instagram requer pelo menos uma imagem");
@@ -359,7 +374,7 @@ export async function runAutonomousAgent(): Promise<{
 
     const media = await getPostMedia(post.id) as any[];
     const rawImageUrl = media?.[0]?.mediaUrl || undefined;
-    const imageUrl = rawImageUrl ? await resolveMediaUrl(rawImageUrl) : undefined;
+    const imageUrl = rawImageUrl ? await resolveMediaUrlForInstagram(rawImageUrl) : undefined;
 
     // Encontra conta Instagram vinculada ao post (banco ou env var)
     const igAccount = allAccounts.find(
