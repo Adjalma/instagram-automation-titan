@@ -1456,6 +1456,7 @@ function verifyInternalAuth(authHeader) {
 
 // server/instagram.ts
 init_db();
+var IG_GRAPH = "https://graph.facebook.com/v19.0";
 async function processScheduledPosts() {
   const scheduledPosts = await getPostsByStatus("scheduled");
   const now = /* @__PURE__ */ new Date();
@@ -1476,9 +1477,45 @@ async function processScheduledPosts() {
   }
   return { processed, promoted, errors };
 }
-async function fetchPostInsights(_instagramPostId) {
-  console.warn("[Instagram] fetchPostInsights deve ser chamado pelo agente Manus, n\xE3o pelo servidor.");
-  return {};
+async function fetchPostInsights(instagramPostId, accessToken) {
+  const token = accessToken || ENV.igAccessToken;
+  if (!token) {
+    console.warn("[Instagram] fetchPostInsights: token n\xE3o configurado");
+    return {};
+  }
+  try {
+    const mediaRes = await fetch(
+      `${IG_GRAPH}/${instagramPostId}?fields=like_count,comments_count&access_token=${encodeURIComponent(token)}`
+    );
+    if (!mediaRes.ok) {
+      const err = await mediaRes.text();
+      console.warn(`[Instagram] fetchPostInsights media: ${mediaRes.status} ${err.slice(0, 200)}`);
+      return {};
+    }
+    const media = await mediaRes.json();
+    let reach;
+    let impressions;
+    const insightsRes = await fetch(
+      `${IG_GRAPH}/${instagramPostId}/insights?metric=reach,impressions&access_token=${encodeURIComponent(token)}`
+    );
+    if (insightsRes.ok) {
+      const insightsData = await insightsRes.json();
+      for (const metric of insightsData.data ?? []) {
+        const val = metric.values?.[0]?.value;
+        if (metric.name === "reach") reach = val;
+        if (metric.name === "impressions") impressions = val;
+      }
+    }
+    return {
+      likes: media.like_count,
+      comments: media.comments_count,
+      reach,
+      impressions
+    };
+  } catch (err) {
+    console.warn("[Instagram] fetchPostInsights erro:", err?.message);
+    return {};
+  }
 }
 
 // server/autonomousAgent.ts
@@ -1964,7 +2001,7 @@ async function publishToFacebook(params) {
 }
 
 // server/autonomousAgent.ts
-var IG_GRAPH = "https://graph.facebook.com/v19.0";
+var IG_GRAPH2 = "https://graph.facebook.com/v19.0";
 async function resolveMediaUrl(mediaUrl) {
   if (mediaUrl.startsWith("/manus-storage/") || mediaUrl.startsWith("/storage/")) {
     const appUrl = ENV.appUrl.replace(/\/$/, "");
@@ -1992,7 +2029,7 @@ async function publishToInstagram(params) {
   } else {
     throw new Error("Instagram requer pelo menos uma imagem");
   }
-  const containerRes = await fetch(`${IG_GRAPH}/${igUserId}/media`, {
+  const containerRes = await fetch(`${IG_GRAPH2}/${igUserId}/media`, {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams(containerBody).toString()
@@ -2002,7 +2039,7 @@ async function publishToInstagram(params) {
     throw new Error(`IG media container failed: ${containerRes.status} ${err}`);
   }
   const { id: creationId } = await containerRes.json();
-  const publishRes = await fetch(`${IG_GRAPH}/${igUserId}/media_publish`, {
+  const publishRes = await fetch(`${IG_GRAPH2}/${igUserId}/media_publish`, {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({ creation_id: creationId, access_token: accessToken }).toString()
@@ -2017,14 +2054,14 @@ async function publishToInstagram(params) {
 }
 async function fetchIgComments(mediaId, accessToken) {
   const res = await fetch(
-    `${IG_GRAPH}/${mediaId}/comments?fields=id,text,username,timestamp&access_token=${accessToken}`
+    `${IG_GRAPH2}/${mediaId}/comments?fields=id,text,username,timestamp&access_token=${accessToken}`
   );
   if (!res.ok) return [];
   const data = await res.json();
   return data.data ?? [];
 }
 async function replyIgComment(commentId, message, accessToken) {
-  await fetch(`${IG_GRAPH}/${commentId}/replies`, {
+  await fetch(`${IG_GRAPH2}/${commentId}/replies`, {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({ message, access_token: accessToken }).toString()
@@ -2032,7 +2069,7 @@ async function replyIgComment(commentId, message, accessToken) {
 }
 async function autoReplyIgComments(igUserId, accessToken, postCaption) {
   const mediaRes = await fetch(
-    `${IG_GRAPH}/${igUserId}/media?fields=id,timestamp&limit=10&access_token=${accessToken}`
+    `${IG_GRAPH2}/${igUserId}/media?fields=id,timestamp&limit=10&access_token=${accessToken}`
   );
   if (!mediaRes.ok) return;
   const media = (await mediaRes.json()).data ?? [];
@@ -2911,7 +2948,9 @@ Inclua hashtags estrat\xE9gicas do nicho tech/inova\xE7\xE3o, CTA claro para tri
         return dateA - dateB;
       });
     }),
-    approveAll: protectedProcedure.mutation(async () => {
+    approveAll: protectedProcedure.input(z3.object({
+      publish: z3.boolean().optional()
+    }).optional()).mutation(async ({ input }) => {
       const pendingPosts = await getPostsByStatus("pending");
       let approved = 0;
       let scheduled = 0;
@@ -2925,7 +2964,14 @@ Inclua hashtags estrat\xE9gicas do nicho tech/inova\xE7\xE3o, CTA claro para tri
           scheduled++;
         }
       }
-      return { approved, published: 0, scheduled, total: pendingPosts.length };
+      let published = 0;
+      const errors = [];
+      if (input?.publish && approved > 0) {
+        const agent = await runAutonomousAgent();
+        published = agent.postsPublished;
+        errors.push(...agent.errors);
+      }
+      return { approved, published, scheduled, total: pendingPosts.length, errors };
     }),
     processScheduled: protectedProcedure.mutation(async () => {
       return processScheduledPosts();
@@ -2970,7 +3016,9 @@ Inclua hashtags estrat\xE9gicas do nicho tech/inova\xE7\xE3o, CTA claro para tri
     syncInsights: protectedProcedure.input(z3.object({ postId: z3.number() })).mutation(async ({ input }) => {
       const post = await getPostById(input.postId);
       if (!post || !post.instagramPostId) throw new Error("Post not published or no Instagram ID");
-      const insights = await fetchPostInsights(post.instagramPostId);
+      const account = post.accountId ? await getAccountById(post.accountId) : null;
+      const token = account?.accessToken;
+      const insights = await fetchPostInsights(post.instagramPostId, token);
       await updatePost(input.postId, {
         likes: insights.likes ?? 0,
         comments: insights.comments ?? 0
@@ -2992,9 +3040,7 @@ Inclua hashtags estrat\xE9gicas do nicho tech/inova\xE7\xE3o, CTA claro para tri
     })
   }),
   analytics: router({
-    // Dados da conta Instagram via MCP (chamado pelo agente, cacheado no banco)
-    // Como o MCP só pode ser chamado pelo agente, estes endpoints retornam dados
-    // armazenados no banco ou buscam via endpoint interno do agente.
+    // Dados da conta Instagram via Graph API (cacheados no banco após sync).
     getAccountStats: protectedProcedure.query(async () => {
       const accounts = await getAllAccounts();
       const triarc = accounts.find((a) => a.handle === "triarcsolutions") || accounts[0];
@@ -3020,20 +3066,19 @@ Inclua hashtags estrat\xE9gicas do nicho tech/inova\xE7\xE3o, CTA claro para tri
     syncAllInsights: protectedProcedure.mutation(async () => {
       const published = await getPostsByStatus("published");
       const postsWithId = published.filter((p) => p.instagramPostId);
+      const accounts = await getAllAccounts();
       let updated = 0;
       const errors = [];
       for (const post of postsWithId) {
         try {
-          const port = process.env.PORT || 3e3;
-          const res = await fetch(`http://localhost:${port}/api/scheduled/insights/${post.instagramPostId}`, {
-            headers: { "x-internal-key": process.env.JWT_SECRET || "internal" }
-          });
-          if (res.ok) {
-            const data = await res.json();
-            if (data.likes !== void 0 || data.comments !== void 0) {
-              await updatePost(post.id, { likes: data.likes ?? post.likes ?? 0, comments: data.comments ?? post.comments ?? 0 });
-              updated++;
-            }
+          const account = accounts.find((a) => a.id === post.accountId && a.platform === "instagram") ?? accounts.find((a) => a.platform === "instagram");
+          const insights = await fetchPostInsights(post.instagramPostId, account?.accessToken);
+          if (insights.likes !== void 0 || insights.comments !== void 0) {
+            await updatePost(post.id, {
+              likes: insights.likes ?? post.likes ?? 0,
+              comments: insights.comments ?? post.comments ?? 0
+            });
+            updated++;
           }
         } catch (e) {
           errors.push(`Post ${post.id}: ${e.message}`);
@@ -3148,14 +3193,15 @@ Visual context: ${extra}`;
   actionPlan: router({
     generate: protectedProcedure.input(z3.object({
       period: z3.enum(["week", "month"]).default("week")
-    })).mutation(async () => {
+    })).mutation(async ({ input }) => {
       const published = await getPostsByStatus("published");
       const publishedPosts = published;
+      const periodLabel = input.period === "month" ? "ultimo mes" : "ultima semana";
       const totalLikes = publishedPosts.reduce((s, p) => s + (p.likes ?? 0), 0);
       const totalComments = publishedPosts.reduce((s, p) => s + (p.comments ?? 0), 0);
       const avgEngagement = publishedPosts.length > 0 ? ((totalLikes + totalComments) / publishedPosts.length).toFixed(1) : "0";
       const topPosts = publishedPosts.sort((a, b) => (b.likes ?? 0) + (b.comments ?? 0) - ((a.likes ?? 0) + (a.comments ?? 0))).slice(0, 3).map((p) => ({ theme: p.theme || "Sem tema", likes: p.likes ?? 0, comments: p.comments ?? 0 }));
-      const prompt = "Crie um plano de acao de marketing digital para a Triarc Solutions (empresa de tecnologia de Macae/RJ) baseado nos dados abaixo.\n\nDados de performance:\n- Posts publicados: " + publishedPosts.length + "\n- Total de curtidas: " + totalLikes + "\n- Total de comentarios: " + totalComments + "\n- Engajamento medio por post: " + avgEngagement + "\n- Top posts: " + JSON.stringify(topPosts) + '\n\nRetorne JSON com exatamente esta estrutura:\n{\n  "diagnosis": "diagnostico da performance atual em 3-4 frases",\n  "score": 75,\n  "actions": [{ "priority": "alta", "title": "titulo", "description": "descricao", "metric": "metrica", "deadline": "prazo" }],\n  "contentCalendar": [{ "day": "Segunda", "type": "Educativo", "theme": "tema", "platform": "Instagram" }],\n  "kpis": [{ "name": "KPI", "current": "atual", "target": "meta", "period": "periodo" }],\n  "quickWins": ["acao 1", "acao 2", "acao 3"]\n}';
+      const prompt = "Crie um plano de acao de marketing digital para a Triarc Solutions (empresa de tecnologia de Macae/RJ) para o periodo: " + periodLabel + ". Baseado nos dados abaixo.\n\nDados de performance:\n- Posts publicados: " + publishedPosts.length + "\n- Total de curtidas: " + totalLikes + "\n- Total de comentarios: " + totalComments + "\n- Engajamento medio por post: " + avgEngagement + "\n- Top posts: " + JSON.stringify(topPosts) + '\n\nRetorne JSON com exatamente esta estrutura:\n{\n  "diagnosis": "diagnostico da performance atual em 3-4 frases",\n  "score": 75,\n  "actions": [{ "priority": "alta", "title": "titulo", "description": "descricao", "metric": "metrica", "deadline": "prazo" }],\n  "contentCalendar": [{ "day": "Segunda", "type": "Educativo", "theme": "tema", "platform": "Instagram" }],\n  "kpis": [{ "name": "KPI", "current": "atual", "target": "meta", "period": "periodo" }],\n  "quickWins": ["acao 1", "acao 2", "acao 3"]\n}';
       const res = await invokeLLM({
         messages: [
           { role: "system", content: "Voce e um estrategista de marketing digital especializado em empresas de tecnologia B2B no Brasil. Responda SEMPRE em JSON valido sem markdown." },
@@ -3445,10 +3491,10 @@ Erro: ${error || "Desconhecido"}`
     try {
       const { getDb: getDb2 } = await Promise.resolve().then(() => (init_db(), db_exports));
       const { posts: posts2 } = await Promise.resolve().then(() => (init_schema(), schema_exports));
-      const { eq: eq6 } = await import("drizzle-orm");
+      const { eq: eq7 } = await import("drizzle-orm");
       const db = await getDb2();
       if (!db) return res.status(503).json({ error: "DB unavailable" });
-      const [post] = await db.select().from(posts2).where(eq6(posts2.instagramPostId, req.params.instagramPostId)).limit(1);
+      const [post] = await db.select().from(posts2).where(eq7(posts2.instagramPostId, req.params.instagramPostId)).limit(1);
       if (!post) return res.status(404).json({ error: "Post not found" });
       return res.json({ likes: post.likes ?? 0, comments: post.comments ?? 0 });
     } catch (err) {
@@ -3511,6 +3557,136 @@ function registerImageRoutes(app2) {
       return res.status(500).json({ error: msg });
     }
   });
+}
+
+// server/scheduler.ts
+init_db();
+init_schema();
+import { eq as eq6 } from "drizzle-orm";
+var INTERVAL_MS = parseInt(process.env.SCHEDULER_INTERVAL_MS || "300000", 10);
+var TZ_OFFSET = -3;
+var ranToday = /* @__PURE__ */ new Set();
+async function promoteScheduledPosts() {
+  try {
+    const scheduledPosts = await getPostsByStatus("scheduled");
+    const now = /* @__PURE__ */ new Date();
+    let promoted = 0;
+    for (const post of scheduledPosts) {
+      if (post.scheduledAt && new Date(post.scheduledAt) <= now) {
+        await updatePost(post.id, { status: "approved", mcpPending: 0 });
+        promoted++;
+        console.log(`[Scheduler] Post ${post.id} movido para fila de publica\xE7\xE3o.`);
+      }
+    }
+    if (promoted > 0) console.log(`[Scheduler] ${promoted} post(s) promovidos.`);
+  } catch (err) {
+    console.error("[Scheduler] Erro ao verificar posts agendados:", err?.message);
+  }
+}
+function getBrasiliaDateHour() {
+  const now = /* @__PURE__ */ new Date();
+  const brasiliaMs = now.getTime() + TZ_OFFSET * 36e5;
+  const brasilia = new Date(brasiliaMs);
+  const date = brasilia.toISOString().split("T")[0];
+  const hour = brasilia.getUTCHours();
+  return { date, hour };
+}
+async function fetchNews2(query, language) {
+  const key = ENV.newsApiKey;
+  if (!key) {
+    console.error("[DailyResearch] NEWS_API_KEY n\xE3o configurada");
+    return [];
+  }
+  const yesterday = new Date(Date.now() - 864e5).toISOString().split("T")[0];
+  const enQuery = query.replace(/intelig[eê]ncia artificial/gi, "artificial intelligence").replace(/automa[çc][aã]o/gi, "automation").replace(/tecnologia/gi, "technology");
+  const url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(enQuery)}&from=${yesterday}&language=en&pageSize=5&sortBy=publishedAt&apiKey=${key}`;
+  console.log(`[DailyResearch] Buscando not\xEDcias: ${url.replace(key, "***")}`);
+  try {
+    const res = await fetch(url, { headers: { "User-Agent": "TriarcSocialManager/1.0" } });
+    const data = await res.json();
+    if (data.status !== "ok") {
+      console.error(`[DailyResearch] NewsAPI erro: ${data.code} \u2014 ${data.message}`);
+      return [];
+    }
+    if (!data.articles?.length) return [];
+    return data.articles.slice(0, 5).map((a) => ({ title: a.title, description: a.description ?? "" }));
+  } catch (e) {
+    console.error("[DailyResearch] Fetch error:", e.message);
+    return [];
+  }
+}
+async function runTopicResearch(topic) {
+  const db = await getDb();
+  if (!db) return;
+  try {
+    const articles = await fetchNews2(topic.query, topic.language);
+    if (!articles.length) {
+      await db.insert(researchRuns).values({ topicId: topic.id, status: "skipped", error: "Sem not\xEDcias" });
+      console.log(`[DailyResearch] T\xF3pico "${topic.name}": sem not\xEDcias.`);
+      return;
+    }
+    const headlines = articles.map((a, i) => `${i + 1}. ${a.title}: ${a.description}`).join("\n");
+    const llmRes = await invokeLLM({
+      messages: [
+        { role: "system", content: "Voc\xEA \xE9 especialista em marketing digital para Instagram da Triarc Solutions, empresa de tecnologia de Maca\xE9/RJ. Tom corporativo, moderno e acess\xEDvel. Inclua CTA para triarcsolutions.com.br e hashtags tech." },
+        { role: "user", content: `Crie uma legenda impactante para o Instagram da @triarcsolutions sobre: "${topic.name}".
+Not\xEDcias das \xFAltimas 24h:
+${headlines}
+
+Conecte as novidades ao posicionamento da Triarc. M\xE1ximo 2200 chars. Emojis estrat\xE9gicos. CTA + 5-10 hashtags.` }
+      ]
+    });
+    const caption = typeof llmRes.choices?.[0]?.message?.content === "string" ? llmRes.choices[0].message.content : `Novidades em ${topic.name}! Acompanhe as tend\xEAncias com a Triarc Solutions. triarcsolutions.com.br`;
+    const { url: imageUrl } = await generateImage({
+      prompt: buildTriarcImagePrompt(topic.name),
+      originalImages: [{ url: TRIARC_LOGO_URL, mimeType: "image/jpeg" }]
+    });
+    if (!imageUrl) throw new Error("Falha ao gerar imagem");
+    const postStatus = topic.autoPublish === 1 ? "approved" : "pending";
+    const [postResult] = await db.insert(posts).values({
+      userId: 1,
+      accountId: topic.accountId,
+      caption,
+      theme: `Pesquisa Di\xE1ria: ${topic.name}`,
+      status: postStatus,
+      mcpPending: 0
+    }).returning({ id: posts.id });
+    const postId = postResult.id;
+    await db.insert(postMedia).values({ postId, mediaUrl: imageUrl, mediaType: "image", sortOrder: 0 });
+    await db.insert(researchRuns).values({
+      topicId: topic.id,
+      postId,
+      headlines: JSON.stringify(articles.map((a) => a.title)),
+      status: "success"
+    });
+    console.log(`[DailyResearch] T\xF3pico "${topic.name}" (${topic.id}): post ${postId} criado como ${postStatus} \xE0s ${getBrasiliaDateHour().hour}h Bras\xEDlia.`);
+  } catch (err) {
+    const db2 = await getDb();
+    if (db2) await db2.insert(researchRuns).values({ topicId: topic.id, status: "failed", error: err?.message });
+    console.error(`[DailyResearch] Erro no t\xF3pico "${topic.name}":`, err?.message);
+  }
+}
+async function checkAndRunTopicsForHour(date, hour) {
+  const db = await getDb();
+  if (!db) return;
+  const activeTopics = await db.select().from(researchTopics).where(eq6(researchTopics.active, 1));
+  for (const topic of activeTopics) {
+    const key = `${topic.id}:${date}`;
+    if (topic.publishHour === hour && !ranToday.has(key)) {
+      ranToday.add(key);
+      console.log(`[DailyResearch] Disparando t\xF3pico "${topic.name}" (${hour}h Bras\xEDlia)...`);
+      runTopicResearch(topic).catch((err) => console.error(`[DailyResearch] Erro:`, err?.message));
+    }
+  }
+}
+async function runSchedulerTick() {
+  await promoteScheduledPosts();
+  const { date, hour } = getBrasiliaDateHour();
+  ranToday.forEach((key) => {
+    if (!key.endsWith(`:${date}`)) ranToday.delete(key);
+  });
+  await checkAndRunTopicsForHour(date, hour);
+  await runAutonomousAgent();
 }
 
 // server/vercel.ts
@@ -3577,7 +3753,7 @@ app.get("/api/cron/tick", async (req, res) => {
     return res.status(401).json({ error: "Unauthorized" });
   }
   try {
-    await runAutonomousAgent();
+    await runSchedulerTick();
     return res.json({ ok: true, ts: (/* @__PURE__ */ new Date()).toISOString() });
   } catch (err) {
     return res.status(500).json({ error: err.message });

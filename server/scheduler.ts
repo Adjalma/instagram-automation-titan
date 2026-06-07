@@ -143,7 +143,8 @@ async function checkAndRunTopicsForHour(date: string, hour: number) {
 }
 
 // ─── Loop principal ───────────────────────────────────────────────────────────
-async function tick() {
+/** Tick único: agendados, pesquisa diária e agente autônomo (dev + cron Vercel). */
+export async function runSchedulerTick(): Promise<void> {
   await promoteScheduledPosts();
 
   const { date, hour } = getBrasiliaDateHour();
@@ -155,10 +156,15 @@ async function tick() {
 
   await checkAndRunTopicsForHour(date, hour);
 
-  // Agente autônomo: publica posts, responde comentários, gerencia conexões LinkedIn
-  runAutonomousAgent().catch((err: any) =>
-    console.error("[Scheduler] Agente autônomo erro:", err?.message)
-  );
+  await runAutonomousAgent();
+}
+
+async function tick() {
+  try {
+    await runSchedulerTick();
+  } catch (err: any) {
+    console.error("[Scheduler] Tick erro:", err?.message);
+  }
 }
 
 export function startScheduler() {

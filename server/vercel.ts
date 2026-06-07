@@ -9,7 +9,7 @@ import { registerScheduledRoutes } from "./scheduledRoutes";
 import { registerLinkedInRoutes } from "./linkedin";
 import { registerFacebookRoutes } from "./facebook";
 import { registerImageRoutes } from "./imageRoutes";
-import { runAutonomousAgent } from "./autonomousAgent";
+import { runSchedulerTick } from "./scheduler";
 import { sdk } from "./_core/sdk";
 import { seedTriarcContent, seedContentThemes } from "./seed-triarc";
 import { getDb, getLastDbError } from "./db";
@@ -87,7 +87,7 @@ app.get("/api/cron/tick", async (req, res) => {
     return res.status(401).json({ error: "Unauthorized" });
   }
   try {
-    await runAutonomousAgent();
+    await runSchedulerTick();
     return res.json({ ok: true, ts: new Date().toISOString() });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });

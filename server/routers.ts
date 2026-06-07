@@ -418,7 +418,9 @@ export const appRouter = router({
         });
     }),
 
-    approveAll: protectedProcedure.mutation(async () => {
+    approveAll: protectedProcedure.input(z.object({
+      publish: z.boolean().optional(),
+    }).optional()).mutation(async ({ input }) => {
       const pendingPosts = await getPostsByStatus("pending");
       let approved = 0;
       let scheduled = 0;
@@ -432,7 +434,14 @@ export const appRouter = router({
           scheduled++;
         }
       }
-      return { approved, published: 0, scheduled, total: pendingPosts.length };
+      let published = 0;
+      const errors: string[] = [];
+      if (input?.publish && approved > 0) {
+        const agent = await runAutonomousAgent();
+        published = agent.postsPublished;
+        errors.push(...agent.errors);
+      }
+      return { approved, published, scheduled, total: pendingPosts.length, errors };
     }),
 
     processScheduled: protectedProcedure.mutation(async () => {
@@ -489,7 +498,9 @@ export const appRouter = router({
     syncInsights: protectedProcedure.input(z.object({ postId: z.number() })).mutation(async ({ input }) => {
       const post = await getPostById(input.postId);
       if (!post || !(post as any).instagramPostId) throw new Error("Post not published or no Instagram ID");
-      const insights = await fetchPostInsights((post as any).instagramPostId);
+      const account = (post as any).accountId ? await getAccountById((post as any).accountId) : null;
+      const token = (account as any)?.accessToken;
+      const insights = await fetchPostInsights((post as any).instagramPostId, token);
       await updatePost(input.postId, {
         likes: insights.likes ?? 0,
         comments: insights.comments ?? 0,
@@ -513,9 +524,7 @@ export const appRouter = router({
   }),
 
   analytics: router({
-    // Dados da conta Instagram via MCP (chamado pelo agente, cacheado no banco)
-    // Como o MCP só pode ser chamado pelo agente, estes endpoints retornam dados
-    // armazenados no banco ou buscam via endpoint interno do agente.
+    // Dados da conta Instagram via Graph API (cacheados no banco após sync).
     getAccountStats: protectedProcedure.query(async () => {
       // Retorna stats da conta @triarcsolutions do banco
       const accounts = await getAllAccounts();
@@ -545,20 +554,20 @@ export const appRouter = router({
     syncAllInsights: protectedProcedure.mutation(async () => {
       const published = await getPostsByStatus('published');
       const postsWithId = (published as any[]).filter((p: any) => p.instagramPostId);
+      const accounts = await getAllAccounts() as any[];
       let updated = 0;
       const errors: string[] = [];
       for (const post of postsWithId) {
         try {
-          const port = process.env.PORT || 3000;
-          const res = await fetch(`http://localhost:${port}/api/scheduled/insights/${post.instagramPostId}`, {
-            headers: { 'x-internal-key': process.env.JWT_SECRET || 'internal' }
-          });
-          if (res.ok) {
-            const data = await res.json() as { likes?: number; comments?: number };
-            if (data.likes !== undefined || data.comments !== undefined) {
-              await updatePost(post.id, { likes: data.likes ?? (post as any).likes ?? 0, comments: data.comments ?? (post as any).comments ?? 0 });
-              updated++;
-            }
+          const account = accounts.find((a: any) => a.id === post.accountId && a.platform === 'instagram')
+            ?? accounts.find((a: any) => a.platform === 'instagram');
+          const insights = await fetchPostInsights(post.instagramPostId, account?.accessToken);
+          if (insights.likes !== undefined || insights.comments !== undefined) {
+            await updatePost(post.id, {
+              likes: insights.likes ?? post.likes ?? 0,
+              comments: insights.comments ?? post.comments ?? 0,
+            });
+            updated++;
           }
         } catch (e: any) {
           errors.push(`Post ${post.id}: ${e.message}`);
@@ -662,9 +671,10 @@ export const appRouter = router({
   actionPlan: router({
     generate: protectedProcedure.input(z.object({
       period: z.enum(['week', 'month']).default('week'),
-    })).mutation(async () => {
+    })).mutation(async ({ input }) => {
       const published = await getPostsByStatus('published');
       const publishedPosts = published as any[];
+      const periodLabel = input.period === 'month' ? 'ultimo mes' : 'ultima semana';
       const totalLikes = publishedPosts.reduce((s: number, p: any) => s + (p.likes ?? 0), 0);
       const totalComments = publishedPosts.reduce((s: number, p: any) => s + (p.comments ?? 0), 0);
       const avgEngagement = publishedPosts.length > 0
@@ -674,7 +684,7 @@ export const appRouter = router({
         .sort((a: any, b: any) => ((b.likes ?? 0) + (b.comments ?? 0)) - ((a.likes ?? 0) + (a.comments ?? 0)))
         .slice(0, 3)
         .map((p: any) => ({ theme: p.theme || 'Sem tema', likes: p.likes ?? 0, comments: p.comments ?? 0 }));
-      const prompt = "Crie um plano de acao de marketing digital para a Triarc Solutions (empresa de tecnologia de Macae/RJ) baseado nos dados abaixo.\n\nDados de performance:\n- Posts publicados: " + publishedPosts.length + "\n- Total de curtidas: " + totalLikes + "\n- Total de comentarios: " + totalComments + "\n- Engajamento medio por post: " + avgEngagement + "\n- Top posts: " + JSON.stringify(topPosts) + "\n\nRetorne JSON com exatamente esta estrutura:\n{\n  \"diagnosis\": \"diagnostico da performance atual em 3-4 frases\",\n  \"score\": 75,\n  \"actions\": [{ \"priority\": \"alta\", \"title\": \"titulo\", \"description\": \"descricao\", \"metric\": \"metrica\", \"deadline\": \"prazo\" }],\n  \"contentCalendar\": [{ \"day\": \"Segunda\", \"type\": \"Educativo\", \"theme\": \"tema\", \"platform\": \"Instagram\" }],\n  \"kpis\": [{ \"name\": \"KPI\", \"current\": \"atual\", \"target\": \"meta\", \"period\": \"periodo\" }],\n  \"quickWins\": [\"acao 1\", \"acao 2\", \"acao 3\"]\n}";
+      const prompt = "Crie um plano de acao de marketing digital para a Triarc Solutions (empresa de tecnologia de Macae/RJ) para o periodo: " + periodLabel + ". Baseado nos dados abaixo.\n\nDados de performance:\n- Posts publicados: " + publishedPosts.length + "\n- Total de curtidas: " + totalLikes + "\n- Total de comentarios: " + totalComments + "\n- Engajamento medio por post: " + avgEngagement + "\n- Top posts: " + JSON.stringify(topPosts) + "\n\nRetorne JSON com exatamente esta estrutura:\n{\n  \"diagnosis\": \"diagnostico da performance atual em 3-4 frases\",\n  \"score\": 75,\n  \"actions\": [{ \"priority\": \"alta\", \"title\": \"titulo\", \"description\": \"descricao\", \"metric\": \"metrica\", \"deadline\": \"prazo\" }],\n  \"contentCalendar\": [{ \"day\": \"Segunda\", \"type\": \"Educativo\", \"theme\": \"tema\", \"platform\": \"Instagram\" }],\n  \"kpis\": [{ \"name\": \"KPI\", \"current\": \"atual\", \"target\": \"meta\", \"period\": \"periodo\" }],\n  \"quickWins\": [\"acao 1\", \"acao 2\", \"acao 3\"]\n}";
       const res = await invokeLLM({
         messages: [
           { role: 'system', content: 'Voce e um estrategista de marketing digital especializado em empresas de tecnologia B2B no Brasil. Responda SEMPRE em JSON valido sem markdown.' },

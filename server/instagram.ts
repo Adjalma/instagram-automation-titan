@@ -1,23 +1,17 @@
 /**
  * instagram.ts — Helpers de integração com Instagram.
  *
- * ARQUITETURA DE PUBLICAÇÃO:
- * - O servidor NÃO publica diretamente no Instagram.
- * - manus-mcp-cli só funciona no contexto do agente Manus (shell tool call).
- * - O fluxo correto é:
- *   1. Usuário aprova post → status = "approved"
- *   2. Agente Manus agendado (a cada 10min) chama GET /api/scheduled/pending-posts
- *   3. Agente publica via MCP instagram create_instagram
- *   4. Agente reporta resultado via POST /api/scheduled/publish-result
- *   5. Servidor atualiza status para "published"
+ * Publicação e insights via Instagram Graph API (agente autônomo interno).
  */
 
 import { getPostsByStatus, updatePost } from "./db";
+import { ENV } from "./_core/env";
+
+const IG_GRAPH = "https://graph.facebook.com/v19.0";
 
 /**
  * Verifica posts agendados vencidos e os move para "approved"
- * para que o agente Manus os publique na próxima execução.
- * Chamado pelo scheduler interno do servidor.
+ * para publicação pelo agente autônomo.
  */
 export async function processScheduledPosts(): Promise<{
   processed: number;
@@ -47,18 +41,56 @@ export async function processScheduledPosts(): Promise<{
 }
 
 /**
- * Busca insights de um post publicado no Instagram.
- * Nota: esta função só pode ser chamada pelo agente Manus via shell,
- * não pelo servidor web diretamente.
+ * Busca métricas de um post publicado via Graph API.
  */
-export async function fetchPostInsights(_instagramPostId: string): Promise<{
+export async function fetchPostInsights(
+  instagramPostId: string,
+  accessToken?: string
+): Promise<{
   likes?: number;
   comments?: number;
   reach?: number;
   impressions?: number;
 }> {
-  // Insights são buscados pelo agente Manus via MCP get_post_insights
-  // O servidor não pode chamar manus-mcp-cli diretamente
-  console.warn("[Instagram] fetchPostInsights deve ser chamado pelo agente Manus, não pelo servidor.");
-  return {};
+  const token = accessToken || ENV.igAccessToken;
+  if (!token) {
+    console.warn("[Instagram] fetchPostInsights: token não configurado");
+    return {};
+  }
+
+  try {
+    const mediaRes = await fetch(
+      `${IG_GRAPH}/${instagramPostId}?fields=like_count,comments_count&access_token=${encodeURIComponent(token)}`
+    );
+    if (!mediaRes.ok) {
+      const err = await mediaRes.text();
+      console.warn(`[Instagram] fetchPostInsights media: ${mediaRes.status} ${err.slice(0, 200)}`);
+      return {};
+    }
+    const media = (await mediaRes.json()) as { like_count?: number; comments_count?: number };
+
+    let reach: number | undefined;
+    let impressions: number | undefined;
+    const insightsRes = await fetch(
+      `${IG_GRAPH}/${instagramPostId}/insights?metric=reach,impressions&access_token=${encodeURIComponent(token)}`
+    );
+    if (insightsRes.ok) {
+      const insightsData = (await insightsRes.json()) as { data?: { name: string; values: { value: number }[] }[] };
+      for (const metric of insightsData.data ?? []) {
+        const val = metric.values?.[0]?.value;
+        if (metric.name === "reach") reach = val;
+        if (metric.name === "impressions") impressions = val;
+      }
+    }
+
+    return {
+      likes: media.like_count,
+      comments: media.comments_count,
+      reach,
+      impressions,
+    };
+  } catch (err: any) {
+    console.warn("[Instagram] fetchPostInsights erro:", err?.message);
+    return {};
+  }
 }

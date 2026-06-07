@@ -111,7 +111,11 @@ export default function Home() {
                           <Badge variant="secondary" className="text-xs">Cadastrada</Badge>
                         )}
                         {isInstagram && (
-                          <Badge variant="outline" className="text-xs border-green-400 text-green-700">MCP Ativo</Badge>
+                          account.accessToken ? (
+                            <Badge variant="outline" className="text-xs border-green-400 text-green-700">Agente Ativo</Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-xs border-amber-400 text-amber-700">Conectar OAuth</Badge>
+                          )
                         )}
                       </div>
                     </div>

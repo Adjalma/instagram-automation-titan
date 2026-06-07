@@ -99,10 +99,13 @@ export default function Automation() {
 
   const handleApproveAll = async () => {
     try {
-      const result = await approveAll.mutateAsync();
+      const result = await approveAll.mutateAsync({ publish: true });
       toast.success(`Processamento concluído!`, {
-        description: `${result.approved} na fila de publicação, ${result.scheduled} agendados.`,
+        description: `${result.approved} aprovados, ${result.published} publicados, ${result.scheduled} agendados.`,
       });
+      if (result.errors?.length) {
+        toast.warning(result.errors[0]);
+      }
       refetchQueue();
     } catch {
       toast.error("Erro ao aprovar posts");
@@ -140,7 +143,7 @@ export default function Automation() {
   };
 
   const statusLabel = (status: string, hasMcpPending?: boolean) => {
-    if (status === "approved" && hasMcpPending) return "Aguardando MCP";
+    if (status === "approved" && hasMcpPending) return "Publicando…";
     const map: Record<string, string> = {
       pending: "Pendente", approved: "Aprovado",
       scheduled: "Agendado", published: "Publicado",
