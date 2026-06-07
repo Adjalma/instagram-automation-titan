@@ -69,6 +69,10 @@ app.get("/api/health", async (_req, res) => {
       GEMINI_IMAGE_MODEL: process.env.GEMINI_IMAGE_MODEL ?? "gemini-2.5-flash-image (default)",
       SUPABASE_STORAGE_BUCKET: process.env.SUPABASE_STORAGE_BUCKET ?? "triarc-social (default)",
       APP_URL: process.env.APP_URL ?? "(not set)",
+      IG_ACCESS_TOKEN: process.env.IG_ACCESS_TOKEN
+        ? `set (${process.env.IG_ACCESS_TOKEN.length} chars)`
+        : "not set",
+      IG_USER_ID: process.env.IG_USER_ID ? "set" : "not set",
     },
     imageStack: await probeImageStack(),
     ts: new Date().toISOString(),

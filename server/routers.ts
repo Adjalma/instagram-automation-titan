@@ -456,9 +456,28 @@ export const appRouter = router({
       if (!post) throw new Error("Post não encontrado");
 
       if (input.approveFirst && post.status === "pending") {
-        await updatePost(input.postId, { status: "approved", mcpPending: 0 });
+        await updatePost(input.postId, { status: "approved", mcpPending: 0, retryCount: 0, nextRetryAt: null });
       } else {
-        await updatePost(input.postId, { status: "approved", mcpPending: 0, retryCount: 0 });
+        await updatePost(input.postId, { status: "approved", mcpPending: 0, retryCount: 0, nextRetryAt: null });
+      }
+
+      const hasEnvToken = Boolean(process.env.IG_ACCESS_TOKEN?.trim());
+      const hasIgUserId = Boolean(process.env.IG_USER_ID?.trim());
+      if (!hasEnvToken) {
+        const accounts = await getAllAccounts() as any[];
+        const igAcc = accounts.find((a: any) => a.platform === "instagram" && a.accessToken);
+        if (!igAcc) {
+          throw new Error(
+            "IG_ACCESS_TOKEN não está definido no Vercel (Production) ou conta Instagram não conectada em Contas."
+          );
+        }
+      } else if (!hasIgUserId) {
+        throw new Error("IG_USER_ID não está definido no Vercel (Production). Use 17841477720751822.");
+      }
+
+      const media = await getPostMedia(input.postId);
+      if (!media?.length) {
+        throw new Error("Post sem imagem — Instagram exige pelo menos uma imagem para publicar.");
       }
 
       const result = await runAutonomousAgent();
@@ -478,12 +497,21 @@ export const appRouter = router({
         throw new Error(result.errors[0]);
       }
 
+      const stillApproved = refreshed?.status === "approved";
+      if (stillApproved) {
+        throw new Error(
+          hasEnvToken
+            ? "Publicação não concluída. Confirme redeploy após IG_ACCESS_TOKEN no Vercel e tente de novo."
+            : "Post aprovado. Configure IG_ACCESS_TOKEN no Vercel (Production) ou conecte Instagram em Contas."
+        );
+      }
+
       return {
         success: true,
         published,
         message: published
           ? "Post publicado com sucesso!"
-          : "Post aprovado. Verifique se IG_ACCESS_TOKEN está configurado ou conecte o Instagram em Contas.",
+          : "Post processado.",
       };
     }),
 

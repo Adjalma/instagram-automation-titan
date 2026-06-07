@@ -2986,9 +2986,26 @@ Inclua hashtags estrat\xE9gicas do nicho tech/inova\xE7\xE3o, CTA claro para tri
       const post = await getPostById(input.postId);
       if (!post) throw new Error("Post n\xE3o encontrado");
       if (input.approveFirst && post.status === "pending") {
-        await updatePost(input.postId, { status: "approved", mcpPending: 0 });
+        await updatePost(input.postId, { status: "approved", mcpPending: 0, retryCount: 0, nextRetryAt: null });
       } else {
-        await updatePost(input.postId, { status: "approved", mcpPending: 0, retryCount: 0 });
+        await updatePost(input.postId, { status: "approved", mcpPending: 0, retryCount: 0, nextRetryAt: null });
+      }
+      const hasEnvToken = Boolean(process.env.IG_ACCESS_TOKEN?.trim());
+      const hasIgUserId = Boolean(process.env.IG_USER_ID?.trim());
+      if (!hasEnvToken) {
+        const accounts = await getAllAccounts();
+        const igAcc = accounts.find((a) => a.platform === "instagram" && a.accessToken);
+        if (!igAcc) {
+          throw new Error(
+            "IG_ACCESS_TOKEN n\xE3o est\xE1 definido no Vercel (Production) ou conta Instagram n\xE3o conectada em Contas."
+          );
+        }
+      } else if (!hasIgUserId) {
+        throw new Error("IG_USER_ID n\xE3o est\xE1 definido no Vercel (Production). Use 17841477720751822.");
+      }
+      const media = await getPostMedia(input.postId);
+      if (!media?.length) {
+        throw new Error("Post sem imagem \u2014 Instagram exige pelo menos uma imagem para publicar.");
       }
       const result = await runAutonomousAgent();
       const published = result.postsPublished > 0;
@@ -3004,10 +3021,16 @@ Inclua hashtags estrat\xE9gicas do nicho tech/inova\xE7\xE3o, CTA claro para tri
       if (result.errors.length > 0) {
         throw new Error(result.errors[0]);
       }
+      const stillApproved = refreshed?.status === "approved";
+      if (stillApproved) {
+        throw new Error(
+          hasEnvToken ? "Publica\xE7\xE3o n\xE3o conclu\xEDda. Confirme redeploy ap\xF3s IG_ACCESS_TOKEN no Vercel e tente de novo." : "Post aprovado. Configure IG_ACCESS_TOKEN no Vercel (Production) ou conecte Instagram em Contas."
+        );
+      }
       return {
         success: true,
         published,
-        message: published ? "Post publicado com sucesso!" : "Post aprovado. Verifique se IG_ACCESS_TOKEN est\xE1 configurado ou conecte o Instagram em Contas."
+        message: published ? "Post publicado com sucesso!" : "Post processado."
       };
     }),
     getLogs: protectedProcedure.query(async () => {
@@ -3739,7 +3762,9 @@ app.get("/api/health", async (_req, res) => {
       GEMINI_API_KEY: process.env.GEMINI_API_KEY ? "set" : "not set",
       GEMINI_IMAGE_MODEL: process.env.GEMINI_IMAGE_MODEL ?? "gemini-2.5-flash-image (default)",
       SUPABASE_STORAGE_BUCKET: process.env.SUPABASE_STORAGE_BUCKET ?? "triarc-social (default)",
-      APP_URL: process.env.APP_URL ?? "(not set)"
+      APP_URL: process.env.APP_URL ?? "(not set)",
+      IG_ACCESS_TOKEN: process.env.IG_ACCESS_TOKEN ? `set (${process.env.IG_ACCESS_TOKEN.length} chars)` : "not set",
+      IG_USER_ID: process.env.IG_USER_ID ? "set" : "not set"
     },
     imageStack: await probeImageStack(),
     ts: (/* @__PURE__ */ new Date()).toISOString()
