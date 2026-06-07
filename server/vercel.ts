@@ -27,24 +27,13 @@ app.get("/api/health", async (_req, res) => {
   let dbOk = false;
   let dbError = "";
   try {
-    const check = async () => {
-      const db = await getDb();
-      if (!db) {
-        dbError = getLastDbError() || "getDb() returned null";
-        return;
-      }
+    const db = await getDb();
+    if (db) {
       await db.execute(sql`SELECT 1 AS ok`);
       dbOk = true;
-    };
-    await Promise.race([
-      check(),
-      new Promise<void>((resolve) =>
-        setTimeout(() => {
-          if (!dbOk) dbError = "db check timeout (5s)";
-          resolve();
-        }, 5_000)
-      ),
-    ]);
+    } else {
+      dbError = getLastDbError() || "getDb() returned null";
+    }
   } catch (e: any) {
     dbError = e.message;
   }

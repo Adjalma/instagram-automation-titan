@@ -83,32 +83,40 @@ class SDKServer {
 
     if (!session) throw ForbiddenError("Invalid session cookie");
 
-    const user = await db.getUserByOpenId(session.openId);
+    const virtualAdmin =
+      ENV.adminEmail &&
+      ENV.adminPassword &&
+      session.openId === `admin:${ENV.adminEmail}`
+        ? ({
+            id: 0,
+            openId: session.openId,
+            name: "Admin",
+            email: ENV.adminEmail,
+            passwordHash: null,
+            loginMethod: "local",
+            role: "admin",
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            lastSignedIn: new Date(),
+          } as User)
+        : null;
+
+    let user: User | undefined;
+    try {
+      user = await db.getUserByOpenId(session.openId);
+    } catch (err) {
+      console.warn("[Auth] getUserByOpenId falhou:", (err as Error)?.message);
+      user = undefined;
+    }
 
     if (!user) {
-      // Virtual admin session: DB unavailable but JWT openId matches stable admin id
-      if (
-        ENV.adminEmail &&
-        ENV.adminPassword &&
-        session.openId === `admin:${ENV.adminEmail}`
-      ) {
-        return {
-          id: 0,
-          openId: session.openId,
-          name: "Admin",
-          email: ENV.adminEmail,
-          passwordHash: null,
-          loginMethod: "local",
-          role: "admin",
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          lastSignedIn: new Date(),
-        } as any;
-      }
+      if (virtualAdmin) return virtualAdmin;
       throw ForbiddenError("User not found");
     }
 
-    await db.upsertUser({ openId: user.openId, lastSignedIn: new Date() });
+    void db.upsertUser({ openId: user.openId, lastSignedIn: new Date() }).catch((err) => {
+      console.warn("[Auth] lastSignedIn update skipped:", (err as Error)?.message);
+    });
     return user;
   }
 
@@ -116,18 +124,30 @@ class SDKServer {
     email: string,
     password: string
   ): Promise<User | null> {
-    // Fallback direto: se credenciais batem com env vars, garante usuário e loga
+    // Admin via env vars — não bloqueia login se o banco estiver lento
     if (email === ENV.adminEmail && password === ENV.adminPassword && ENV.adminPassword) {
-      await this.ensureAdminUser().catch(() => {});
+      void this.ensureAdminUser().catch(() => {});
+      const openId = `admin:${ENV.adminEmail}`;
+      return {
+        id: 0,
+        openId,
+        name: "Admin",
+        email,
+        passwordHash: null,
+        loginMethod: "local",
+        role: "admin",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        lastSignedIn: new Date(),
+      } as User;
     }
 
-    const user = await db.getUserByEmail(email);
-
-    // Se banco indisponível mas credenciais batem com env vars, retorna admin virtual
-    // openId é estável (determinístico) para que authenticateRequest possa reconhecê-lo
-    if (!user && email === ENV.adminEmail && password === ENV.adminPassword && ENV.adminPassword) {
-      const openId = `admin:${ENV.adminEmail}`;
-      return { id: 0, openId, name: "Admin", email, passwordHash: null, loginMethod: "local", role: "admin", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() } as any;
+    let user: User | undefined;
+    try {
+      user = await db.getUserByEmail(email);
+    } catch (err) {
+      console.warn("[Auth] getUserByEmail falhou:", (err as Error)?.message);
+      user = undefined;
     }
 
     if (!user || !(user as any).passwordHash) return null;
@@ -135,7 +155,7 @@ class SDKServer {
     const valid = await comparePassword(password, (user as any).passwordHash);
     if (!valid) return null;
 
-    await db.upsertUser({ openId: user.openId, lastSignedIn: new Date() });
+    void db.upsertUser({ openId: user.openId, lastSignedIn: new Date() }).catch(() => {});
     return user;
   }
 

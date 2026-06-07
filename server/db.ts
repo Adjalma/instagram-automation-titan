@@ -9,12 +9,7 @@ import type { InsertPost } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 let _client: ReturnType<typeof postgres> | null = null;
-let _connecting: Promise<ReturnType<typeof drizzle> | null> | null = null;
-let _lastPing = 0;
 let _lastError = "";
-
-const PING_INTERVAL_MS = 15_000;
-const PING_TIMEOUT_MS = 4_000;
 
 function isTransientDbError(err: unknown): boolean {
   const msg = [
@@ -46,23 +41,9 @@ export async function withDbRetry<T>(fn: () => Promise<T>): Promise<T> {
   }
 }
 
-async function pingClient(timeoutMs = PING_TIMEOUT_MS): Promise<boolean> {
-  if (!_client) return false;
-  try {
-    await Promise.race([
-      _client`SELECT 1 AS ok`,
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("db ping timeout")), timeoutMs)
-      ),
-    ]);
-    _lastPing = Date.now();
-    return true;
-  } catch {
-    return false;
-  }
-}
+export async function getDb() {
+  if (_db) return _db;
 
-async function connectDb(): Promise<ReturnType<typeof drizzle> | null> {
   const url = process.env.DATABASE_URL
     || process.env.DB_URL
     || process.env.POSTGRES_URL
@@ -112,7 +93,6 @@ async function connectDb(): Promise<ReturnType<typeof drizzle> | null> {
 
     const db = drizzle(_client);
     _db = db;
-    _lastPing = Date.now();
     _lastError = "";
     console.log("[Database] Connected to PostgreSQL");
   } catch (error: any) {
@@ -127,22 +107,6 @@ async function connectDb(): Promise<ReturnType<typeof drizzle> | null> {
   return _db;
 }
 
-export async function getDb() {
-  if (_db && _client) {
-    const stale = Date.now() - _lastPing > PING_INTERVAL_MS;
-    if (!stale) return _db;
-    if (await pingClient()) return _db;
-    console.warn("[Database] Conexão stale detectada, reconectando...");
-    resetDb();
-  }
-
-  if (_connecting) return _connecting;
-  _connecting = connectDb().finally(() => {
-    _connecting = null;
-  });
-  return _connecting;
-}
-
 export function getLastDbError() {
   return _lastError;
 }
@@ -150,7 +114,6 @@ export function getLastDbError() {
 // ─── Users ───────────────────────────────────────────────────────
 export async function upsertUser(user: InsertUser): Promise<void> {
   if (!user.openId) throw new Error("User openId is required for upsert");
-  await withDbRetry(async () => {
   const db = await getDb();
   if (!db) { console.warn("[Database] Cannot upsert user: database not available"); return; }
   try {
@@ -173,25 +136,20 @@ export async function upsertUser(user: InsertUser): Promise<void> {
       set: updateSet as any,
     });
   } catch (error) { console.error("[Database] Failed to upsert user:", error); throw error; }
-  });
 }
 
 export async function getUserByOpenId(openId: string) {
-  return withDbRetry(async () => {
-    const db = await getDb();
-    if (!db) return undefined;
-    const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
-    return result.length > 0 ? result[0] : undefined;
-  });
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
 }
 
 export async function getUserByEmail(email: string) {
-  return withDbRetry(async () => {
-    const db = await getDb();
-    if (!db) return undefined;
-    const result = await db.select().from(users).where(eq(users.email, email)).limit(1);
-    return result.length > 0 ? result[0] : undefined;
-  });
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(users).where(eq(users.email, email)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
 }
 
 // ─── Instagram Accounts ─────────────────────────────────────────
