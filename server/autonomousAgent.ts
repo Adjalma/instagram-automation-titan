@@ -13,7 +13,7 @@ import { ENV, resolveIgAccessTokenFromEnv } from "./_core/env";
 import { invokeLLM } from "./_core/llm";
 import { notifyOwner } from "./_core/notification";
 import {
-  getAllAccounts, getAllPosts, getPostsByStatus, getPostMedia, updateFirstPostMediaUrl,
+  getAllAccounts, getAllPosts, getPostsByStatus, getPostById, getPostMedia, updateFirstPostMediaUrl,
   updatePost, createPublicationLog, getPublicationLogsByPost,
 } from "./db";
 import { publishToLinkedIn } from "./linkedin";
@@ -350,17 +350,30 @@ export async function runAutonomousAgent(options?: {
   const allAccounts = await getAllAccounts() as any[];
 
   // ── 1. Publicar posts aprovados ───────────────────────────────
-  const approved = await getPostsByStatus("approved") as any[];
   const now = new Date();
+  let approved: any[];
 
-  // Libera posts travados com mcpPending=1 (legado Manus/MCP)
-  for (const post of approved) {
-    if (post.mcpPending && post.updatedAt) {
+  if (options?.postId) {
+    const post = await getPostById(options.postId) as any;
+    approved = post ? [post] : [];
+    if (post?.mcpPending && post.updatedAt) {
       const stuckMs = now.getTime() - new Date(post.updatedAt).getTime();
       if (stuckMs > 5 * 60 * 1000) {
         await updatePost(post.id, { mcpPending: 0 });
         post.mcpPending = 0;
         console.log(`[Agent] Post ${post.id}: mcpPending resetado (travado há ${Math.round(stuckMs / 60000)}min)`);
+      }
+    }
+  } else {
+    approved = await getPostsByStatus("approved") as any[];
+    for (const post of approved) {
+      if (post.mcpPending && post.updatedAt) {
+        const stuckMs = now.getTime() - new Date(post.updatedAt).getTime();
+        if (stuckMs > 5 * 60 * 1000) {
+          await updatePost(post.id, { mcpPending: 0 });
+          post.mcpPending = 0;
+          console.log(`[Agent] Post ${post.id}: mcpPending resetado (travado há ${Math.round(stuckMs / 60000)}min)`);
+        }
       }
     }
   }
@@ -452,8 +465,9 @@ export async function runAutonomousAgent(options?: {
       result.postsPublished++;
       console.log(`[Agent] Post ${post.id} publicado no Instagram: ${igRes.permalink}`);
 
-      // Publicar no LinkedIn e Facebook automaticamente
-      await publishToOtherPlatforms(post.id, post.caption ?? "", imageUrl, allAccounts);
+      if (!options?.postId) {
+        await publishToOtherPlatforms(post.id, post.caption ?? "", imageUrl, allAccounts);
+      }
 
     } catch (err: any) {
       const tokenHint = useEnvToken

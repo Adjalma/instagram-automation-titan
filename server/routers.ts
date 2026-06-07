@@ -22,6 +22,7 @@ import { storagePut } from "./storage";
 import { processScheduledPosts, fetchPostInsights } from "./instagram";
 import { runAutonomousAgent } from "./autonomousAgent";
 import { resolveIgAccessTokenFromEnv } from "./_core/env";
+import { waitUntil } from "@vercel/functions";
 import { researchRouter } from "./routers/research";
 import { seedTriarcContent, TRIARC_SERVICES, TRIARC_PROJECTS } from "./seed-triarc";
 import { triacContent, TriacContent } from "../drizzle/schema";
@@ -482,38 +483,24 @@ export const appRouter = router({
         throw new Error("Post sem imagem — Instagram exige pelo menos uma imagem para publicar.");
       }
 
-      const result = await runAutonomousAgent({ postId: input.postId });
-      const published = result.postsPublished > 0;
-      const refreshed = await getPostById(input.postId);
-
-      if (refreshed?.status === "published") {
-        return {
-          success: true,
-          published: true,
-          permalink: (refreshed as any).instagramPermalink,
-          message: "Post publicado no Instagram com sucesso!",
-        };
-      }
-
-      if (result.errors.length > 0) {
-        throw new Error(result.errors[0]);
-      }
-
-      const stillApproved = refreshed?.status === "approved";
-      if (stillApproved) {
-        throw new Error(
-          hasEnvToken
-            ? "Publicação não concluída. Confirme redeploy após IG_ACCESS_TOKEN no Vercel e tente de novo."
-            : "Post aprovado. Configure IG_ACCESS_TOKEN no Vercel (Production) ou conecte Instagram em Contas."
-        );
-      }
+      const postId = input.postId;
+      waitUntil(
+        runAutonomousAgent({ postId })
+          .then((result) => {
+            console.log(`[publishNow] post ${postId} concluído:`, result);
+          })
+          .catch(async (err) => {
+            console.error(`[publishNow] post ${postId} falhou:`, err);
+            await updatePost(postId, { mcpPending: 0 }).catch(() => {});
+          })
+      );
 
       return {
         success: true,
-        published,
-        message: published
-          ? "Post publicado com sucesso!"
-          : "Post processado.",
+        started: true,
+        published: false,
+        postId,
+        message: "Publicação iniciada. Aguarde alguns instantes…",
       };
     }),
 

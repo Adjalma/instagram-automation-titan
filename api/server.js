@@ -2336,15 +2336,29 @@ async function runAutonomousAgent(options) {
     lastConnectionReset = (/* @__PURE__ */ new Date()).toDateString();
   }
   const allAccounts = await getAllAccounts();
-  const approved = await getPostsByStatus("approved");
   const now = /* @__PURE__ */ new Date();
-  for (const post of approved) {
-    if (post.mcpPending && post.updatedAt) {
+  let approved;
+  if (options?.postId) {
+    const post = await getPostById(options.postId);
+    approved = post ? [post] : [];
+    if (post?.mcpPending && post.updatedAt) {
       const stuckMs = now.getTime() - new Date(post.updatedAt).getTime();
       if (stuckMs > 5 * 60 * 1e3) {
         await updatePost(post.id, { mcpPending: 0 });
         post.mcpPending = 0;
         console.log(`[Agent] Post ${post.id}: mcpPending resetado (travado h\xE1 ${Math.round(stuckMs / 6e4)}min)`);
+      }
+    }
+  } else {
+    approved = await getPostsByStatus("approved");
+    for (const post of approved) {
+      if (post.mcpPending && post.updatedAt) {
+        const stuckMs = now.getTime() - new Date(post.updatedAt).getTime();
+        if (stuckMs > 5 * 60 * 1e3) {
+          await updatePost(post.id, { mcpPending: 0 });
+          post.mcpPending = 0;
+          console.log(`[Agent] Post ${post.id}: mcpPending resetado (travado h\xE1 ${Math.round(stuckMs / 6e4)}min)`);
+        }
       }
     }
   }
@@ -2415,7 +2429,9 @@ async function runAutonomousAgent(options) {
       await notifyOwner({ title: "\u2705 Post publicado no Instagram", content: `Post #${post.id}: ${igRes.permalink}` });
       result.postsPublished++;
       console.log(`[Agent] Post ${post.id} publicado no Instagram: ${igRes.permalink}`);
-      await publishToOtherPlatforms(post.id, post.caption ?? "", imageUrl, allAccounts);
+      if (!options?.postId) {
+        await publishToOtherPlatforms(post.id, post.caption ?? "", imageUrl, allAccounts);
+      }
     } catch (err) {
       const tokenHint = useEnvToken ? ` (token: env ${envTokenSource ?? "?"})` : " (token: Contas OAuth)";
       const errMsg = `${err.message}${tokenHint}`;
@@ -2506,6 +2522,9 @@ async function publishToOtherPlatforms(postId, caption, imageUrl, allAccounts) {
     }
   }
 }
+
+// server/routers.ts
+import { waitUntil as waitUntil2 } from "@vercel/functions";
 
 // server/routers/research.ts
 init_db();
@@ -3141,30 +3160,22 @@ Inclua hashtags estrat\xE9gicas do nicho tech/inova\xE7\xE3o, CTA claro para tri
       if (!media?.length) {
         throw new Error("Post sem imagem \u2014 Instagram exige pelo menos uma imagem para publicar.");
       }
-      const result = await runAutonomousAgent({ postId: input.postId });
-      const published = result.postsPublished > 0;
-      const refreshed = await getPostById(input.postId);
-      if (refreshed?.status === "published") {
-        return {
-          success: true,
-          published: true,
-          permalink: refreshed.instagramPermalink,
-          message: "Post publicado no Instagram com sucesso!"
-        };
-      }
-      if (result.errors.length > 0) {
-        throw new Error(result.errors[0]);
-      }
-      const stillApproved = refreshed?.status === "approved";
-      if (stillApproved) {
-        throw new Error(
-          hasEnvToken ? "Publica\xE7\xE3o n\xE3o conclu\xEDda. Confirme redeploy ap\xF3s IG_ACCESS_TOKEN no Vercel e tente de novo." : "Post aprovado. Configure IG_ACCESS_TOKEN no Vercel (Production) ou conecte Instagram em Contas."
-        );
-      }
+      const postId = input.postId;
+      waitUntil2(
+        runAutonomousAgent({ postId }).then((result) => {
+          console.log(`[publishNow] post ${postId} conclu\xEDdo:`, result);
+        }).catch(async (err) => {
+          console.error(`[publishNow] post ${postId} falhou:`, err);
+          await updatePost(postId, { mcpPending: 0 }).catch(() => {
+          });
+        })
+      );
       return {
         success: true,
-        published,
-        message: published ? "Post publicado com sucesso!" : "Post processado."
+        started: true,
+        published: false,
+        postId,
+        message: "Publica\xE7\xE3o iniciada. Aguarde alguns instantes\u2026"
       };
     }),
     getLogs: protectedProcedure.query(async () => {

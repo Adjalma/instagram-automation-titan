@@ -186,8 +186,52 @@ export default function Approval() {
   });
 
   const publishNow = trpc.automation.publishNow.useMutation({
-    onSuccess: (data) => {
+    onSuccess: async (data, variables) => {
       invalidateAll();
+
+      if (data.started) {
+        const postId = variables.postId;
+        const toastId = toast.loading("Publicando no Instagram…", { duration: 180_000 });
+
+        for (let i = 0; i < 60; i++) {
+          await new Promise((r) => setTimeout(r, 3000));
+          try {
+            const post = await utils.posts.getById.fetch({ id: postId });
+            invalidateAll();
+
+            if (post?.status === "published") {
+              toast.dismiss(toastId);
+              toast.success("✅ Post publicado!", {
+                description: (post as any).instagramPermalink ?? "Publicado com sucesso.",
+              });
+              return;
+            }
+            if (post?.status === "rejected") {
+              toast.dismiss(toastId);
+              toast.error("Falha ao publicar", { description: "Post rejeitado após tentativas." });
+              return;
+            }
+            if (post && !post.mcpPending && post.status === "approved" && i >= 3) {
+              const logs = await utils.automation.getLogs.fetch();
+              const fail = logs?.find((l: any) => l.postId === postId && l.status === "failed");
+              if (fail?.error) {
+                toast.dismiss(toastId);
+                toast.error("Erro ao publicar", { description: fail.error });
+                return;
+              }
+            }
+          } catch {
+            // continua polling
+          }
+        }
+
+        toast.dismiss(toastId);
+        toast.info("Ainda processando", {
+          description: "Atualize a página em instantes para ver o resultado.",
+        });
+        return;
+      }
+
       if (data.published) {
         toast.success("✅ Post publicado!", { description: data.message });
       } else {
