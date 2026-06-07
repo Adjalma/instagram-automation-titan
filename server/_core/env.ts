@@ -1,6 +1,7 @@
 /** Nomes aceitos para Page token IG no Vercel (prioridade top → bottom). */
 const IG_TOKEN_ENV_KEYS = [
   "IG_ACCESS_TOKEN",
+  "IG_ACESS_TOKEN", // typo comum no Vercel
   "FB_PAGE_TOKEN",
   "PAGE_ACCESS_TOKEN",
   "FACEBOOK_PAGE_TOKEN",
