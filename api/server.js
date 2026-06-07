@@ -673,6 +673,31 @@ import { SignJWT, jwtVerify } from "jose";
 import { nanoid } from "nanoid";
 
 // server/_core/env.ts
+var IG_TOKEN_ENV_KEYS = [
+  "IG_ACCESS_TOKEN",
+  "FB_PAGE_TOKEN",
+  "PAGE_ACCESS_TOKEN",
+  "FACEBOOK_PAGE_TOKEN",
+  "META_PAGE_ACCESS_TOKEN"
+];
+function resolveIgAccessTokenFromEnv() {
+  for (const key of IG_TOKEN_ENV_KEYS) {
+    const t2 = process.env[key]?.trim();
+    if (t2) return { token: t2, source: key };
+  }
+  return { token: "", source: null };
+}
+function describeIgTokenEnv() {
+  const status = {};
+  for (const key of IG_TOKEN_ENV_KEYS) {
+    const t2 = process.env[key]?.trim();
+    status[key] = t2 ? `set (${t2.length} chars)` : "not set";
+  }
+  const { source } = resolveIgAccessTokenFromEnv();
+  status.resolvedFrom = source ?? "none";
+  status.tokenRelatedKeys = Object.keys(process.env).filter((k) => /IG|TOKEN|PAGE|FB_|FACEBOOK|META/i.test(k)).sort().join(", ") || "(none)";
+  return status;
+}
 var ENV = {
   cookieSecret: process.env.JWT_SECRET ?? "",
   databaseUrl: process.env.DATABASE_URL ?? "",
@@ -1046,7 +1071,7 @@ init_schema();
 init_db();
 import { TRPCError as TRPCError2 } from "@trpc/server";
 import { z as z3 } from "zod";
-import { eq as eq5 } from "drizzle-orm";
+import { eq as eq3 } from "drizzle-orm";
 
 // server/_core/llm.ts
 function extractText(content) {
@@ -1302,7 +1327,7 @@ function appBaseUrl() {
   if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
   return "";
 }
-async function ensureImageJobsTable() {
+async function ensureImageJobsTable2() {
   if (tableReady) return;
   const db = await getDb();
   if (!db) return;
@@ -1333,7 +1358,7 @@ function mapJobRow(row) {
   };
 }
 async function createImageJob(userId, prompt) {
-  await ensureImageJobsTable();
+  await ensureImageJobsTable2();
   const db = await getDb();
   if (!db) throw new Error("Banco de dados indispon\xEDvel");
   const rows = await db.execute(sql2`
@@ -1346,7 +1371,7 @@ async function createImageJob(userId, prompt) {
   return id;
 }
 async function getImageJobById(jobId) {
-  await ensureImageJobsTable();
+  await ensureImageJobsTable2();
   const db = await getDb();
   if (!db) return null;
   const rows = await db.execute(sql2`
@@ -1372,8 +1397,8 @@ async function markJobFailed(jobId, message) {
     WHERE id = ${jobId}
   `);
 }
-async function processImageJob(jobId) {
-  await ensureImageJobsTable();
+async function processImageJob2(jobId) {
+  await ensureImageJobsTable2();
   const db = await getDb();
   if (!db) throw new Error("Banco de dados indispon\xEDvel");
   const claimed = await db.execute(sql2`
@@ -1417,7 +1442,7 @@ function triggerRemoteProcessing(jobId) {
   }).catch((err) => console.warn(`[ImageJob] Remote dispatch ${jobId} falhou:`, err));
 }
 function dispatchImageJobProcessing(jobId) {
-  const task = processImageJob(jobId);
+  const task = processImageJob2(jobId);
   try {
     waitUntil(task);
   } catch {
@@ -1447,11 +1472,6 @@ async function kickImageJob(jobId) {
   if (neverStarted && ageMs > 8e3 && ageMs < 12e4) {
     dispatchImageJobProcessing(jobId);
   }
-}
-function verifyInternalAuth(authHeader) {
-  const secret = internalAuthSecret();
-  if (!secret || !authHeader) return false;
-  return authHeader === `Bearer ${secret}`;
 }
 
 // server/instagram.ts
@@ -1518,867 +1538,11 @@ async function fetchPostInsights(instagramPostId, accessToken) {
   }
 }
 
-// server/autonomousAgent.ts
-init_db();
-
-// server/linkedin.ts
-init_db();
-init_schema();
-import { eq as eq2 } from "drizzle-orm";
-
-// server/_core/oauthFinish.ts
-function parseOAuthState(state, fallbackOrigin) {
-  try {
-    const decoded = JSON.parse(Buffer.from(state, "base64url").toString());
-    return {
-      origin: decoded.origin || fallbackOrigin,
-      accountId: decoded.accountId,
-      popup: decoded.popup === true || decoded.popup === "1"
-    };
-  } catch {
-    return { origin: fallbackOrigin, popup: false };
-  }
-}
-function buildOAuthState(origin, accountId, popup) {
-  return Buffer.from(JSON.stringify({ origin, accountId, popup: popup ? true : void 0 })).toString("base64url");
-}
-function finishOAuth(res, opts) {
-  const { origin, popup, provider, success, error } = opts;
-  const param = success ? `${provider}_connected=1` : `${provider}_error=${encodeURIComponent(error ?? "unknown")}`;
-  const redirectUrl = `${origin}/accounts?${param}`;
-  if (popup) {
-    const message = success ? "Conta conectada com sucesso!" : `Erro ao conectar: ${error ?? "desconhecido"}`;
-    res.setHeader("Content-Type", "text/html; charset=utf-8");
-    res.send(`<!DOCTYPE html>
-<html lang="pt-BR"><head><meta charset="UTF-8"><title>OAuth</title></head>
-<body style="font-family:system-ui,sans-serif;text-align:center;padding:48px 24px">
-<p>${message}</p>
-<p style="color:#666;font-size:14px">Fechando esta janela...</p>
-<script>
-(function(){
-  var payload = { type: "oauth_complete", provider: ${JSON.stringify(provider)}, success: ${success ? "true" : "false"} };
-  try {
-    if (window.opener && !window.opener.closed) {
-      window.opener.postMessage(payload, ${JSON.stringify(origin)});
-      window.close();
-      setTimeout(function(){ window.close(); }, 300);
-      return;
-    }
-  } catch (e) {}
-  window.location.replace(${JSON.stringify(redirectUrl)});
-})();
-</script>
-</body></html>`);
-    return;
-  }
-  res.redirect(redirectUrl);
-}
-
-// server/linkedin.ts
-var LINKEDIN_AUTH_URL = "https://www.linkedin.com/oauth/v2/authorization";
-var LINKEDIN_TOKEN_URL = "https://www.linkedin.com/oauth/v2/accessToken";
-var LINKEDIN_UGC_URL = "https://api.linkedin.com/v2/ugcPosts";
-var LINKEDIN_ASSETS_URL = "https://api.linkedin.com/v2/assets?action=registerUpload";
-var LINKEDIN_ORG_VANITY = "triarc-solutions-brasil";
-var SCOPES = "w_member_social openid profile";
-var LINKEDIN_REDIRECT_URI = "https://tsm.triarcsolutions.com.br/auth/linkedin/callback";
-function getRedirectUri(_origin) {
-  return LINKEDIN_REDIRECT_URI;
-}
-async function resolveOrganizationUrn(accessToken) {
-  try {
-    const res = await fetch(
-      `https://api.linkedin.com/v2/organizations?q=vanityName&vanityName=${LINKEDIN_ORG_VANITY}`,
-      { headers: { Authorization: `Bearer ${accessToken}` } }
-    );
-    if (!res.ok) {
-      console.warn("[LinkedIn] organizations lookup status:", res.status);
-      return null;
-    }
-    const data = await res.json();
-    const org = data?.elements?.[0];
-    if (org?.id) {
-      const urn = `urn:li:organization:${org.id}`;
-      console.log(`[LinkedIn] Organization encontrada: ${urn}`);
-      return urn;
-    }
-    const aclRes = await fetch(
-      "https://api.linkedin.com/v2/organizationAcls?q=roleAssignee&role=ADMINISTRATOR&projection=(elements*(organization~(id,vanityName,localizedName)))",
-      { headers: { Authorization: `Bearer ${accessToken}` } }
-    );
-    if (!aclRes.ok) return null;
-    const aclData = await aclRes.json();
-    const match = aclData?.elements?.find(
-      (e) => e["organization~"]?.vanityName === LINKEDIN_ORG_VANITY
-    );
-    if (match?.["organization~"]?.id) {
-      const urn = `urn:li:organization:${match["organization~"].id}`;
-      console.log(`[LinkedIn] Organization via ACL: ${urn}`);
-      return urn;
-    }
-  } catch (err) {
-    console.warn("[LinkedIn] Erro ao resolver organization URN:", err);
-  }
-  return null;
-}
-function registerLinkedInRoutes(app2) {
-  app2.get("/api/linkedin/auth", (req, res) => {
-    const origin = req.query.origin || "http://localhost:3000";
-    const accountId = req.query.accountId;
-    const popup = req.query.popup === "1" || req.query.popup === "true";
-    const redirectUri = getRedirectUri(origin);
-    const state = buildOAuthState(origin, accountId, popup);
-    const params = new URLSearchParams({
-      response_type: "code",
-      client_id: ENV.linkedinClientId,
-      redirect_uri: redirectUri,
-      scope: SCOPES,
-      state
-    });
-    res.redirect(`${LINKEDIN_AUTH_URL}?${params.toString()}`);
-  });
-  app2.get("/auth/linkedin/callback", async (req, res) => {
-    const { code, state, error } = req.query;
-    const fallbackOrigin = "https://tsm.triarcsolutions.com.br";
-    const { origin, accountId, popup } = parseOAuthState(state, fallbackOrigin);
-    if (error) {
-      console.error("[LinkedIn] OAuth error:", error);
-      return finishOAuth(res, { origin, popup, provider: "linkedin", success: false, error });
-    }
-    const redirectUri = getRedirectUri(origin);
-    try {
-      const tokenRes = await fetch(LINKEDIN_TOKEN_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({
-          grant_type: "authorization_code",
-          code,
-          redirect_uri: redirectUri,
-          client_id: ENV.linkedinClientId,
-          client_secret: ENV.linkedinClientSecret
-        })
-      });
-      const tokenData = await tokenRes.json();
-      if (!tokenData.access_token) {
-        console.error("[LinkedIn] Token exchange failed:", tokenData);
-        return finishOAuth(res, { origin, popup, provider: "linkedin", success: false, error: "token_exchange_failed" });
-      }
-      const { access_token, expires_in } = tokenData;
-      const expiresAt = new Date(Date.now() + (expires_in ?? 5184e3) * 1e3);
-      let linkedinUrn = await resolveOrganizationUrn(access_token);
-      if (!linkedinUrn) {
-        console.warn("[LinkedIn] Organization URN n\xE3o resolvido, buscando URN pessoal...");
-        try {
-          const uiRes = await fetch("https://api.linkedin.com/v2/userinfo", {
-            headers: { Authorization: `Bearer ${access_token}` }
-          });
-          if (uiRes.ok) {
-            const ui = await uiRes.json();
-            if (ui?.sub) {
-              linkedinUrn = `urn:li:person:${ui.sub}`;
-              console.log(`[LinkedIn] URN via userinfo: ${linkedinUrn}`);
-            }
-          }
-          if (!linkedinUrn) {
-            const meRes = await fetch("https://api.linkedin.com/v2/me", {
-              headers: { Authorization: `Bearer ${access_token}` }
-            });
-            if (meRes.ok) {
-              const me = await meRes.json();
-              if (me?.id) {
-                linkedinUrn = `urn:li:person:${me.id}`;
-                console.log(`[LinkedIn] URN via /v2/me: ${linkedinUrn}`);
-              }
-            }
-          }
-        } catch (e) {
-          console.warn("[LinkedIn] Falha ao buscar URN pessoal:", e);
-        }
-      }
-      if (accountId) {
-        const db = await getDb();
-        if (!db) throw new Error("DB unavailable");
-        await db.update(instagramAccounts).set({
-          accessToken: access_token,
-          tokenExpiresAt: expiresAt,
-          linkedinUrn: linkedinUrn ?? void 0
-        }).where(eq2(instagramAccounts.id, parseInt(accountId)));
-        console.log(`[LinkedIn] Token salvo para conta ${accountId}, URN: ${linkedinUrn}`);
-      }
-      finishOAuth(res, { origin, popup, provider: "linkedin", success: true });
-    } catch (err) {
-      console.error("[LinkedIn] Callback error:", err);
-      finishOAuth(res, { origin, popup, provider: "linkedin", success: false, error: "callback_failed" });
-    }
-  });
-}
-async function publishToLinkedIn(params) {
-  const { accessToken, linkedinUrn, caption, imageUrl } = params;
-  const isOrg = linkedinUrn.startsWith("urn:li:organization:");
-  console.log(`[LinkedIn] Publicando como ${isOrg ? "Company Page" : "perfil pessoal"}: ${linkedinUrn}`);
-  let shareMediaCategory = "NONE";
-  let media = [];
-  if (imageUrl) {
-    try {
-      const uploadedAsset = await registerLinkedInImage(accessToken, linkedinUrn, imageUrl);
-      if (uploadedAsset) {
-        shareMediaCategory = "IMAGE";
-        media = [{
-          status: "READY",
-          description: { text: caption.slice(0, 200) },
-          media: uploadedAsset,
-          title: { text: "Triarc Solutions" }
-        }];
-      }
-    } catch (err) {
-      console.warn("[LinkedIn] Image upload failed, posting text-only:", err);
-    }
-  }
-  const body = {
-    author: linkedinUrn,
-    lifecycleState: "PUBLISHED",
-    specificContent: {
-      "com.linkedin.ugc.ShareContent": {
-        shareCommentary: { text: caption },
-        shareMediaCategory,
-        ...media.length > 0 ? { media } : {}
-      }
-    },
-    visibility: {
-      "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"
-    }
-  };
-  const res = await fetch(LINKEDIN_UGC_URL, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-      "X-Restli-Protocol-Version": "2.0.0"
-    },
-    body: JSON.stringify(body)
-  });
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`LinkedIn UGC post failed: ${res.status} ${err}`);
-  }
-  const data = await res.json();
-  const postId = data.id ?? "";
-  const permalink = `https://www.linkedin.com/feed/update/${encodeURIComponent(postId)}`;
-  return { postId, permalink };
-}
-async function registerLinkedInImage(accessToken, ownerUrn, imageUrl) {
-  const registerRes = await fetch(LINKEDIN_ASSETS_URL, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      registerUploadRequest: {
-        recipes: ["urn:li:digitalmediaRecipe:feedshare-image"],
-        owner: ownerUrn,
-        serviceRelationships: [{
-          relationshipType: "OWNER",
-          identifier: "urn:li:userGeneratedContent"
-        }]
-      }
-    })
-  });
-  if (!registerRes.ok) return null;
-  const registerData = await registerRes.json();
-  const uploadUrl = registerData?.value?.uploadMechanism?.["com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest"]?.uploadUrl;
-  const assetUrn = registerData?.value?.asset;
-  if (!uploadUrl || !assetUrn) return null;
-  const imgRes = await fetch(imageUrl);
-  if (!imgRes.ok) return null;
-  const imgBuffer = await imgRes.arrayBuffer();
-  const uploadRes = await fetch(uploadUrl, {
-    method: "PUT",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "image/jpeg"
-    },
-    body: imgBuffer
-  });
-  if (!uploadRes.ok) return null;
-  return assetUrn;
-}
-
-// server/facebook.ts
-init_db();
-init_schema();
-import { eq as eq3 } from "drizzle-orm";
-var FB_AUTH_URL = "https://www.facebook.com/v21.0/dialog/oauth";
-var FB_TOKEN_URL = "https://graph.facebook.com/v21.0/oauth/access_token";
-var FB_GRAPH_URL = "https://graph.facebook.com/v21.0";
-var FB_PAGE_SCOPES = [
-  "pages_show_list",
-  "pages_read_engagement",
-  "pages_manage_posts"
-];
-var FB_IG_SCOPES = ["instagram_basic", "instagram_content_publish"];
-function getFacebookScopes(forInstagram) {
-  if (ENV.facebookOAuthScopes.trim()) {
-    return ENV.facebookOAuthScopes.trim();
-  }
-  const scopes = [...FB_PAGE_SCOPES];
-  if (forInstagram && ENV.facebookIgScopes) {
-    scopes.push(...FB_IG_SCOPES);
-  }
-  return scopes.join(",");
-}
-var FB_PAGE_VANITY = "Triarcsolutions";
-var FACEBOOK_REDIRECT_URI = "https://tsm.triarcsolutions.com.br/auth/facebook/callback";
-function getRedirectUri2(_origin) {
-  return FACEBOOK_REDIRECT_URI;
-}
-async function resolvePageToken(userToken) {
-  try {
-    const res = await fetch(
-      `${FB_GRAPH_URL}/me/accounts?fields=id,name,access_token,category,instagram_business_account&access_token=${userToken}`
-    );
-    if (!res.ok) {
-      console.warn("[Facebook] /me/accounts status:", res.status, await res.text());
-      return null;
-    }
-    const data = await res.json();
-    const pages = data?.data ?? [];
-    if (pages.length === 0) {
-      console.warn("[Facebook] Nenhuma p\xE1gina encontrada para este usu\xE1rio");
-      return null;
-    }
-    const triarc = pages.find(
-      (p) => p.name?.toLowerCase().includes("triarc") || p.id === FB_PAGE_VANITY
-    ) ?? pages[0];
-    console.log(`[Facebook] P\xE1gina selecionada: ${triarc.name} (${triarc.id})`);
-    const igUserId = triarc.instagram_business_account?.id;
-    return { pageId: triarc.id, pageToken: triarc.access_token, pageName: triarc.name, igUserId };
-  } catch (err) {
-    console.warn("[Facebook] Erro ao resolver Page token:", err);
-    return null;
-  }
-}
-function registerFacebookRoutes(app2) {
-  app2.get("/api/facebook/auth", (req, res) => {
-    const origin = req.query.origin || "http://localhost:3000";
-    const accountId = req.query.accountId;
-    const popup = req.query.popup === "1" || req.query.popup === "true";
-    const forInstagram = req.query.forInstagram === "1" || req.query.forInstagram === "true";
-    const redirectUri = getRedirectUri2(origin);
-    const state = buildOAuthState(origin, accountId, popup);
-    const scope = getFacebookScopes(forInstagram);
-    const params = new URLSearchParams({
-      client_id: ENV.facebookAppId,
-      redirect_uri: redirectUri,
-      scope,
-      state,
-      response_type: "code",
-      display: popup ? "popup" : "page"
-    });
-    if (ENV.facebookLoginConfigId) {
-      params.set("config_id", ENV.facebookLoginConfigId);
-    }
-    res.redirect(`${FB_AUTH_URL}?${params.toString()}`);
-  });
-  app2.get("/auth/facebook/callback", async (req, res) => {
-    const { code, state, error } = req.query;
-    const fallbackOrigin = "https://tsm.triarcsolutions.com.br";
-    const { origin, accountId, popup } = parseOAuthState(state, fallbackOrigin);
-    if (error) {
-      console.error("[Facebook] OAuth error:", error);
-      return finishOAuth(res, { origin, popup, provider: "facebook", success: false, error });
-    }
-    const redirectUri = getRedirectUri2(origin);
-    try {
-      const tokenRes = await fetch(
-        `${FB_TOKEN_URL}?client_id=${ENV.facebookAppId}&redirect_uri=${encodeURIComponent(redirectUri)}&client_secret=${ENV.facebookAppSecret}&code=${code}`
-      );
-      const tokenData = await tokenRes.json();
-      if (!tokenData.access_token) {
-        console.error("[Facebook] Token exchange failed:", tokenData);
-        return finishOAuth(res, { origin, popup, provider: "facebook", success: false, error: "token_exchange_failed" });
-      }
-      const userToken = tokenData.access_token;
-      const page = await resolvePageToken(userToken);
-      let finalToken = userToken;
-      let pageRef = "fb:personal";
-      if (page) {
-        finalToken = page.pageToken;
-        pageRef = `fb:page:${page.pageId}`;
-        console.log(`[Facebook] Usando Page token: ${page.pageName} (${page.pageId})`);
-      } else {
-        console.warn("[Facebook] Nenhuma Page encontrada \u2014 usando token pessoal como fallback");
-      }
-      const expiresAt = new Date(Date.now() + 60 * 24 * 3600 * 1e3);
-      if (accountId) {
-        const db = await getDb();
-        if (!db) throw new Error("DB unavailable");
-        const [account] = await db.select().from(instagramAccounts).where(eq3(instagramAccounts.id, parseInt(accountId))).limit(1);
-        let accountRef = pageRef;
-        if (account?.platform === "instagram" && page) {
-          let igUserId = page.igUserId;
-          if (!igUserId) {
-            try {
-              const igRes = await fetch(
-                `${FB_GRAPH_URL}/${page.pageId}?fields=instagram_business_account&access_token=${page.pageToken}`
-              );
-              if (igRes.ok) {
-                const igData = await igRes.json();
-                igUserId = igData?.instagram_business_account?.id;
-              }
-            } catch (err) {
-              console.warn("[Facebook] N\xE3o foi poss\xEDvel obter conta Instagram Business:", err);
-            }
-          }
-          if (!igUserId && ENV.igUserId) {
-            igUserId = ENV.igUserId;
-            console.log(`[Facebook] Instagram ID via IG_USER_ID env: ${igUserId}`);
-          }
-          if (igUserId) {
-            accountRef = `ig:${igUserId}`;
-            console.log(`[Facebook] Instagram Business Account: ${igUserId}`);
-          } else {
-            console.warn("[Facebook] P\xE1gina sem Instagram Business vinculado \u2014 verifique conta Creator/Business no Meta");
-          }
-        }
-        await db.update(instagramAccounts).set({
-          accessToken: page ? page.pageToken : finalToken,
-          tokenExpiresAt: expiresAt,
-          linkedinUrn: accountRef
-        }).where(eq3(instagramAccounts.id, parseInt(accountId)));
-        console.log(`[Facebook] Token salvo para conta ${accountId} (ref: ${accountRef})`);
-      } else {
-        console.warn("[Facebook] OAuth sem accountId \u2014 token n\xE3o associado a nenhuma conta");
-        return finishOAuth(res, { origin, popup, provider: "facebook", success: false, error: "missing_account_id" });
-      }
-      finishOAuth(res, { origin, popup, provider: "facebook", success: true });
-    } catch (err) {
-      console.error("[Facebook] Callback error:", err);
-      finishOAuth(res, { origin, popup, provider: "facebook", success: false, error: "callback_failed" });
-    }
-  });
-}
-async function publishToFacebook(params) {
-  const { pageToken, pageId, caption, imageUrl } = params;
-  let postId;
-  if (imageUrl) {
-    const formData = new URLSearchParams({
-      caption,
-      url: imageUrl,
-      access_token: pageToken,
-      published: "true"
-    });
-    const res = await fetch(`${FB_GRAPH_URL}/${pageId}/photos`, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: formData.toString()
-    });
-    if (!res.ok) {
-      const err = await res.text();
-      throw new Error(`Facebook photo post failed: ${res.status} ${err}`);
-    }
-    const data = await res.json();
-    postId = data.post_id ?? data.id ?? "";
-  } else {
-    const formData = new URLSearchParams({
-      message: caption,
-      access_token: pageToken
-    });
-    const res = await fetch(`${FB_GRAPH_URL}/${pageId}/feed`, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: formData.toString()
-    });
-    if (!res.ok) {
-      const err = await res.text();
-      throw new Error(`Facebook feed post failed: ${res.status} ${err}`);
-    }
-    const data = await res.json();
-    postId = data.id ?? "";
-  }
-  const permalink = postId ? `https://www.facebook.com/${pageId}/posts/${postId.split("_")[1] ?? postId}` : `https://www.facebook.com/${pageId}`;
-  return { postId, permalink };
-}
-
-// server/autonomousAgent.ts
-var IG_GRAPH2 = "https://graph.facebook.com/v19.0";
-async function resolveMediaUrl(mediaUrl) {
-  if (mediaUrl.startsWith("/manus-storage/") || mediaUrl.startsWith("/storage/")) {
-    const appUrl = ENV.appUrl.replace(/\/$/, "");
-    try {
-      return await storageGetSignedUrl(mediaUrl);
-    } catch {
-      return `${appUrl}${mediaUrl}`;
-    }
-  }
-  if (mediaUrl.startsWith("/")) {
-    return `${ENV.appUrl.replace(/\/$/, "")}${mediaUrl}`;
-  }
-  return mediaUrl;
-}
-var LI_API = "https://api.linkedin.com/v2";
-async function publishToInstagram(params) {
-  const { igUserId, accessToken, caption, imageUrl } = params;
-  const containerBody = {
-    caption,
-    access_token: accessToken
-  };
-  if (imageUrl) {
-    containerBody.image_url = imageUrl;
-    containerBody.media_type = "IMAGE";
-  } else {
-    throw new Error("Instagram requer pelo menos uma imagem");
-  }
-  const containerRes = await fetch(`${IG_GRAPH2}/${igUserId}/media`, {
-    method: "POST",
-    headers: { "content-type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams(containerBody).toString()
-  });
-  if (!containerRes.ok) {
-    const err = await containerRes.text();
-    throw new Error(`IG media container failed: ${containerRes.status} ${err}`);
-  }
-  const { id: creationId } = await containerRes.json();
-  const publishRes = await fetch(`${IG_GRAPH2}/${igUserId}/media_publish`, {
-    method: "POST",
-    headers: { "content-type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({ creation_id: creationId, access_token: accessToken }).toString()
-  });
-  if (!publishRes.ok) {
-    const err = await publishRes.text();
-    throw new Error(`IG media_publish failed: ${publishRes.status} ${err}`);
-  }
-  const { id: mediaId } = await publishRes.json();
-  const permalink = `https://www.instagram.com/p/${mediaId}/`;
-  return { postId: mediaId, permalink };
-}
-async function fetchIgComments(mediaId, accessToken) {
-  const res = await fetch(
-    `${IG_GRAPH2}/${mediaId}/comments?fields=id,text,username,timestamp&access_token=${accessToken}`
-  );
-  if (!res.ok) return [];
-  const data = await res.json();
-  return data.data ?? [];
-}
-async function replyIgComment(commentId, message, accessToken) {
-  await fetch(`${IG_GRAPH2}/${commentId}/replies`, {
-    method: "POST",
-    headers: { "content-type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({ message, access_token: accessToken }).toString()
-  });
-}
-async function autoReplyIgComments(igUserId, accessToken, postCaption) {
-  const mediaRes = await fetch(
-    `${IG_GRAPH2}/${igUserId}/media?fields=id,timestamp&limit=10&access_token=${accessToken}`
-  );
-  if (!mediaRes.ok) return;
-  const media = (await mediaRes.json()).data ?? [];
-  for (const post of media) {
-    const comments = await fetchIgComments(post.id, accessToken);
-    for (const comment of comments) {
-      if (!comment.text || comment.username?.toLowerCase().includes("triarc")) continue;
-      try {
-        const res = await invokeLLM({
-          messages: [
-            {
-              role: "system",
-              content: `Voc\xEA \xE9 o social media manager da Triarc Solutions. Responda coment\xE1rios de forma profissional, amig\xE1vel e aut\xEAntica. Nunca mencione que \xE9 IA. Resposta curta (m\xE1ximo 2 frases). Contexto do post: ${postCaption?.slice(0, 200)}`
-            },
-            { role: "user", content: `Coment\xE1rio de @${comment.username}: "${comment.text}"` }
-          ]
-        });
-        const reply = res.choices?.[0]?.message?.content?.trim();
-        if (reply) {
-          await replyIgComment(comment.id, reply, accessToken);
-          console.log(`[IG] Respondido @${comment.username}: ${reply.slice(0, 60)}...`);
-        }
-      } catch (e) {
-        console.warn(`[IG] Falha ao responder coment\xE1rio ${comment.id}:`, e.message);
-      }
-    }
-  }
-}
-async function autoReplyFbComments(pageId, pageToken) {
-  const postsRes = await fetch(
-    `https://graph.facebook.com/v19.0/${pageId}/posts?fields=id,message&limit=10&access_token=${pageToken}`
-  );
-  if (!postsRes.ok) return;
-  const fbPosts = (await postsRes.json()).data ?? [];
-  for (const post of fbPosts) {
-    const commentsRes = await fetch(
-      `https://graph.facebook.com/v19.0/${post.id}/comments?fields=id,message,from&access_token=${pageToken}`
-    );
-    if (!commentsRes.ok) continue;
-    const comments = (await commentsRes.json()).data ?? [];
-    for (const comment of comments) {
-      if (!comment.message) continue;
-      try {
-        const res = await invokeLLM({
-          messages: [
-            {
-              role: "system",
-              content: `Voc\xEA \xE9 o social media manager da Triarc Solutions. Responda coment\xE1rios de forma profissional e amig\xE1vel. Resposta curta (m\xE1ximo 2 frases).`
-            },
-            { role: "user", content: `Coment\xE1rio de ${comment.from?.name ?? "algu\xE9m"}: "${comment.message}"` }
-          ]
-        });
-        const reply = res.choices?.[0]?.message?.content?.trim();
-        if (reply) {
-          await fetch(`https://graph.facebook.com/v19.0/${comment.id}/comments`, {
-            method: "POST",
-            headers: { "content-type": "application/x-www-form-urlencoded" },
-            body: new URLSearchParams({ message: reply, access_token: pageToken }).toString()
-          });
-          console.log(`[FB] Respondido ${comment.from?.name}: ${reply.slice(0, 60)}...`);
-        }
-      } catch (e) {
-        console.warn(`[FB] Falha ao responder coment\xE1rio ${comment.id}:`, e.message);
-      }
-    }
-  }
-}
-async function acceptLinkedInInvitations(accessToken) {
-  let accepted = 0;
-  try {
-    const res = await fetch(`${LI_API}/invitations?invitationType=CONNECTION`, {
-      headers: { Authorization: `Bearer ${accessToken}` }
-    });
-    if (!res.ok) return 0;
-    const data = await res.json();
-    const invitations = data.elements ?? [];
-    for (const inv of invitations.slice(0, 20)) {
-      try {
-        await fetch(`${LI_API}/invitations/${inv.entityUrn}?action=accept`, {
-          method: "POST",
-          headers: { Authorization: `Bearer ${accessToken}`, "content-type": "application/json" }
-        });
-        accepted++;
-      } catch {
-      }
-    }
-  } catch (e) {
-    console.warn("[LinkedIn] Falha ao aceitar convites:", e.message);
-  }
-  console.log(`[LinkedIn] Aceitos ${accepted} convites de conex\xE3o`);
-  return accepted;
-}
-async function sendLinkedInConnectionRequests(accessToken, dailyLimit = 100) {
-  let sent = 0;
-  try {
-    const searches = [
-      "CTO Brasil tecnologia",
-      "CEO startup inova\xE7\xE3o",
-      "Gerente TI",
-      "Desenvolvedor software"
-    ];
-    for (const query of searches) {
-      if (sent >= dailyLimit) break;
-      const searchRes = await fetch(
-        `${LI_API}/search/blended?keywords=${encodeURIComponent(query)}&origin=GLOBAL_SEARCH_HEADER&q=blended&start=0&count=25`,
-        { headers: { Authorization: `Bearer ${accessToken}` } }
-      );
-      if (!searchRes.ok) continue;
-      const data = await searchRes.json();
-      const people = (data.elements ?? []).filter((e) => e["$type"]?.includes("MiniProfile")).slice(0, Math.floor(dailyLimit / searches.length));
-      for (const person of people) {
-        if (sent >= dailyLimit) break;
-        try {
-          const profileUrn = person.objectUrn;
-          if (!profileUrn) continue;
-          await fetch(`${LI_API}/invitations`, {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-              "content-type": "application/json",
-              "x-restli-protocol-version": "2.0.0"
-            },
-            body: JSON.stringify({
-              invitee: {
-                "com.linkedin.voyager.growth.invitation.InviteeProfile": {
-                  profileId: person.publicIdentifier
-                }
-              },
-              message: "Ol\xE1! Sou da Triarc Solutions, empresa de tecnologia e inova\xE7\xE3o. Seria um prazer conectarmos!"
-            })
-          });
-          sent++;
-          await new Promise((r) => setTimeout(r, 2e3));
-        } catch {
-        }
-      }
-    }
-  } catch (e) {
-    console.warn("[LinkedIn] Falha ao enviar convites:", e.message);
-  }
-  console.log(`[LinkedIn] Enviados ${sent} convites de conex\xE3o`);
-  return sent;
-}
-var MAX_RETRIES2 = 3;
-var dailyConnectionsSent = 0;
-var lastConnectionReset = (/* @__PURE__ */ new Date()).toDateString();
-async function runAutonomousAgent() {
-  const result = { postsPublished: 0, commentsReplied: 0, connectionsAccepted: 0, connectionsSent: 0, errors: [] };
-  if ((/* @__PURE__ */ new Date()).toDateString() !== lastConnectionReset) {
-    dailyConnectionsSent = 0;
-    lastConnectionReset = (/* @__PURE__ */ new Date()).toDateString();
-  }
-  const allAccounts = await getAllAccounts();
-  const approved = await getPostsByStatus("approved");
-  const now = /* @__PURE__ */ new Date();
-  for (const post of approved) {
-    if (post.mcpPending && post.updatedAt) {
-      const stuckMs = now.getTime() - new Date(post.updatedAt).getTime();
-      if (stuckMs > 5 * 60 * 1e3) {
-        await updatePost(post.id, { mcpPending: 0 });
-        post.mcpPending = 0;
-        console.log(`[Agent] Post ${post.id}: mcpPending resetado (travado h\xE1 ${Math.round(stuckMs / 6e4)}min)`);
-      }
-    }
-  }
-  const readyPosts = approved.filter((p) => {
-    if (p.mcpPending) return false;
-    if ((p.retryCount ?? 0) >= MAX_RETRIES2) return false;
-    if (p.nextRetryAt && new Date(p.nextRetryAt) > now) return false;
-    return true;
-  });
-  for (const post of readyPosts) {
-    await updatePost(post.id, { mcpPending: 1 });
-    const media = await getPostMedia(post.id);
-    const rawImageUrl = media?.[0]?.mediaUrl || void 0;
-    const imageUrl = rawImageUrl ? await resolveMediaUrl(rawImageUrl) : void 0;
-    const igAccount2 = allAccounts.find(
-      (a) => a.id === post.accountId && a.platform === "instagram" && a.accessToken
-    ) ?? allAccounts.find((a) => a.platform === "instagram" && a.accessToken);
-    const useEnvToken = Boolean(ENV.igAccessToken?.trim());
-    const igToken2 = useEnvToken ? ENV.igAccessToken.trim() : igAccount2?.accessToken || "";
-    if (!igToken2) {
-      console.warn(`[Agent] Post ${post.id}: sem token Instagram \u2014 configure IG_ACCESS_TOKEN ou conecte em Contas`);
-      await updatePost(post.id, { mcpPending: 0 });
-      result.errors.push(`Post ${post.id}: sem token Instagram`);
-      continue;
-    }
-    const igUserId = useEnvToken && ENV.igUserId ? ENV.igUserId : igAccount2?.linkedinUrn?.startsWith("ig:") ? igAccount2.linkedinUrn.replace("ig:", "") : ENV.igUserId;
-    if (!igUserId) {
-      console.warn(`[Agent] Post ${post.id}: IG_USER_ID n\xE3o configurado`);
-      await updatePost(post.id, { mcpPending: 0 });
-      result.errors.push(`Post ${post.id}: IG_USER_ID n\xE3o configurado`);
-      continue;
-    }
-    const prevLogs = await getPublicationLogsByPost(post.id);
-    const attempt = prevLogs.length + 1;
-    try {
-      const igRes = await publishToInstagram({
-        igUserId,
-        accessToken: igToken2,
-        caption: post.caption ?? "",
-        imageUrl
-      });
-      await updatePost(post.id, {
-        status: "published",
-        publishedAt: /* @__PURE__ */ new Date(),
-        instagramPostId: igRes.postId,
-        instagramPermalink: igRes.permalink,
-        mcpPending: 0,
-        retryCount: 0
-      });
-      await createPublicationLog({ postId: post.id, attempt, status: "success", instagramPostId: igRes.postId, permalink: igRes.permalink });
-      await notifyOwner({ title: "\u2705 Post publicado no Instagram", content: `Post #${post.id}: ${igRes.permalink}` });
-      result.postsPublished++;
-      console.log(`[Agent] Post ${post.id} publicado no Instagram: ${igRes.permalink}`);
-      await publishToOtherPlatforms(post.id, post.caption ?? "", imageUrl, allAccounts);
-    } catch (err) {
-      const tokenHint = useEnvToken ? " (token: IG_ACCESS_TOKEN env)" : " (token: Contas OAuth)";
-      const errMsg = `${err.message}${tokenHint}`;
-      await createPublicationLog({ postId: post.id, attempt, status: "failed", error: errMsg });
-      if (attempt >= MAX_RETRIES2) {
-        await updatePost(post.id, { status: "rejected", mcpPending: 0, retryCount: attempt });
-        await notifyOwner({ title: "\u274C Falha ao publicar", content: `Post #${post.id} falhou ap\xF3s ${MAX_RETRIES2} tentativas: ${err.message}` });
-      } else {
-        const nextRetryAt = new Date(Date.now() + 5 * 60 * 1e3);
-        await updatePost(post.id, { mcpPending: 0, retryCount: attempt, nextRetryAt });
-      }
-      result.errors.push(`Post ${post.id}: ${err.message}`);
-      console.error(`[Agent] Falha ao publicar post ${post.id}:`, err.message);
-    }
-  }
-  const igAccount = allAccounts.find((a) => a.platform === "instagram" && a.accessToken);
-  const igToken = igAccount?.accessToken || ENV.igAccessToken;
-  if (igToken && ENV.igUserId) {
-    try {
-      await autoReplyIgComments(ENV.igUserId, igToken, "Triarc Solutions");
-    } catch (e) {
-      result.errors.push(`IG comments: ${e.message}`);
-    }
-  }
-  const fbAccounts = allAccounts.filter((a) => a.platform === "facebook" && a.accessToken && a.linkedinUrn);
-  if (fbAccounts.length > 0) {
-    for (const fbAcc of fbAccounts) {
-      const pageId = fbAcc.linkedinUrn.startsWith("fb:page:") ? fbAcc.linkedinUrn.replace("fb:page:", "") : null;
-      if (!pageId) continue;
-      try {
-        await autoReplyFbComments(pageId, fbAcc.accessToken);
-      } catch (e) {
-        result.errors.push(`FB comments: ${e.message}`);
-      }
-    }
-  } else if (ENV.fbPageToken && ENV.fbPageId) {
-    try {
-      await autoReplyFbComments(ENV.fbPageId, ENV.fbPageToken);
-    } catch (e) {
-      result.errors.push(`FB comments: ${e.message}`);
-    }
-  }
-  const liAccount = allAccounts.find((a) => a.platform === "linkedin" && a.accessToken);
-  const liToken = liAccount?.accessToken || ENV.liAccessToken;
-  if (liToken) {
-    try {
-      result.connectionsAccepted = await acceptLinkedInInvitations(liToken);
-    } catch (e) {
-      result.errors.push(`LI accept: ${e.message}`);
-    }
-    if (dailyConnectionsSent < 100) {
-      try {
-        const toSend = 100 - dailyConnectionsSent;
-        const sent = await sendLinkedInConnectionRequests(liToken, toSend);
-        dailyConnectionsSent += sent;
-        result.connectionsSent = sent;
-      } catch (e) {
-        result.errors.push(`LI connections: ${e.message}`);
-      }
-    }
-  }
-  console.log(`[Agent] Ciclo completo: ${result.postsPublished} publicados, ${result.connectionsAccepted} convites aceitos, ${result.connectionsSent} solicita\xE7\xF5es enviadas`);
-  return result;
-}
-async function publishToOtherPlatforms(postId, caption, imageUrl, allAccounts) {
-  const liAccounts = allAccounts.filter((a) => a.platform === "linkedin" && a.accessToken && a.linkedinUrn);
-  for (const liAcc of liAccounts) {
-    try {
-      const res = await publishToLinkedIn({ accessToken: liAcc.accessToken, linkedinUrn: liAcc.linkedinUrn, caption, imageUrl });
-      await updatePost(postId, { linkedinPublished: 1 });
-      console.log(`[Agent] Post ${postId} publicado no LinkedIn: ${res.permalink}`);
-    } catch (e) {
-      console.error(`[Agent] LinkedIn falhou para post ${postId}:`, e.message);
-    }
-  }
-  const fbAccounts = allAccounts.filter((a) => a.platform === "facebook" && a.accessToken && a.linkedinUrn);
-  for (const fbAcc of fbAccounts) {
-    const pageId = fbAcc.linkedinUrn.startsWith("fb:page:") ? fbAcc.linkedinUrn.replace("fb:page:", "") : "me";
-    try {
-      const res = await publishToFacebook({ pageToken: fbAcc.accessToken, pageId, caption, imageUrl });
-      await updatePost(postId, { facebookPublished: 1 });
-      console.log(`[Agent] Post ${postId} publicado no Facebook: ${res.permalink}`);
-    } catch (e) {
-      console.error(`[Agent] Facebook falhou para post ${postId}:`, e.message);
-    }
-  }
-}
-
 // server/routers/research.ts
 init_db();
 init_schema();
 import { z as z2 } from "zod";
-import { eq as eq4, desc as desc2 } from "drizzle-orm";
+import { eq as eq2, desc as desc2 } from "drizzle-orm";
 var NEWS_API_KEY = process.env.NEWS_API_KEY ?? "";
 var APP_CONTEXT = `A Triarc Solutions \xE9 uma empresa de tecnologia e inova\xE7\xE3o com sede em Maca\xE9/RJ. Pilares: Gest\xE3o, Treinamento e Tecnologia. Servi\xE7os: IA e automa\xE7\xE3o, desenvolvimento de software, data science. Site: triarcsolutions.com.br.`;
 var TRIARC_TONE = `Tom corporativo profissional, moderno e acess\xEDvel. Posicione a Triarc Solutions como refer\xEAncia em tecnologia. Inclua CTA para triarcsolutions.com.br e hashtags do nicho tech/IA.`;
@@ -2465,14 +1629,14 @@ var researchRouter = router({
     const db = await getDb();
     if (!db) throw new Error("DB unavailable");
     const { id, ...values } = input;
-    await db.update(researchTopics).set(values).where(eq4(researchTopics.id, id));
+    await db.update(researchTopics).set(values).where(eq2(researchTopics.id, id));
     return { success: true };
   }),
   // Deletar tópico
   deleteTopic: protectedProcedure.input(z2.object({ id: z2.number() })).mutation(async ({ input }) => {
     const db = await getDb();
     if (!db) throw new Error("DB unavailable");
-    await db.delete(researchTopics).where(eq4(researchTopics.id, input.id));
+    await db.delete(researchTopics).where(eq2(researchTopics.id, input.id));
     return { success: true };
   }),
   // Histórico de execuções
@@ -2484,7 +1648,7 @@ var researchRouter = router({
     if (!db) return [];
     const q = db.select().from(researchRuns).orderBy(desc2(researchRuns.ranAt)).limit(input.limit);
     if (input.topicId) {
-      return db.select().from(researchRuns).where(eq4(researchRuns.topicId, input.topicId)).orderBy(desc2(researchRuns.ranAt)).limit(input.limit);
+      return db.select().from(researchRuns).where(eq2(researchRuns.topicId, input.topicId)).orderBy(desc2(researchRuns.ranAt)).limit(input.limit);
     }
     return q;
   }),
@@ -2492,7 +1656,7 @@ var researchRouter = router({
   runNow: protectedProcedure.input(z2.object({ topicId: z2.number() })).mutation(async ({ ctx, input }) => {
     const db = await getDb();
     if (!db) throw new Error("DB unavailable");
-    const [topic] = await db.select().from(researchTopics).where(eq4(researchTopics.id, input.topicId)).limit(1);
+    const [topic] = await db.select().from(researchTopics).where(eq2(researchTopics.id, input.topicId)).limit(1);
     if (!topic) throw new Error("T\xF3pico n\xE3o encontrado");
     try {
       const articles = await fetchNews(topic.query, topic.language);
@@ -2539,7 +1703,7 @@ var researchRouter = router({
   runAll: protectedProcedure.mutation(async ({ ctx }) => {
     const db = await getDb();
     if (!db) throw new Error("DB unavailable");
-    const activeTopics = await db.select().from(researchTopics).where(eq4(researchTopics.active, 1));
+    const activeTopics = await db.select().from(researchTopics).where(eq2(researchTopics.active, 1));
     const results = [];
     for (const topic of activeTopics) {
       try {
@@ -2635,7 +1799,7 @@ var appRouter = router({
     delete: protectedProcedure.input(z3.object({ id: z3.number() })).mutation(async ({ input }) => {
       const db = await getDb();
       if (!db) throw new Error("Banco de dados indispon\xEDvel. Verifique se DATABASE_URL est\xE1 configurada nas vari\xE1veis de ambiente do Vercel.");
-      await db.delete(instagramAccounts).where(eq5(instagramAccounts.id, input.id));
+      await db.delete(instagramAccounts).where(eq3(instagramAccounts.id, input.id));
       return { success: true };
     })
   }),
@@ -2990,14 +2154,15 @@ Inclua hashtags estrat\xE9gicas do nicho tech/inova\xE7\xE3o, CTA claro para tri
       } else {
         await updatePost(input.postId, { status: "approved", mcpPending: 0, retryCount: 0, nextRetryAt: null });
       }
-      const hasEnvToken = Boolean(process.env.IG_ACCESS_TOKEN?.trim());
+      const { token: envIgToken } = resolveIgAccessTokenFromEnv();
+      const hasEnvToken = Boolean(envIgToken);
       const hasIgUserId = Boolean(process.env.IG_USER_ID?.trim());
       if (!hasEnvToken) {
         const accounts = await getAllAccounts();
         const igAcc = accounts.find((a) => a.platform === "instagram" && a.accessToken);
         if (!igAcc) {
           throw new Error(
-            "IG_ACCESS_TOKEN n\xE3o est\xE1 definido no Vercel (Production) ou conta Instagram n\xE3o conectada em Contas."
+            "Nenhum Page token no Vercel (Production). Use IG_ACCESS_TOKEN ou FB_PAGE_TOKEN, ou conecte Instagram em Contas."
           );
         }
       } else if (!hasIgUserId) {
@@ -3325,7 +2490,488 @@ async function createContext(opts) {
 
 // server/scheduledRoutes.ts
 init_db();
-var MAX_RETRIES3 = 3;
+
+// server/linkedin.ts
+init_db();
+init_schema();
+import { eq as eq4 } from "drizzle-orm";
+
+// server/_core/oauthFinish.ts
+function parseOAuthState(state, fallbackOrigin) {
+  try {
+    const decoded = JSON.parse(Buffer.from(state, "base64url").toString());
+    return {
+      origin: decoded.origin || fallbackOrigin,
+      accountId: decoded.accountId,
+      popup: decoded.popup === true || decoded.popup === "1"
+    };
+  } catch {
+    return { origin: fallbackOrigin, popup: false };
+  }
+}
+function buildOAuthState(origin, accountId, popup) {
+  return Buffer.from(JSON.stringify({ origin, accountId, popup: popup ? true : void 0 })).toString("base64url");
+}
+function finishOAuth(res, opts) {
+  const { origin, popup, provider, success, error } = opts;
+  const param = success ? `${provider}_connected=1` : `${provider}_error=${encodeURIComponent(error ?? "unknown")}`;
+  const redirectUrl = `${origin}/accounts?${param}`;
+  if (popup) {
+    const message = success ? "Conta conectada com sucesso!" : `Erro ao conectar: ${error ?? "desconhecido"}`;
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.send(`<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="UTF-8"><title>OAuth</title></head>
+<body style="font-family:system-ui,sans-serif;text-align:center;padding:48px 24px">
+<p>${message}</p>
+<p style="color:#666;font-size:14px">Fechando esta janela...</p>
+<script>
+(function(){
+  var payload = { type: "oauth_complete", provider: ${JSON.stringify(provider)}, success: ${success ? "true" : "false"} };
+  try {
+    if (window.opener && !window.opener.closed) {
+      window.opener.postMessage(payload, ${JSON.stringify(origin)});
+      window.close();
+      setTimeout(function(){ window.close(); }, 300);
+      return;
+    }
+  } catch (e) {}
+  window.location.replace(${JSON.stringify(redirectUrl)});
+})();
+</script>
+</body></html>`);
+    return;
+  }
+  res.redirect(redirectUrl);
+}
+
+// server/linkedin.ts
+var LINKEDIN_AUTH_URL = "https://www.linkedin.com/oauth/v2/authorization";
+var LINKEDIN_TOKEN_URL = "https://www.linkedin.com/oauth/v2/accessToken";
+var LINKEDIN_UGC_URL = "https://api.linkedin.com/v2/ugcPosts";
+var LINKEDIN_ASSETS_URL = "https://api.linkedin.com/v2/assets?action=registerUpload";
+var LINKEDIN_ORG_VANITY = "triarc-solutions-brasil";
+var SCOPES = "w_member_social openid profile";
+var LINKEDIN_REDIRECT_URI = "https://tsm.triarcsolutions.com.br/auth/linkedin/callback";
+function getRedirectUri(_origin) {
+  return LINKEDIN_REDIRECT_URI;
+}
+async function resolveOrganizationUrn(accessToken) {
+  try {
+    const res = await fetch(
+      `https://api.linkedin.com/v2/organizations?q=vanityName&vanityName=${LINKEDIN_ORG_VANITY}`,
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    );
+    if (!res.ok) {
+      console.warn("[LinkedIn] organizations lookup status:", res.status);
+      return null;
+    }
+    const data = await res.json();
+    const org = data?.elements?.[0];
+    if (org?.id) {
+      const urn = `urn:li:organization:${org.id}`;
+      console.log(`[LinkedIn] Organization encontrada: ${urn}`);
+      return urn;
+    }
+    const aclRes = await fetch(
+      "https://api.linkedin.com/v2/organizationAcls?q=roleAssignee&role=ADMINISTRATOR&projection=(elements*(organization~(id,vanityName,localizedName)))",
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    );
+    if (!aclRes.ok) return null;
+    const aclData = await aclRes.json();
+    const match = aclData?.elements?.find(
+      (e) => e["organization~"]?.vanityName === LINKEDIN_ORG_VANITY
+    );
+    if (match?.["organization~"]?.id) {
+      const urn = `urn:li:organization:${match["organization~"].id}`;
+      console.log(`[LinkedIn] Organization via ACL: ${urn}`);
+      return urn;
+    }
+  } catch (err) {
+    console.warn("[LinkedIn] Erro ao resolver organization URN:", err);
+  }
+  return null;
+}
+function registerLinkedInRoutes(app2) {
+  app2.get("/api/linkedin/auth", (req, res) => {
+    const origin = req.query.origin || "http://localhost:3000";
+    const accountId = req.query.accountId;
+    const popup = req.query.popup === "1" || req.query.popup === "true";
+    const redirectUri = getRedirectUri(origin);
+    const state = buildOAuthState(origin, accountId, popup);
+    const params = new URLSearchParams({
+      response_type: "code",
+      client_id: ENV.linkedinClientId,
+      redirect_uri: redirectUri,
+      scope: SCOPES,
+      state
+    });
+    res.redirect(`${LINKEDIN_AUTH_URL}?${params.toString()}`);
+  });
+  app2.get("/auth/linkedin/callback", async (req, res) => {
+    const { code, state, error } = req.query;
+    const fallbackOrigin = "https://tsm.triarcsolutions.com.br";
+    const { origin, accountId, popup } = parseOAuthState(state, fallbackOrigin);
+    if (error) {
+      console.error("[LinkedIn] OAuth error:", error);
+      return finishOAuth(res, { origin, popup, provider: "linkedin", success: false, error });
+    }
+    const redirectUri = getRedirectUri(origin);
+    try {
+      const tokenRes = await fetch(LINKEDIN_TOKEN_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          grant_type: "authorization_code",
+          code,
+          redirect_uri: redirectUri,
+          client_id: ENV.linkedinClientId,
+          client_secret: ENV.linkedinClientSecret
+        })
+      });
+      const tokenData = await tokenRes.json();
+      if (!tokenData.access_token) {
+        console.error("[LinkedIn] Token exchange failed:", tokenData);
+        return finishOAuth(res, { origin, popup, provider: "linkedin", success: false, error: "token_exchange_failed" });
+      }
+      const { access_token, expires_in } = tokenData;
+      const expiresAt = new Date(Date.now() + (expires_in ?? 5184e3) * 1e3);
+      let linkedinUrn = await resolveOrganizationUrn(access_token);
+      if (!linkedinUrn) {
+        console.warn("[LinkedIn] Organization URN n\xE3o resolvido, buscando URN pessoal...");
+        try {
+          const uiRes = await fetch("https://api.linkedin.com/v2/userinfo", {
+            headers: { Authorization: `Bearer ${access_token}` }
+          });
+          if (uiRes.ok) {
+            const ui = await uiRes.json();
+            if (ui?.sub) {
+              linkedinUrn = `urn:li:person:${ui.sub}`;
+              console.log(`[LinkedIn] URN via userinfo: ${linkedinUrn}`);
+            }
+          }
+          if (!linkedinUrn) {
+            const meRes = await fetch("https://api.linkedin.com/v2/me", {
+              headers: { Authorization: `Bearer ${access_token}` }
+            });
+            if (meRes.ok) {
+              const me = await meRes.json();
+              if (me?.id) {
+                linkedinUrn = `urn:li:person:${me.id}`;
+                console.log(`[LinkedIn] URN via /v2/me: ${linkedinUrn}`);
+              }
+            }
+          }
+        } catch (e) {
+          console.warn("[LinkedIn] Falha ao buscar URN pessoal:", e);
+        }
+      }
+      if (accountId) {
+        const db = await getDb();
+        if (!db) throw new Error("DB unavailable");
+        await db.update(instagramAccounts).set({
+          accessToken: access_token,
+          tokenExpiresAt: expiresAt,
+          linkedinUrn: linkedinUrn ?? void 0
+        }).where(eq4(instagramAccounts.id, parseInt(accountId)));
+        console.log(`[LinkedIn] Token salvo para conta ${accountId}, URN: ${linkedinUrn}`);
+      }
+      finishOAuth(res, { origin, popup, provider: "linkedin", success: true });
+    } catch (err) {
+      console.error("[LinkedIn] Callback error:", err);
+      finishOAuth(res, { origin, popup, provider: "linkedin", success: false, error: "callback_failed" });
+    }
+  });
+}
+async function publishToLinkedIn(params) {
+  const { accessToken, linkedinUrn, caption, imageUrl } = params;
+  const isOrg = linkedinUrn.startsWith("urn:li:organization:");
+  console.log(`[LinkedIn] Publicando como ${isOrg ? "Company Page" : "perfil pessoal"}: ${linkedinUrn}`);
+  let shareMediaCategory = "NONE";
+  let media = [];
+  if (imageUrl) {
+    try {
+      const uploadedAsset = await registerLinkedInImage(accessToken, linkedinUrn, imageUrl);
+      if (uploadedAsset) {
+        shareMediaCategory = "IMAGE";
+        media = [{
+          status: "READY",
+          description: { text: caption.slice(0, 200) },
+          media: uploadedAsset,
+          title: { text: "Triarc Solutions" }
+        }];
+      }
+    } catch (err) {
+      console.warn("[LinkedIn] Image upload failed, posting text-only:", err);
+    }
+  }
+  const body = {
+    author: linkedinUrn,
+    lifecycleState: "PUBLISHED",
+    specificContent: {
+      "com.linkedin.ugc.ShareContent": {
+        shareCommentary: { text: caption },
+        shareMediaCategory,
+        ...media.length > 0 ? { media } : {}
+      }
+    },
+    visibility: {
+      "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"
+    }
+  };
+  const res = await fetch(LINKEDIN_UGC_URL, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+      "X-Restli-Protocol-Version": "2.0.0"
+    },
+    body: JSON.stringify(body)
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`LinkedIn UGC post failed: ${res.status} ${err}`);
+  }
+  const data = await res.json();
+  const postId = data.id ?? "";
+  const permalink = `https://www.linkedin.com/feed/update/${encodeURIComponent(postId)}`;
+  return { postId, permalink };
+}
+async function registerLinkedInImage(accessToken, ownerUrn, imageUrl) {
+  const registerRes = await fetch(LINKEDIN_ASSETS_URL, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      registerUploadRequest: {
+        recipes: ["urn:li:digitalmediaRecipe:feedshare-image"],
+        owner: ownerUrn,
+        serviceRelationships: [{
+          relationshipType: "OWNER",
+          identifier: "urn:li:userGeneratedContent"
+        }]
+      }
+    })
+  });
+  if (!registerRes.ok) return null;
+  const registerData = await registerRes.json();
+  const uploadUrl = registerData?.value?.uploadMechanism?.["com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest"]?.uploadUrl;
+  const assetUrn = registerData?.value?.asset;
+  if (!uploadUrl || !assetUrn) return null;
+  const imgRes = await fetch(imageUrl);
+  if (!imgRes.ok) return null;
+  const imgBuffer = await imgRes.arrayBuffer();
+  const uploadRes = await fetch(uploadUrl, {
+    method: "PUT",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "image/jpeg"
+    },
+    body: imgBuffer
+  });
+  if (!uploadRes.ok) return null;
+  return assetUrn;
+}
+
+// server/facebook.ts
+init_db();
+init_schema();
+import { eq as eq5 } from "drizzle-orm";
+var FB_AUTH_URL = "https://www.facebook.com/v21.0/dialog/oauth";
+var FB_TOKEN_URL = "https://graph.facebook.com/v21.0/oauth/access_token";
+var FB_GRAPH_URL = "https://graph.facebook.com/v21.0";
+var FB_PAGE_SCOPES = [
+  "pages_show_list",
+  "pages_read_engagement",
+  "pages_manage_posts"
+];
+var FB_IG_SCOPES = ["instagram_basic", "instagram_content_publish"];
+function getFacebookScopes(forInstagram) {
+  if (ENV.facebookOAuthScopes.trim()) {
+    return ENV.facebookOAuthScopes.trim();
+  }
+  const scopes = [...FB_PAGE_SCOPES];
+  if (forInstagram && ENV.facebookIgScopes) {
+    scopes.push(...FB_IG_SCOPES);
+  }
+  return scopes.join(",");
+}
+var FB_PAGE_VANITY = "Triarcsolutions";
+var FACEBOOK_REDIRECT_URI = "https://tsm.triarcsolutions.com.br/auth/facebook/callback";
+function getRedirectUri2(_origin) {
+  return FACEBOOK_REDIRECT_URI;
+}
+async function resolvePageToken(userToken) {
+  try {
+    const res = await fetch(
+      `${FB_GRAPH_URL}/me/accounts?fields=id,name,access_token,category,instagram_business_account&access_token=${userToken}`
+    );
+    if (!res.ok) {
+      console.warn("[Facebook] /me/accounts status:", res.status, await res.text());
+      return null;
+    }
+    const data = await res.json();
+    const pages = data?.data ?? [];
+    if (pages.length === 0) {
+      console.warn("[Facebook] Nenhuma p\xE1gina encontrada para este usu\xE1rio");
+      return null;
+    }
+    const triarc = pages.find(
+      (p) => p.name?.toLowerCase().includes("triarc") || p.id === FB_PAGE_VANITY
+    ) ?? pages[0];
+    console.log(`[Facebook] P\xE1gina selecionada: ${triarc.name} (${triarc.id})`);
+    const igUserId = triarc.instagram_business_account?.id;
+    return { pageId: triarc.id, pageToken: triarc.access_token, pageName: triarc.name, igUserId };
+  } catch (err) {
+    console.warn("[Facebook] Erro ao resolver Page token:", err);
+    return null;
+  }
+}
+function registerFacebookRoutes(app2) {
+  app2.get("/api/facebook/auth", (req, res) => {
+    const origin = req.query.origin || "http://localhost:3000";
+    const accountId = req.query.accountId;
+    const popup = req.query.popup === "1" || req.query.popup === "true";
+    const forInstagram = req.query.forInstagram === "1" || req.query.forInstagram === "true";
+    const redirectUri = getRedirectUri2(origin);
+    const state = buildOAuthState(origin, accountId, popup);
+    const scope = getFacebookScopes(forInstagram);
+    const params = new URLSearchParams({
+      client_id: ENV.facebookAppId,
+      redirect_uri: redirectUri,
+      scope,
+      state,
+      response_type: "code",
+      display: popup ? "popup" : "page"
+    });
+    if (ENV.facebookLoginConfigId) {
+      params.set("config_id", ENV.facebookLoginConfigId);
+    }
+    res.redirect(`${FB_AUTH_URL}?${params.toString()}`);
+  });
+  app2.get("/auth/facebook/callback", async (req, res) => {
+    const { code, state, error } = req.query;
+    const fallbackOrigin = "https://tsm.triarcsolutions.com.br";
+    const { origin, accountId, popup } = parseOAuthState(state, fallbackOrigin);
+    if (error) {
+      console.error("[Facebook] OAuth error:", error);
+      return finishOAuth(res, { origin, popup, provider: "facebook", success: false, error });
+    }
+    const redirectUri = getRedirectUri2(origin);
+    try {
+      const tokenRes = await fetch(
+        `${FB_TOKEN_URL}?client_id=${ENV.facebookAppId}&redirect_uri=${encodeURIComponent(redirectUri)}&client_secret=${ENV.facebookAppSecret}&code=${code}`
+      );
+      const tokenData = await tokenRes.json();
+      if (!tokenData.access_token) {
+        console.error("[Facebook] Token exchange failed:", tokenData);
+        return finishOAuth(res, { origin, popup, provider: "facebook", success: false, error: "token_exchange_failed" });
+      }
+      const userToken = tokenData.access_token;
+      const page = await resolvePageToken(userToken);
+      let finalToken = userToken;
+      let pageRef = "fb:personal";
+      if (page) {
+        finalToken = page.pageToken;
+        pageRef = `fb:page:${page.pageId}`;
+        console.log(`[Facebook] Usando Page token: ${page.pageName} (${page.pageId})`);
+      } else {
+        console.warn("[Facebook] Nenhuma Page encontrada \u2014 usando token pessoal como fallback");
+      }
+      const expiresAt = new Date(Date.now() + 60 * 24 * 3600 * 1e3);
+      if (accountId) {
+        const db = await getDb();
+        if (!db) throw new Error("DB unavailable");
+        const [account] = await db.select().from(instagramAccounts).where(eq5(instagramAccounts.id, parseInt(accountId))).limit(1);
+        let accountRef = pageRef;
+        if (account?.platform === "instagram" && page) {
+          let igUserId = page.igUserId;
+          if (!igUserId) {
+            try {
+              const igRes = await fetch(
+                `${FB_GRAPH_URL}/${page.pageId}?fields=instagram_business_account&access_token=${page.pageToken}`
+              );
+              if (igRes.ok) {
+                const igData = await igRes.json();
+                igUserId = igData?.instagram_business_account?.id;
+              }
+            } catch (err) {
+              console.warn("[Facebook] N\xE3o foi poss\xEDvel obter conta Instagram Business:", err);
+            }
+          }
+          if (!igUserId && ENV.igUserId) {
+            igUserId = ENV.igUserId;
+            console.log(`[Facebook] Instagram ID via IG_USER_ID env: ${igUserId}`);
+          }
+          if (igUserId) {
+            accountRef = `ig:${igUserId}`;
+            console.log(`[Facebook] Instagram Business Account: ${igUserId}`);
+          } else {
+            console.warn("[Facebook] P\xE1gina sem Instagram Business vinculado \u2014 verifique conta Creator/Business no Meta");
+          }
+        }
+        await db.update(instagramAccounts).set({
+          accessToken: page ? page.pageToken : finalToken,
+          tokenExpiresAt: expiresAt,
+          linkedinUrn: accountRef
+        }).where(eq5(instagramAccounts.id, parseInt(accountId)));
+        console.log(`[Facebook] Token salvo para conta ${accountId} (ref: ${accountRef})`);
+      } else {
+        console.warn("[Facebook] OAuth sem accountId \u2014 token n\xE3o associado a nenhuma conta");
+        return finishOAuth(res, { origin, popup, provider: "facebook", success: false, error: "missing_account_id" });
+      }
+      finishOAuth(res, { origin, popup, provider: "facebook", success: true });
+    } catch (err) {
+      console.error("[Facebook] Callback error:", err);
+      finishOAuth(res, { origin, popup, provider: "facebook", success: false, error: "callback_failed" });
+    }
+  });
+}
+async function publishToFacebook(params) {
+  const { pageToken, pageId, caption, imageUrl } = params;
+  let postId;
+  if (imageUrl) {
+    const formData = new URLSearchParams({
+      caption,
+      url: imageUrl,
+      access_token: pageToken,
+      published: "true"
+    });
+    const res = await fetch(`${FB_GRAPH_URL}/${pageId}/photos`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: formData.toString()
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`Facebook photo post failed: ${res.status} ${err}`);
+    }
+    const data = await res.json();
+    postId = data.post_id ?? data.id ?? "";
+  } else {
+    const formData = new URLSearchParams({
+      message: caption,
+      access_token: pageToken
+    });
+    const res = await fetch(`${FB_GRAPH_URL}/${pageId}/feed`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: formData.toString()
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`Facebook feed post failed: ${res.status} ${err}`);
+    }
+    const data = await res.json();
+    postId = data.id ?? "";
+  }
+  const permalink = postId ? `https://www.facebook.com/${pageId}/posts/${postId.split("_")[1] ?? postId}` : `https://www.facebook.com/${pageId}`;
+  return { postId, permalink };
+}
+
+// server/scheduledRoutes.ts
+var MAX_RETRIES2 = 3;
 async function getUser(req) {
   try {
     return await sdk.authenticateRequest(req);
@@ -3333,7 +2979,7 @@ async function getUser(req) {
     return null;
   }
 }
-async function resolveMediaUrl2(mediaUrl) {
+async function resolveMediaUrl(mediaUrl) {
   if (mediaUrl.startsWith("/manus-storage/")) {
     return storageGetSignedUrl(mediaUrl.replace("/manus-storage/", ""));
   }
@@ -3410,7 +3056,7 @@ function registerScheduledRoutes(app2) {
       const pendingPosts = approved.filter((p) => {
         if (!instagramAccountIds.has(p.accountId)) return false;
         if (p.mcpPending) return false;
-        if ((p.retryCount ?? 0) >= MAX_RETRIES3) return false;
+        if ((p.retryCount ?? 0) >= MAX_RETRIES2) return false;
         if (p.nextRetryAt && new Date(p.nextRetryAt) > now) return false;
         return true;
       });
@@ -3425,7 +3071,7 @@ function registerScheduledRoutes(app2) {
           const mediaWithUrls = await Promise.all(
             media.map(async (m) => ({
               ...m,
-              publicUrl: await resolveMediaUrl2(m.mediaUrl)
+              publicUrl: await resolveMediaUrl(m.mediaUrl)
             }))
           );
           return { ...post, media: mediaWithUrls };
@@ -3490,19 +3136,19 @@ Link: ${permalink || "N/A"}`
           error: error ? String(error) : "Erro desconhecido"
         });
         const newRetryCount = attempt;
-        if (newRetryCount < MAX_RETRIES3) {
+        if (newRetryCount < MAX_RETRIES2) {
           const nextRetryAt = new Date(Date.now() + 5 * 60 * 1e3);
           await updatePost(postIdNum, { mcpPending: 0, retryCount: newRetryCount, nextRetryAt });
-          console.warn(`[ScheduledRoutes] Post ${postIdNum} falhou (${newRetryCount}/${MAX_RETRIES3}), pr\xF3xima tentativa em ${nextRetryAt.toISOString()}`);
+          console.warn(`[ScheduledRoutes] Post ${postIdNum} falhou (${newRetryCount}/${MAX_RETRIES2}), pr\xF3xima tentativa em ${nextRetryAt.toISOString()}`);
           return res.json({ ok: false, error, willRetry: true, attempt: newRetryCount, nextRetryAt });
         } else {
           await updatePost(postIdNum, { mcpPending: 0, retryCount: newRetryCount, status: "rejected" });
           await notifyOwner({
             title: "\u274C Falha ao publicar post no Instagram",
-            content: `Post #${postIdNum} falhou ap\xF3s ${MAX_RETRIES3} tentativas.
+            content: `Post #${postIdNum} falhou ap\xF3s ${MAX_RETRIES2} tentativas.
 Erro: ${error || "Desconhecido"}`
           });
-          console.error(`[ScheduledRoutes] Post ${postIdNum} rejeitado ap\xF3s ${MAX_RETRIES3} tentativas`);
+          console.error(`[ScheduledRoutes] Post ${postIdNum} rejeitado ap\xF3s ${MAX_RETRIES2} tentativas`);
           return res.json({ ok: false, error, willRetry: false, maxRetriesReached: true });
         }
       }
@@ -3589,6 +3235,385 @@ function registerImageRoutes(app2) {
 init_db();
 init_schema();
 import { eq as eq6 } from "drizzle-orm";
+
+// server/autonomousAgent.ts
+init_db();
+var IG_GRAPH2 = "https://graph.facebook.com/v19.0";
+async function resolveMediaUrl2(mediaUrl) {
+  if (mediaUrl.startsWith("/manus-storage/") || mediaUrl.startsWith("/storage/")) {
+    const appUrl = ENV.appUrl.replace(/\/$/, "");
+    try {
+      return await storageGetSignedUrl(mediaUrl);
+    } catch {
+      return `${appUrl}${mediaUrl}`;
+    }
+  }
+  if (mediaUrl.startsWith("/")) {
+    return `${ENV.appUrl.replace(/\/$/, "")}${mediaUrl}`;
+  }
+  return mediaUrl;
+}
+var LI_API = "https://api.linkedin.com/v2";
+async function publishToInstagram(params) {
+  const { igUserId, accessToken, caption, imageUrl } = params;
+  const containerBody = {
+    caption,
+    access_token: accessToken
+  };
+  if (imageUrl) {
+    containerBody.image_url = imageUrl;
+    containerBody.media_type = "IMAGE";
+  } else {
+    throw new Error("Instagram requer pelo menos uma imagem");
+  }
+  const containerRes = await fetch(`${IG_GRAPH2}/${igUserId}/media`, {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams(containerBody).toString()
+  });
+  if (!containerRes.ok) {
+    const err = await containerRes.text();
+    throw new Error(`IG media container failed: ${containerRes.status} ${err}`);
+  }
+  const { id: creationId } = await containerRes.json();
+  const publishRes = await fetch(`${IG_GRAPH2}/${igUserId}/media_publish`, {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ creation_id: creationId, access_token: accessToken }).toString()
+  });
+  if (!publishRes.ok) {
+    const err = await publishRes.text();
+    throw new Error(`IG media_publish failed: ${publishRes.status} ${err}`);
+  }
+  const { id: mediaId } = await publishRes.json();
+  const permalink = `https://www.instagram.com/p/${mediaId}/`;
+  return { postId: mediaId, permalink };
+}
+async function fetchIgComments(mediaId, accessToken) {
+  const res = await fetch(
+    `${IG_GRAPH2}/${mediaId}/comments?fields=id,text,username,timestamp&access_token=${accessToken}`
+  );
+  if (!res.ok) return [];
+  const data = await res.json();
+  return data.data ?? [];
+}
+async function replyIgComment(commentId, message, accessToken) {
+  await fetch(`${IG_GRAPH2}/${commentId}/replies`, {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ message, access_token: accessToken }).toString()
+  });
+}
+async function autoReplyIgComments(igUserId, accessToken, postCaption) {
+  const mediaRes = await fetch(
+    `${IG_GRAPH2}/${igUserId}/media?fields=id,timestamp&limit=10&access_token=${accessToken}`
+  );
+  if (!mediaRes.ok) return;
+  const media = (await mediaRes.json()).data ?? [];
+  for (const post of media) {
+    const comments = await fetchIgComments(post.id, accessToken);
+    for (const comment of comments) {
+      if (!comment.text || comment.username?.toLowerCase().includes("triarc")) continue;
+      try {
+        const res = await invokeLLM({
+          messages: [
+            {
+              role: "system",
+              content: `Voc\xEA \xE9 o social media manager da Triarc Solutions. Responda coment\xE1rios de forma profissional, amig\xE1vel e aut\xEAntica. Nunca mencione que \xE9 IA. Resposta curta (m\xE1ximo 2 frases). Contexto do post: ${postCaption?.slice(0, 200)}`
+            },
+            { role: "user", content: `Coment\xE1rio de @${comment.username}: "${comment.text}"` }
+          ]
+        });
+        const reply = res.choices?.[0]?.message?.content?.trim();
+        if (reply) {
+          await replyIgComment(comment.id, reply, accessToken);
+          console.log(`[IG] Respondido @${comment.username}: ${reply.slice(0, 60)}...`);
+        }
+      } catch (e) {
+        console.warn(`[IG] Falha ao responder coment\xE1rio ${comment.id}:`, e.message);
+      }
+    }
+  }
+}
+async function autoReplyFbComments(pageId, pageToken) {
+  const postsRes = await fetch(
+    `https://graph.facebook.com/v19.0/${pageId}/posts?fields=id,message&limit=10&access_token=${pageToken}`
+  );
+  if (!postsRes.ok) return;
+  const fbPosts = (await postsRes.json()).data ?? [];
+  for (const post of fbPosts) {
+    const commentsRes = await fetch(
+      `https://graph.facebook.com/v19.0/${post.id}/comments?fields=id,message,from&access_token=${pageToken}`
+    );
+    if (!commentsRes.ok) continue;
+    const comments = (await commentsRes.json()).data ?? [];
+    for (const comment of comments) {
+      if (!comment.message) continue;
+      try {
+        const res = await invokeLLM({
+          messages: [
+            {
+              role: "system",
+              content: `Voc\xEA \xE9 o social media manager da Triarc Solutions. Responda coment\xE1rios de forma profissional e amig\xE1vel. Resposta curta (m\xE1ximo 2 frases).`
+            },
+            { role: "user", content: `Coment\xE1rio de ${comment.from?.name ?? "algu\xE9m"}: "${comment.message}"` }
+          ]
+        });
+        const reply = res.choices?.[0]?.message?.content?.trim();
+        if (reply) {
+          await fetch(`https://graph.facebook.com/v19.0/${comment.id}/comments`, {
+            method: "POST",
+            headers: { "content-type": "application/x-www-form-urlencoded" },
+            body: new URLSearchParams({ message: reply, access_token: pageToken }).toString()
+          });
+          console.log(`[FB] Respondido ${comment.from?.name}: ${reply.slice(0, 60)}...`);
+        }
+      } catch (e) {
+        console.warn(`[FB] Falha ao responder coment\xE1rio ${comment.id}:`, e.message);
+      }
+    }
+  }
+}
+async function acceptLinkedInInvitations(accessToken) {
+  let accepted = 0;
+  try {
+    const res = await fetch(`${LI_API}/invitations?invitationType=CONNECTION`, {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+    if (!res.ok) return 0;
+    const data = await res.json();
+    const invitations = data.elements ?? [];
+    for (const inv of invitations.slice(0, 20)) {
+      try {
+        await fetch(`${LI_API}/invitations/${inv.entityUrn}?action=accept`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${accessToken}`, "content-type": "application/json" }
+        });
+        accepted++;
+      } catch {
+      }
+    }
+  } catch (e) {
+    console.warn("[LinkedIn] Falha ao aceitar convites:", e.message);
+  }
+  console.log(`[LinkedIn] Aceitos ${accepted} convites de conex\xE3o`);
+  return accepted;
+}
+async function sendLinkedInConnectionRequests(accessToken, dailyLimit = 100) {
+  let sent = 0;
+  try {
+    const searches = [
+      "CTO Brasil tecnologia",
+      "CEO startup inova\xE7\xE3o",
+      "Gerente TI",
+      "Desenvolvedor software"
+    ];
+    for (const query of searches) {
+      if (sent >= dailyLimit) break;
+      const searchRes = await fetch(
+        `${LI_API}/search/blended?keywords=${encodeURIComponent(query)}&origin=GLOBAL_SEARCH_HEADER&q=blended&start=0&count=25`,
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      );
+      if (!searchRes.ok) continue;
+      const data = await searchRes.json();
+      const people = (data.elements ?? []).filter((e) => e["$type"]?.includes("MiniProfile")).slice(0, Math.floor(dailyLimit / searches.length));
+      for (const person of people) {
+        if (sent >= dailyLimit) break;
+        try {
+          const profileUrn = person.objectUrn;
+          if (!profileUrn) continue;
+          await fetch(`${LI_API}/invitations`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              "content-type": "application/json",
+              "x-restli-protocol-version": "2.0.0"
+            },
+            body: JSON.stringify({
+              invitee: {
+                "com.linkedin.voyager.growth.invitation.InviteeProfile": {
+                  profileId: person.publicIdentifier
+                }
+              },
+              message: "Ol\xE1! Sou da Triarc Solutions, empresa de tecnologia e inova\xE7\xE3o. Seria um prazer conectarmos!"
+            })
+          });
+          sent++;
+          await new Promise((r) => setTimeout(r, 2e3));
+        } catch {
+        }
+      }
+    }
+  } catch (e) {
+    console.warn("[LinkedIn] Falha ao enviar convites:", e.message);
+  }
+  console.log(`[LinkedIn] Enviados ${sent} convites de conex\xE3o`);
+  return sent;
+}
+var MAX_RETRIES3 = 3;
+var dailyConnectionsSent = 0;
+var lastConnectionReset = (/* @__PURE__ */ new Date()).toDateString();
+async function runAutonomousAgent2() {
+  const result = { postsPublished: 0, commentsReplied: 0, connectionsAccepted: 0, connectionsSent: 0, errors: [] };
+  if ((/* @__PURE__ */ new Date()).toDateString() !== lastConnectionReset) {
+    dailyConnectionsSent = 0;
+    lastConnectionReset = (/* @__PURE__ */ new Date()).toDateString();
+  }
+  const allAccounts = await getAllAccounts();
+  const approved = await getPostsByStatus("approved");
+  const now = /* @__PURE__ */ new Date();
+  for (const post of approved) {
+    if (post.mcpPending && post.updatedAt) {
+      const stuckMs = now.getTime() - new Date(post.updatedAt).getTime();
+      if (stuckMs > 5 * 60 * 1e3) {
+        await updatePost(post.id, { mcpPending: 0 });
+        post.mcpPending = 0;
+        console.log(`[Agent] Post ${post.id}: mcpPending resetado (travado h\xE1 ${Math.round(stuckMs / 6e4)}min)`);
+      }
+    }
+  }
+  const readyPosts = approved.filter((p) => {
+    if (p.mcpPending) return false;
+    if ((p.retryCount ?? 0) >= MAX_RETRIES3) return false;
+    if (p.nextRetryAt && new Date(p.nextRetryAt) > now) return false;
+    return true;
+  });
+  for (const post of readyPosts) {
+    await updatePost(post.id, { mcpPending: 1 });
+    const media = await getPostMedia(post.id);
+    const rawImageUrl = media?.[0]?.mediaUrl || void 0;
+    const imageUrl = rawImageUrl ? await resolveMediaUrl2(rawImageUrl) : void 0;
+    const igAccount2 = allAccounts.find(
+      (a) => a.id === post.accountId && a.platform === "instagram" && a.accessToken
+    ) ?? allAccounts.find((a) => a.platform === "instagram" && a.accessToken);
+    const { token: envIgToken, source: envTokenSource } = resolveIgAccessTokenFromEnv();
+    const useEnvToken = Boolean(envIgToken);
+    const igToken2 = useEnvToken ? envIgToken : igAccount2?.accessToken || "";
+    if (!igToken2) {
+      console.warn(`[Agent] Post ${post.id}: sem token Instagram \u2014 configure IG_ACCESS_TOKEN ou conecte em Contas`);
+      await updatePost(post.id, { mcpPending: 0 });
+      result.errors.push(`Post ${post.id}: sem token Instagram`);
+      continue;
+    }
+    const igUserId = useEnvToken && ENV.igUserId ? ENV.igUserId : igAccount2?.linkedinUrn?.startsWith("ig:") ? igAccount2.linkedinUrn.replace("ig:", "") : ENV.igUserId;
+    if (!igUserId) {
+      console.warn(`[Agent] Post ${post.id}: IG_USER_ID n\xE3o configurado`);
+      await updatePost(post.id, { mcpPending: 0 });
+      result.errors.push(`Post ${post.id}: IG_USER_ID n\xE3o configurado`);
+      continue;
+    }
+    const prevLogs = await getPublicationLogsByPost(post.id);
+    const attempt = prevLogs.length + 1;
+    try {
+      const igRes = await publishToInstagram({
+        igUserId,
+        accessToken: igToken2,
+        caption: post.caption ?? "",
+        imageUrl
+      });
+      await updatePost(post.id, {
+        status: "published",
+        publishedAt: /* @__PURE__ */ new Date(),
+        instagramPostId: igRes.postId,
+        instagramPermalink: igRes.permalink,
+        mcpPending: 0,
+        retryCount: 0
+      });
+      await createPublicationLog({ postId: post.id, attempt, status: "success", instagramPostId: igRes.postId, permalink: igRes.permalink });
+      await notifyOwner({ title: "\u2705 Post publicado no Instagram", content: `Post #${post.id}: ${igRes.permalink}` });
+      result.postsPublished++;
+      console.log(`[Agent] Post ${post.id} publicado no Instagram: ${igRes.permalink}`);
+      await publishToOtherPlatforms(post.id, post.caption ?? "", imageUrl, allAccounts);
+    } catch (err) {
+      const tokenHint = useEnvToken ? ` (token: env ${envTokenSource ?? "?"})` : " (token: Contas OAuth)";
+      const errMsg = `${err.message}${tokenHint}`;
+      await createPublicationLog({ postId: post.id, attempt, status: "failed", error: errMsg });
+      if (attempt >= MAX_RETRIES3) {
+        await updatePost(post.id, { status: "rejected", mcpPending: 0, retryCount: attempt });
+        await notifyOwner({ title: "\u274C Falha ao publicar", content: `Post #${post.id} falhou ap\xF3s ${MAX_RETRIES3} tentativas: ${err.message}` });
+      } else {
+        const nextRetryAt = new Date(Date.now() + 5 * 60 * 1e3);
+        await updatePost(post.id, { mcpPending: 0, retryCount: attempt, nextRetryAt });
+      }
+      result.errors.push(`Post ${post.id}: ${err.message}`);
+      console.error(`[Agent] Falha ao publicar post ${post.id}:`, err.message);
+    }
+  }
+  const igAccount = allAccounts.find((a) => a.platform === "instagram" && a.accessToken);
+  const { token: envIgTokenForComments } = resolveIgAccessTokenFromEnv();
+  const igToken = envIgTokenForComments || igAccount?.accessToken;
+  if (igToken && ENV.igUserId) {
+    try {
+      await autoReplyIgComments(ENV.igUserId, igToken, "Triarc Solutions");
+    } catch (e) {
+      result.errors.push(`IG comments: ${e.message}`);
+    }
+  }
+  const fbAccounts = allAccounts.filter((a) => a.platform === "facebook" && a.accessToken && a.linkedinUrn);
+  if (fbAccounts.length > 0) {
+    for (const fbAcc of fbAccounts) {
+      const pageId = fbAcc.linkedinUrn.startsWith("fb:page:") ? fbAcc.linkedinUrn.replace("fb:page:", "") : null;
+      if (!pageId) continue;
+      try {
+        await autoReplyFbComments(pageId, fbAcc.accessToken);
+      } catch (e) {
+        result.errors.push(`FB comments: ${e.message}`);
+      }
+    }
+  } else if (ENV.fbPageToken && ENV.fbPageId) {
+    try {
+      await autoReplyFbComments(ENV.fbPageId, ENV.fbPageToken);
+    } catch (e) {
+      result.errors.push(`FB comments: ${e.message}`);
+    }
+  }
+  const liAccount = allAccounts.find((a) => a.platform === "linkedin" && a.accessToken);
+  const liToken = liAccount?.accessToken || ENV.liAccessToken;
+  if (liToken) {
+    try {
+      result.connectionsAccepted = await acceptLinkedInInvitations(liToken);
+    } catch (e) {
+      result.errors.push(`LI accept: ${e.message}`);
+    }
+    if (dailyConnectionsSent < 100) {
+      try {
+        const toSend = 100 - dailyConnectionsSent;
+        const sent = await sendLinkedInConnectionRequests(liToken, toSend);
+        dailyConnectionsSent += sent;
+        result.connectionsSent = sent;
+      } catch (e) {
+        result.errors.push(`LI connections: ${e.message}`);
+      }
+    }
+  }
+  console.log(`[Agent] Ciclo completo: ${result.postsPublished} publicados, ${result.connectionsAccepted} convites aceitos, ${result.connectionsSent} solicita\xE7\xF5es enviadas`);
+  return result;
+}
+async function publishToOtherPlatforms(postId, caption, imageUrl, allAccounts) {
+  const liAccounts = allAccounts.filter((a) => a.platform === "linkedin" && a.accessToken && a.linkedinUrn);
+  for (const liAcc of liAccounts) {
+    try {
+      const res = await publishToLinkedIn({ accessToken: liAcc.accessToken, linkedinUrn: liAcc.linkedinUrn, caption, imageUrl });
+      await updatePost(postId, { linkedinPublished: 1 });
+      console.log(`[Agent] Post ${postId} publicado no LinkedIn: ${res.permalink}`);
+    } catch (e) {
+      console.error(`[Agent] LinkedIn falhou para post ${postId}:`, e.message);
+    }
+  }
+  const fbAccounts = allAccounts.filter((a) => a.platform === "facebook" && a.accessToken && a.linkedinUrn);
+  for (const fbAcc of fbAccounts) {
+    const pageId = fbAcc.linkedinUrn.startsWith("fb:page:") ? fbAcc.linkedinUrn.replace("fb:page:", "") : "me";
+    try {
+      const res = await publishToFacebook({ pageToken: fbAcc.accessToken, pageId, caption, imageUrl });
+      await updatePost(postId, { facebookPublished: 1 });
+      console.log(`[Agent] Post ${postId} publicado no Facebook: ${res.permalink}`);
+    } catch (e) {
+      console.error(`[Agent] Facebook falhou para post ${postId}:`, e.message);
+    }
+  }
+}
+
+// server/scheduler.ts
 var INTERVAL_MS = parseInt(process.env.SCHEDULER_INTERVAL_MS || "300000", 10);
 var TZ_OFFSET = -3;
 var ranToday = /* @__PURE__ */ new Set();
@@ -3712,7 +3737,7 @@ async function runSchedulerTick() {
     if (!key.endsWith(`:${date}`)) ranToday.delete(key);
   });
   await checkAndRunTopicsForHour(date, hour);
-  await runAutonomousAgent();
+  await runAutonomousAgent2();
 }
 
 // server/vercel.ts
@@ -3763,8 +3788,8 @@ app.get("/api/health", async (_req, res) => {
       GEMINI_IMAGE_MODEL: process.env.GEMINI_IMAGE_MODEL ?? "gemini-2.5-flash-image (default)",
       SUPABASE_STORAGE_BUCKET: process.env.SUPABASE_STORAGE_BUCKET ?? "triarc-social (default)",
       APP_URL: process.env.APP_URL ?? "(not set)",
-      IG_ACCESS_TOKEN: process.env.IG_ACCESS_TOKEN ? `set (${process.env.IG_ACCESS_TOKEN.length} chars)` : "not set",
-      IG_USER_ID: process.env.IG_USER_ID ? "set" : "not set"
+      IG_USER_ID: process.env.IG_USER_ID ? "set" : "not set",
+      igToken: describeIgTokenEnv()
     },
     imageStack: await probeImageStack(),
     ts: (/* @__PURE__ */ new Date()).toISOString()

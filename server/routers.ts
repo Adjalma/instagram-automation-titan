@@ -20,7 +20,7 @@ import { createImageJob, getImageJob, kickImageJob, dispatchImageJobProcessing }
 import { notifyOwner } from "./_core/notification";
 import { storagePut } from "./storage";
 import { processScheduledPosts, fetchPostInsights } from "./instagram";
-import { runAutonomousAgent } from "./autonomousAgent";
+import { resolveIgAccessTokenFromEnv } from "./_core/env";
 import { researchRouter } from "./routers/research";
 import { seedTriarcContent, TRIARC_SERVICES, TRIARC_PROJECTS } from "./seed-triarc";
 import { triacContent, TriacContent } from "../drizzle/schema";
@@ -461,14 +461,15 @@ export const appRouter = router({
         await updatePost(input.postId, { status: "approved", mcpPending: 0, retryCount: 0, nextRetryAt: null });
       }
 
-      const hasEnvToken = Boolean(process.env.IG_ACCESS_TOKEN?.trim());
+      const { token: envIgToken } = resolveIgAccessTokenFromEnv();
+      const hasEnvToken = Boolean(envIgToken);
       const hasIgUserId = Boolean(process.env.IG_USER_ID?.trim());
       if (!hasEnvToken) {
         const accounts = await getAllAccounts() as any[];
         const igAcc = accounts.find((a: any) => a.platform === "instagram" && a.accessToken);
         if (!igAcc) {
           throw new Error(
-            "IG_ACCESS_TOKEN não está definido no Vercel (Production) ou conta Instagram não conectada em Contas."
+            "Nenhum Page token no Vercel (Production). Use IG_ACCESS_TOKEN ou FB_PAGE_TOKEN, ou conecte Instagram em Contas."
           );
         }
       } else if (!hasIgUserId) {

@@ -1,3 +1,38 @@
+/** Nomes aceitos para Page token IG no Vercel (prioridade top → bottom). */
+const IG_TOKEN_ENV_KEYS = [
+  "IG_ACCESS_TOKEN",
+  "FB_PAGE_TOKEN",
+  "PAGE_ACCESS_TOKEN",
+  "FACEBOOK_PAGE_TOKEN",
+  "META_PAGE_ACCESS_TOKEN",
+] as const;
+
+/** Resolve Page token IG a partir de env vars (não lê OAuth Contas). */
+export function resolveIgAccessTokenFromEnv(): { token: string; source: string | null } {
+  for (const key of IG_TOKEN_ENV_KEYS) {
+    const t = process.env[key]?.trim();
+    if (t) return { token: t, source: key };
+  }
+  return { token: "", source: null };
+}
+
+/** Diagnóstico health — nomes de vars, sem expor valores. */
+export function describeIgTokenEnv(): Record<string, string> {
+  const status: Record<string, string> = {};
+  for (const key of IG_TOKEN_ENV_KEYS) {
+    const t = process.env[key]?.trim();
+    status[key] = t ? `set (${t.length} chars)` : "not set";
+  }
+  const { source } = resolveIgAccessTokenFromEnv();
+  status.resolvedFrom = source ?? "none";
+  status.tokenRelatedKeys =
+    Object.keys(process.env)
+      .filter((k) => /IG|TOKEN|PAGE|FB_|FACEBOOK|META/i.test(k))
+      .sort()
+      .join(", ") || "(none)";
+  return status;
+}
+
 export const ENV = {
   cookieSecret: process.env.JWT_SECRET ?? "",
   databaseUrl: process.env.DATABASE_URL ?? "",

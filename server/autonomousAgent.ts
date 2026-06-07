@@ -9,7 +9,7 @@
  *  5. Monitora engajamento e ajusta horários de publicação
  */
 
-import { ENV } from "./_core/env";
+import { ENV, resolveIgAccessTokenFromEnv } from "./_core/env";
 import { invokeLLM } from "./_core/llm";
 import { notifyOwner } from "./_core/notification";
 import {
@@ -366,9 +366,10 @@ export async function runAutonomousAgent(): Promise<{
       (a: any) => a.id === post.accountId && a.platform === "instagram" && a.accessToken
     ) ?? allAccounts.find((a: any) => a.platform === "instagram" && a.accessToken);
 
-    // Com IG_ACCESS_TOKEN no Vercel: usa só env (Page token), ignora OAuth de Contas
-    const useEnvToken = Boolean(ENV.igAccessToken?.trim());
-    const igToken = useEnvToken ? ENV.igAccessToken.trim() : (igAccount?.accessToken || "");
+    // Page token no Vercel (IG_ACCESS_TOKEN, FB_PAGE_TOKEN, etc.) — ignora OAuth Contas
+    const { token: envIgToken, source: envTokenSource } = resolveIgAccessTokenFromEnv();
+    const useEnvToken = Boolean(envIgToken);
+    const igToken = useEnvToken ? envIgToken : (igAccount?.accessToken || "");
     if (!igToken) {
       console.warn(`[Agent] Post ${post.id}: sem token Instagram — configure IG_ACCESS_TOKEN ou conecte em Contas`);
       await updatePost(post.id, { mcpPending: 0 });
@@ -420,7 +421,9 @@ export async function runAutonomousAgent(): Promise<{
       await publishToOtherPlatforms(post.id, post.caption ?? "", imageUrl, allAccounts);
 
     } catch (err: any) {
-      const tokenHint = useEnvToken ? " (token: IG_ACCESS_TOKEN env)" : " (token: Contas OAuth)";
+      const tokenHint = useEnvToken
+        ? ` (token: env ${envTokenSource ?? "?"})`
+        : " (token: Contas OAuth)";
       const errMsg = `${err.message}${tokenHint}`;
       await createPublicationLog({ postId: post.id, attempt, status: "failed", error: errMsg });
 
@@ -439,7 +442,8 @@ export async function runAutonomousAgent(): Promise<{
 
   // ── 2. Responder comentários ─────────────────────────────────
   const igAccount = allAccounts.find((a: any) => a.platform === "instagram" && a.accessToken);
-  const igToken = igAccount?.accessToken || ENV.igAccessToken;
+  const { token: envIgTokenForComments } = resolveIgAccessTokenFromEnv();
+  const igToken = envIgTokenForComments || igAccount?.accessToken;
   if (igToken && ENV.igUserId) {
     try {
       await autoReplyIgComments(ENV.igUserId, igToken, "Triarc Solutions");

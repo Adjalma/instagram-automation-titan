@@ -16,7 +16,7 @@ import { getDb, getLastDbError } from "./db";
 import { sql } from "drizzle-orm";
 import { ensureStorageBucket } from "./storage";
 import { probeImageStack } from "./_core/imageGeneration";
-import { ensureImageJobsTable, processImageJob, verifyInternalAuth } from "./imageJobs";
+import { describeIgTokenEnv } from "./_core/env";
 
 const app = express();
 app.use(express.json({ limit: "50mb" }));
@@ -69,10 +69,8 @@ app.get("/api/health", async (_req, res) => {
       GEMINI_IMAGE_MODEL: process.env.GEMINI_IMAGE_MODEL ?? "gemini-2.5-flash-image (default)",
       SUPABASE_STORAGE_BUCKET: process.env.SUPABASE_STORAGE_BUCKET ?? "triarc-social (default)",
       APP_URL: process.env.APP_URL ?? "(not set)",
-      IG_ACCESS_TOKEN: process.env.IG_ACCESS_TOKEN
-        ? `set (${process.env.IG_ACCESS_TOKEN.length} chars)`
-        : "not set",
       IG_USER_ID: process.env.IG_USER_ID ? "set" : "not set",
+      igToken: describeIgTokenEnv(),
     },
     imageStack: await probeImageStack(),
     ts: new Date().toISOString(),
