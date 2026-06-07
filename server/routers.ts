@@ -498,7 +498,13 @@ export const appRouter = router({
         throw new Error("Post sem imagem — Instagram exige pelo menos uma imagem para publicar.");
       }
 
-      const result = await runAutonomousAgent({ postId: input.postId });
+      let result;
+      try {
+        result = await runAutonomousAgent({ postId: input.postId });
+      } catch (err) {
+        await updatePost(input.postId, { mcpPending: 0 }).catch(() => {});
+        throw err;
+      }
       const refreshed = await getPostById(input.postId);
 
       if (refreshed?.status === "published") {
@@ -511,9 +517,11 @@ export const appRouter = router({
       }
 
       if (result.errors.length > 0) {
+        await updatePost(input.postId, { mcpPending: 0 }).catch(() => {});
         throw new Error(result.errors[0]);
       }
 
+      await updatePost(input.postId, { mcpPending: 0 }).catch(() => {});
       throw new Error(
         hasEnvToken
           ? "Publicação não concluída. Verifique token IG e imagem do post."

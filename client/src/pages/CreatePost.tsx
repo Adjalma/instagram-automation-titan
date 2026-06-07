@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { getAccountConnectionStatus } from "@/lib/accountStatus";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,8 +25,19 @@ export default function CreatePost() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
 
-  const theme = customTheme.trim() || selectedTheme;
+  const mountedRef = useRef(true);
+  const cancelImagePollRef = useRef(false);
 
+  useEffect(() => {
+    mountedRef.current = true;
+    cancelImagePollRef.current = false;
+    return () => {
+      mountedRef.current = false;
+      cancelImagePollRef.current = true;
+    };
+  }, []);
+
+  const theme = customTheme.trim() || selectedTheme;
   const { data: accounts } = trpc.accounts.list.useQuery();
   const { data: themes, isLoading: themesLoading, isError: themesError, error: themesErr, refetch: refetchThemes } = trpc.themes.list.useQuery();
   const { data: catalog } = trpc.triacContent.list.useQuery({ socialOnly: true });
@@ -34,6 +45,7 @@ export default function CreatePost() {
 
   const createPost = trpc.posts.create.useMutation({
     onSuccess: () => {
+      if (!mountedRef.current) return;
       toast.success("✅ Post criado com sucesso!", { description: "Acesse Aprovação para revisar." });
       setCaption("");
       setMediaUrl("");
@@ -43,16 +55,36 @@ export default function CreatePost() {
       utils.posts.list.invalidate();
       utils.analytics.getSummary.invalidate();
     },
-    onError: (e) => toast.error("Erro ao criar post", { description: e.message }),
+    onError: (e) => {
+      if (!mountedRef.current) return;
+      toast.error("Erro ao criar post", { description: e.message });
+    },
   });
+
+  useEffect(() => {
+    const busy = isGeneratingImage || isGenerating || createPost.isPending;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (!busy) return;
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [isGeneratingImage, isGenerating, createPost.isPending]);
 
   const generateCaption = trpc.ai.generateCaption.useMutation({
     onSuccess: (data) => {
+      if (!mountedRef.current) return;
       setCaption(data.caption);
       toast.success("Legenda gerada!");
     },
-    onError: (e) => toast.error("Erro ao gerar legenda", { description: e.message }),
+    onError: (e) => {
+      if (!mountedRef.current) return;
+      toast.error("Erro ao gerar legenda", { description: e.message });
+    },
   });
+
+  const generateArt = trpc.ai.generateArt.useMutation();
 
 
   const handleGenerateCaption = useCallback(async () => {
@@ -61,8 +93,10 @@ export default function CreatePost() {
     setIsGenerating(true);
     try {
       await generateCaption.mutateAsync({ accountId: Number(accountId), theme });
+    } catch {
+      // toast via onError (silenciado se saiu da página)
     } finally {
-      setIsGenerating(false);
+      if (mountedRef.current) setIsGenerating(false);
     }
   }, [accountId, theme, generateCaption]);
 
@@ -70,50 +104,61 @@ export default function CreatePost() {
     if (!accountId) { toast.error("Selecione uma conta"); return; }
     if (!theme) { toast.error("Informe o tema para gerar a imagem"); return; }
 
+    cancelImagePollRef.current = false;
     setIsGeneratingImage(true);
     const toastId = toast.loading("Gerando imagem com Gemini...", {
-      description: "Aguarde até 2 minutos. Não feche a página.",
+      description: "Pode levar até 2 min. Você pode sair — a geração continua no servidor.",
     });
 
     try {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 115_000);
-
-      const res = await fetch("/api/generate-image", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          accountId: Number(accountId),
-          theme,
-          description: theme !== caption ? caption.slice(0, 200) || undefined : undefined,
-        }),
-        signal: controller.signal,
+      const { jobId } = await generateArt.mutateAsync({
+        accountId: Number(accountId),
+        theme,
+        description: theme !== caption ? caption.slice(0, 200) || undefined : undefined,
       });
 
-      clearTimeout(timer);
+      for (let i = 0; i < 60; i++) {
+        if (cancelImagePollRef.current || !mountedRef.current) {
+          toast.dismiss(toastId);
+          return;
+        }
 
-      const data = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
+        await new Promise((r) => setTimeout(r, 3000));
 
-      if (!res.ok) {
-        throw new Error(data.error ?? `Erro HTTP ${res.status}`);
+        if (cancelImagePollRef.current || !mountedRef.current) {
+          toast.dismiss(toastId);
+          return;
+        }
+
+        const status = await utils.client.ai.generateArtStatus.query({ jobId });
+
+        if (status.status === "done" && status.url) {
+          if (mountedRef.current) {
+            setMediaUrl(status.url);
+            toast.success("Imagem gerada!", { id: toastId });
+          } else {
+            toast.dismiss(toastId);
+          }
+          return;
+        }
+
+        if (status.status === "failed") {
+          throw new Error(status.error ?? "Falha na geração da imagem");
+        }
       }
-      if (!data.url) {
-        throw new Error("Servidor não retornou URL da imagem");
-      }
 
-      setMediaUrl(data.url);
-      toast.success("Imagem gerada!", { id: toastId });
+      throw new Error("Tempo esgotado aguardando a imagem. Tente Gerar Imagem novamente em 1 minuto.");
     } catch (e: unknown) {
-      let msg = e instanceof Error ? e.message : String(e);
-      if (msg.includes("abort") || msg === "Failed to fetch") {
-        msg = "Tempo esgotado ou conexão interrompida. Tente novamente em 1 minuto.";
+      if (cancelImagePollRef.current || !mountedRef.current) {
+        toast.dismiss(toastId);
+        return;
       }
+      const msg = e instanceof Error ? e.message : String(e);
       toast.error("Erro ao gerar imagem", { description: msg, id: toastId, duration: 10000 });
     } finally {
-      setIsGeneratingImage(false);
+      if (mountedRef.current) setIsGeneratingImage(false);
     }
-  }, [accountId, theme, caption]);
+  }, [accountId, theme, caption, generateArt, utils.client.ai.generateArtStatus]);
 
   const handleSubmit = useCallback(() => {
     if (!accountId) { toast.error("Selecione uma conta"); return; }

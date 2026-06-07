@@ -356,13 +356,10 @@ export async function runAutonomousAgent(options?: {
   if (options?.postId) {
     const post = await getPostById(options.postId) as any;
     approved = post ? [post] : [];
-    if (post?.mcpPending && post.updatedAt) {
-      const stuckMs = now.getTime() - new Date(post.updatedAt).getTime();
-      if (stuckMs > 5 * 60 * 1000) {
-        await updatePost(post.id, { mcpPending: 0 });
-        post.mcpPending = 0;
-        console.log(`[Agent] Post ${post.id}: mcpPending resetado (travado há ${Math.round(stuckMs / 60000)}min)`);
-      }
+    if (post?.mcpPending) {
+      await updatePost(post.id, { mcpPending: 0 });
+      post.mcpPending = 0;
+      console.log(`[Agent] Post ${post.id}: mcpPending resetado (publishNow)`);
     }
   } else {
     approved = await getPostsByStatus("approved") as any[];

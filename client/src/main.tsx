@@ -67,7 +67,7 @@ const trpcClient = trpc.createClient({
       transformer: superjson,
       fetch(input, init) {
         const url = typeof input === "string" ? input : input.url;
-        const isLongOp = /publishNow|generateArt|generate-image/i.test(url);
+        const isLongOp = /publishNow|generateArt|generateCaption|generate-image/i.test(url);
         const controller = new AbortController();
         const isAuthMe = /auth\.me/i.test(url);
         const timeoutMs = isLongOp ? 300_000 : isAuthMe ? 15_000 : 45_000;

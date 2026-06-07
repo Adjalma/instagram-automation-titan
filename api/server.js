@@ -2401,13 +2401,10 @@ async function runAutonomousAgent(options) {
   if (options?.postId) {
     const post = await getPostById(options.postId);
     approved = post ? [post] : [];
-    if (post?.mcpPending && post.updatedAt) {
-      const stuckMs = now.getTime() - new Date(post.updatedAt).getTime();
-      if (stuckMs > 5 * 60 * 1e3) {
-        await updatePost(post.id, { mcpPending: 0 });
-        post.mcpPending = 0;
-        console.log(`[Agent] Post ${post.id}: mcpPending resetado (travado h\xE1 ${Math.round(stuckMs / 6e4)}min)`);
-      }
+    if (post?.mcpPending) {
+      await updatePost(post.id, { mcpPending: 0 });
+      post.mcpPending = 0;
+      console.log(`[Agent] Post ${post.id}: mcpPending resetado (publishNow)`);
     }
   } else {
     approved = await getPostsByStatus("approved");
@@ -3230,7 +3227,14 @@ Inclua hashtags estrat\xE9gicas do nicho tech/inova\xE7\xE3o, CTA claro para tri
       if (!media?.length) {
         throw new Error("Post sem imagem \u2014 Instagram exige pelo menos uma imagem para publicar.");
       }
-      const result = await runAutonomousAgent({ postId: input.postId });
+      let result;
+      try {
+        result = await runAutonomousAgent({ postId: input.postId });
+      } catch (err) {
+        await updatePost(input.postId, { mcpPending: 0 }).catch(() => {
+        });
+        throw err;
+      }
       const refreshed = await getPostById(input.postId);
       if (refreshed?.status === "published") {
         return {
@@ -3241,8 +3245,12 @@ Inclua hashtags estrat\xE9gicas do nicho tech/inova\xE7\xE3o, CTA claro para tri
         };
       }
       if (result.errors.length > 0) {
+        await updatePost(input.postId, { mcpPending: 0 }).catch(() => {
+        });
         throw new Error(result.errors[0]);
       }
+      await updatePost(input.postId, { mcpPending: 0 }).catch(() => {
+      });
       throw new Error(
         hasEnvToken ? "Publica\xE7\xE3o n\xE3o conclu\xEDda. Verifique token IG e imagem do post." : "Configure IG_ACCESS_TOKEN no Vercel ou conecte Instagram em Contas."
       );
