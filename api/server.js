@@ -402,8 +402,22 @@ async function withDbRetry(fn) {
     return await fn();
   }
 }
-async function getDb() {
-  if (_db) return _db;
+async function pingClient(timeoutMs = PING_TIMEOUT_MS) {
+  if (!_client) return false;
+  try {
+    await Promise.race([
+      _client`SELECT 1 AS ok`,
+      new Promise(
+        (_, reject) => setTimeout(() => reject(new Error("db ping timeout")), timeoutMs)
+      )
+    ]);
+    _lastPing = Date.now();
+    return true;
+  } catch {
+    return false;
+  }
+}
+async function connectDb() {
   const url = process.env.DATABASE_URL || process.env.DB_URL || process.env.POSTGRES_URL || process.env.POSTGRES_PRISMA_URL || process.env.SUPABASE_DB_URL;
   if (!url) {
     _lastError = "No database URL found. Checked: DATABASE_URL, DB_URL, POSTGRES_URL, SUPABASE_DB_URL";
@@ -442,6 +456,7 @@ async function getDb() {
     console.log("[Database] Raw connection OK");
     const db = drizzle(_client);
     _db = db;
+    _lastPing = Date.now();
     _lastError = "";
     console.log("[Database] Connected to PostgreSQL");
   } catch (error) {
@@ -454,48 +469,68 @@ async function getDb() {
   }
   return _db;
 }
+async function getDb() {
+  if (_db && _client) {
+    const stale = Date.now() - _lastPing > PING_INTERVAL_MS;
+    if (!stale) return _db;
+    if (await pingClient()) return _db;
+    console.warn("[Database] Conex\xE3o stale detectada, reconectando...");
+    resetDb();
+  }
+  if (_connecting) return _connecting;
+  _connecting = connectDb().finally(() => {
+    _connecting = null;
+  });
+  return _connecting;
+}
 function getLastDbError() {
   return _lastError;
 }
 async function upsertUser(user) {
   if (!user.openId) throw new Error("User openId is required for upsert");
-  const db = await getDb();
-  if (!db) {
-    console.warn("[Database] Cannot upsert user: database not available");
-    return;
-  }
-  try {
-    const values = { openId: user.openId };
-    const updateSet = {};
-    const fields = ["name", "email", "loginMethod", "passwordHash", "role", "lastSignedIn"];
-    for (const field of fields) {
-      const val = user[field];
-      if (val === void 0) continue;
-      values[field] = val;
-      updateSet[field] = val;
+  await withDbRetry(async () => {
+    const db = await getDb();
+    if (!db) {
+      console.warn("[Database] Cannot upsert user: database not available");
+      return;
     }
-    if (!values.lastSignedIn) values.lastSignedIn = /* @__PURE__ */ new Date();
-    if (Object.keys(updateSet).length === 0) updateSet.lastSignedIn = /* @__PURE__ */ new Date();
-    await db.insert(users).values(values).onConflictDoUpdate({
-      target: users.openId,
-      set: updateSet
-    });
-  } catch (error) {
-    console.error("[Database] Failed to upsert user:", error);
-    throw error;
-  }
+    try {
+      const values = { openId: user.openId };
+      const updateSet = {};
+      const fields = ["name", "email", "loginMethod", "passwordHash", "role", "lastSignedIn"];
+      for (const field of fields) {
+        const val = user[field];
+        if (val === void 0) continue;
+        values[field] = val;
+        updateSet[field] = val;
+      }
+      if (!values.lastSignedIn) values.lastSignedIn = /* @__PURE__ */ new Date();
+      if (Object.keys(updateSet).length === 0) updateSet.lastSignedIn = /* @__PURE__ */ new Date();
+      await db.insert(users).values(values).onConflictDoUpdate({
+        target: users.openId,
+        set: updateSet
+      });
+    } catch (error) {
+      console.error("[Database] Failed to upsert user:", error);
+      throw error;
+    }
+  });
 }
 async function getUserByOpenId(openId) {
-  const db = await getDb();
-  if (!db) return void 0;
-  const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
-  return result.length > 0 ? result[0] : void 0;
+  return withDbRetry(async () => {
+    const db = await getDb();
+    if (!db) return void 0;
+    const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
+    return result.length > 0 ? result[0] : void 0;
+  });
 }
 async function getUserByEmail(email) {
-  const db = await getDb();
-  if (!db) return void 0;
-  const result = await db.select().from(users).where(eq(users.email, email)).limit(1);
-  return result.length > 0 ? result[0] : void 0;
+  return withDbRetry(async () => {
+    const db = await getDb();
+    if (!db) return void 0;
+    const result = await db.select().from(users).where(eq(users.email, email)).limit(1);
+    return result.length > 0 ? result[0] : void 0;
+  });
 }
 async function getAllAccounts() {
   const db = await getDb();
@@ -646,14 +681,18 @@ async function getThemeBySlug(slug) {
   const result = await db.select().from(contentThemes).where(eq(contentThemes.slug, slug)).limit(1);
   return result[0];
 }
-var _db, _client, _lastError, POST_COLS, POST_LIST_LIMIT, POST_FROM;
+var _db, _client, _connecting, _lastPing, _lastError, PING_INTERVAL_MS, PING_TIMEOUT_MS, POST_COLS, POST_LIST_LIMIT, POST_FROM;
 var init_db = __esm({
   "server/db.ts"() {
     "use strict";
     init_schema();
     _db = null;
     _client = null;
+    _connecting = null;
+    _lastPing = 0;
     _lastError = "";
+    PING_INTERVAL_MS = 15e3;
+    PING_TIMEOUT_MS = 4e3;
     POST_COLS = `p.id, p."userId", p."accountId", p.caption, p.status, p.theme, p."scheduledAt", p."publishedAt",
   p."instagramPostId", p."instagramPermalink", p.likes, p.comments, p."createdAt", p."updatedAt",
   p."mcpPending", p."retryCount", p."nextRetryAt", p."linkedinPublished", p."facebookPublished",
@@ -3837,13 +3876,24 @@ app.get("/api/health", async (_req, res) => {
   let dbOk = false;
   let dbError = "";
   try {
-    const db = await getDb();
-    if (db) {
+    const check = async () => {
+      const db = await getDb();
+      if (!db) {
+        dbError = getLastDbError() || "getDb() returned null";
+        return;
+      }
       await db.execute(sql3`SELECT 1 AS ok`);
       dbOk = true;
-    } else {
-      dbError = getLastDbError() || "getDb() returned null";
-    }
+    };
+    await Promise.race([
+      check(),
+      new Promise(
+        (resolve) => setTimeout(() => {
+          if (!dbOk) dbError = "db check timeout (5s)";
+          resolve();
+        }, 5e3)
+      )
+    ]);
   } catch (e) {
     dbError = e.message;
   }

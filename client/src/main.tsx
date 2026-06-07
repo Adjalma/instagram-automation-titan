@@ -66,8 +66,10 @@ const trpcClient = trpc.createClient({
       url: "/api/trpc",
       transformer: superjson,
       fetch(input, init) {
+        const url = typeof input === "string" ? input : input.url;
+        const isLongOp = /publishNow|generateArt|generate-image/i.test(url);
         const controller = new AbortController();
-        const timeoutMs = 120_000;
+        const timeoutMs = isLongOp ? 120_000 : 25_000;
         const timer = setTimeout(() => controller.abort(), timeoutMs);
         return globalThis
           .fetch(input, {
@@ -77,7 +79,11 @@ const trpcClient = trpc.createClient({
           })
           .catch((err) => {
             if (err?.name === "AbortError") {
-              throw new Error("Tempo esgotado (120s). A publicação pode continuar no servidor — atualize a página.");
+              throw new Error(
+                isLongOp
+                  ? "Tempo esgotado (120s). A publicação pode continuar no servidor — atualize a página."
+                  : "Servidor demorou para responder (25s). Tente atualizar a página."
+              );
             }
             throw err;
           })
