@@ -2049,13 +2049,7 @@ async function publishToFacebook(params) {
 var IG_GRAPH2 = "https://graph.facebook.com/v21.0";
 async function resolveMediaUrlForInstagram(mediaUrl) {
   if (mediaUrl.startsWith("data:")) {
-    console.log("[Agent] Convertendo data URL \u2192 Supabase para publica\xE7\xE3o IG");
-    const proxyUrl = await uploadDataUrlToStorage(mediaUrl, "published");
-    const idx = proxyUrl.search(/\/(storage|manus-storage)\//);
-    if (idx >= 0) {
-      return await storageGetSignedUrl(proxyUrl.slice(idx));
-    }
-    return proxyUrl;
+    throw new Error("Imagem em data URL \u2014 use Publicar Agora para converter automaticamente");
   }
   let storagePath = mediaUrl;
   const storageIdx = mediaUrl.search(/\/(storage|manus-storage)\//);
@@ -2277,7 +2271,7 @@ async function sendLinkedInConnectionRequests(accessToken, dailyLimit = 100) {
 var MAX_RETRIES2 = 3;
 var dailyConnectionsSent = 0;
 var lastConnectionReset = (/* @__PURE__ */ new Date()).toDateString();
-async function runAutonomousAgent() {
+async function runAutonomousAgent(options) {
   const result = { postsPublished: 0, commentsReplied: 0, connectionsAccepted: 0, connectionsSent: 0, errors: [] };
   if ((/* @__PURE__ */ new Date()).toDateString() !== lastConnectionReset) {
     dailyConnectionsSent = 0;
@@ -2297,6 +2291,7 @@ async function runAutonomousAgent() {
     }
   }
   const readyPosts = approved.filter((p) => {
+    if (options?.postId && p.id !== options.postId) return false;
     if (p.mcpPending) return false;
     if ((p.retryCount ?? 0) >= MAX_RETRIES2) return false;
     if (p.nextRetryAt && new Date(p.nextRetryAt) > now) return false;
@@ -2306,23 +2301,35 @@ async function runAutonomousAgent() {
     await updatePost(post.id, { mcpPending: 1 });
     const media = await getPostMedia(post.id);
     const rawImageUrl = media?.[0]?.mediaUrl || void 0;
-    let imageUrl = rawImageUrl ? await resolveMediaUrlForInstagram(rawImageUrl) : void 0;
-    if (rawImageUrl?.startsWith("data:") && imageUrl && !imageUrl.startsWith("data:")) {
-      await updateFirstPostMediaUrl(post.id, imageUrl);
+    let imageUrl;
+    try {
+      if (rawImageUrl?.startsWith("data:")) {
+        console.log(`[Agent] Post ${post.id}: convertendo data URL \u2192 Supabase`);
+        const proxyUrl = await uploadDataUrlToStorage(rawImageUrl, "published");
+        await updateFirstPostMediaUrl(post.id, proxyUrl);
+        const idx = proxyUrl.search(/\/(storage|manus-storage)\//);
+        imageUrl = idx >= 0 ? await storageGetSignedUrl(proxyUrl.slice(idx)) : proxyUrl;
+      } else if (rawImageUrl) {
+        imageUrl = await resolveMediaUrlForInstagram(rawImageUrl);
+      }
+    } catch (imgErr) {
+      await updatePost(post.id, { mcpPending: 0 });
+      result.errors.push(`Post ${post.id}: ${imgErr.message}`);
+      continue;
     }
-    const igAccount2 = allAccounts.find(
+    const igAccount = allAccounts.find(
       (a) => a.id === post.accountId && a.platform === "instagram" && a.accessToken
     ) ?? allAccounts.find((a) => a.platform === "instagram" && a.accessToken);
     const { token: envIgToken, source: envTokenSource } = resolveIgAccessTokenFromEnv();
     const useEnvToken = Boolean(envIgToken);
-    const igToken2 = useEnvToken ? envIgToken : igAccount2?.accessToken || "";
-    if (!igToken2) {
+    const igToken = useEnvToken ? envIgToken : igAccount?.accessToken || "";
+    if (!igToken) {
       console.warn(`[Agent] Post ${post.id}: sem token Instagram \u2014 configure IG_ACCESS_TOKEN ou conecte em Contas`);
       await updatePost(post.id, { mcpPending: 0 });
       result.errors.push(`Post ${post.id}: sem token Instagram`);
       continue;
     }
-    const igUserId = useEnvToken && ENV.igUserId ? ENV.igUserId : igAccount2?.linkedinUrn?.startsWith("ig:") ? igAccount2.linkedinUrn.replace("ig:", "") : ENV.igUserId;
+    const igUserId = useEnvToken && ENV.igUserId ? ENV.igUserId : igAccount?.linkedinUrn?.startsWith("ig:") ? igAccount.linkedinUrn.replace("ig:", "") : ENV.igUserId;
     if (!igUserId) {
       console.warn(`[Agent] Post ${post.id}: IG_USER_ID n\xE3o configurado`);
       await updatePost(post.id, { mcpPending: 0 });
@@ -2334,7 +2341,7 @@ async function runAutonomousAgent() {
     try {
       const igRes = await publishToInstagram({
         igUserId,
-        accessToken: igToken2,
+        accessToken: igToken,
         caption: post.caption ?? "",
         imageUrl
       });
@@ -2366,50 +2373,52 @@ async function runAutonomousAgent() {
       console.error(`[Agent] Falha ao publicar post ${post.id}:`, err.message);
     }
   }
-  const igAccount = allAccounts.find((a) => a.platform === "instagram" && a.accessToken);
-  const { token: envIgTokenForComments } = resolveIgAccessTokenFromEnv();
-  const igToken = envIgTokenForComments || igAccount?.accessToken;
-  if (igToken && ENV.igUserId) {
-    try {
-      await autoReplyIgComments(ENV.igUserId, igToken, "Triarc Solutions");
-    } catch (e) {
-      result.errors.push(`IG comments: ${e.message}`);
-    }
-  }
-  const fbAccounts = allAccounts.filter((a) => a.platform === "facebook" && a.accessToken && a.linkedinUrn);
-  if (fbAccounts.length > 0) {
-    for (const fbAcc of fbAccounts) {
-      const pageId = fbAcc.linkedinUrn.startsWith("fb:page:") ? fbAcc.linkedinUrn.replace("fb:page:", "") : null;
-      if (!pageId) continue;
+  if (!options?.postId) {
+    const igAccount = allAccounts.find((a) => a.platform === "instagram" && a.accessToken);
+    const { token: envIgTokenForComments } = resolveIgAccessTokenFromEnv();
+    const igToken = envIgTokenForComments || igAccount?.accessToken;
+    if (igToken && ENV.igUserId) {
       try {
-        await autoReplyFbComments(pageId, fbAcc.accessToken);
+        await autoReplyIgComments(ENV.igUserId, igToken, "Triarc Solutions");
+      } catch (e) {
+        result.errors.push(`IG comments: ${e.message}`);
+      }
+    }
+    const fbAccounts = allAccounts.filter((a) => a.platform === "facebook" && a.accessToken && a.linkedinUrn);
+    if (fbAccounts.length > 0) {
+      for (const fbAcc of fbAccounts) {
+        const pageId = fbAcc.linkedinUrn.startsWith("fb:page:") ? fbAcc.linkedinUrn.replace("fb:page:", "") : null;
+        if (!pageId) continue;
+        try {
+          await autoReplyFbComments(pageId, fbAcc.accessToken);
+        } catch (e) {
+          result.errors.push(`FB comments: ${e.message}`);
+        }
+      }
+    } else if (ENV.fbPageToken && ENV.fbPageId) {
+      try {
+        await autoReplyFbComments(ENV.fbPageId, ENV.fbPageToken);
       } catch (e) {
         result.errors.push(`FB comments: ${e.message}`);
       }
     }
-  } else if (ENV.fbPageToken && ENV.fbPageId) {
-    try {
-      await autoReplyFbComments(ENV.fbPageId, ENV.fbPageToken);
-    } catch (e) {
-      result.errors.push(`FB comments: ${e.message}`);
-    }
-  }
-  const liAccount = allAccounts.find((a) => a.platform === "linkedin" && a.accessToken);
-  const liToken = liAccount?.accessToken || ENV.liAccessToken;
-  if (liToken) {
-    try {
-      result.connectionsAccepted = await acceptLinkedInInvitations(liToken);
-    } catch (e) {
-      result.errors.push(`LI accept: ${e.message}`);
-    }
-    if (dailyConnectionsSent < 100) {
+    const liAccount = allAccounts.find((a) => a.platform === "linkedin" && a.accessToken);
+    const liToken = liAccount?.accessToken || ENV.liAccessToken;
+    if (liToken) {
       try {
-        const toSend = 100 - dailyConnectionsSent;
-        const sent = await sendLinkedInConnectionRequests(liToken, toSend);
-        dailyConnectionsSent += sent;
-        result.connectionsSent = sent;
+        result.connectionsAccepted = await acceptLinkedInInvitations(liToken);
       } catch (e) {
-        result.errors.push(`LI connections: ${e.message}`);
+        result.errors.push(`LI accept: ${e.message}`);
+      }
+      if (dailyConnectionsSent < 100) {
+        try {
+          const toSend = 100 - dailyConnectionsSent;
+          const sent = await sendLinkedInConnectionRequests(liToken, toSend);
+          dailyConnectionsSent += sent;
+          result.connectionsSent = sent;
+        } catch (e) {
+          result.errors.push(`LI connections: ${e.message}`);
+        }
       }
     }
   }
@@ -3074,7 +3083,7 @@ Inclua hashtags estrat\xE9gicas do nicho tech/inova\xE7\xE3o, CTA claro para tri
       if (!media?.length) {
         throw new Error("Post sem imagem \u2014 Instagram exige pelo menos uma imagem para publicar.");
       }
-      const result = await runAutonomousAgent();
+      const result = await runAutonomousAgent({ postId: input.postId });
       const published = result.postsPublished > 0;
       const refreshed = await getPostById(input.postId);
       if (refreshed?.status === "published") {

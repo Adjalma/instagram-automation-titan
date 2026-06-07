@@ -25,13 +25,7 @@ const IG_GRAPH = "https://graph.facebook.com/v21.0";
 /** URL que os servidores da Meta conseguem baixar (HTTPS direto, sem redirect do app). */
 async function resolveMediaUrlForInstagram(mediaUrl: string): Promise<string> {
   if (mediaUrl.startsWith("data:")) {
-    console.log("[Agent] Convertendo data URL → Supabase para publicação IG");
-    const proxyUrl = await uploadDataUrlToStorage(mediaUrl, "published");
-    const idx = proxyUrl.search(/\/(storage|manus-storage)\//);
-    if (idx >= 0) {
-      return await storageGetSignedUrl(proxyUrl.slice(idx));
-    }
-    return proxyUrl;
+    throw new Error("Imagem em data URL — use Publicar Agora para converter automaticamente");
   }
 
   let storagePath = mediaUrl;
@@ -335,7 +329,10 @@ const MAX_RETRIES = 3;
 let dailyConnectionsSent = 0;
 let lastConnectionReset = new Date().toDateString();
 
-export async function runAutonomousAgent(): Promise<{
+export async function runAutonomousAgent(options?: {
+  /** Publicar só este post (publishNow) — evita timeout e side effects */
+  postId?: number;
+}): Promise<{
   postsPublished: number;
   commentsReplied: number;
   connectionsAccepted: number;
@@ -369,6 +366,7 @@ export async function runAutonomousAgent(): Promise<{
   }
 
   const readyPosts = approved.filter((p: any) => {
+    if (options?.postId && p.id !== options.postId) return false;
     if (p.mcpPending) return false;
     if ((p.retryCount ?? 0) >= MAX_RETRIES) return false;
     if (p.nextRetryAt && new Date(p.nextRetryAt) > now) return false;
@@ -380,9 +378,22 @@ export async function runAutonomousAgent(): Promise<{
 
     const media = await getPostMedia(post.id) as any[];
     const rawImageUrl = media?.[0]?.mediaUrl || undefined;
-    let imageUrl = rawImageUrl ? await resolveMediaUrlForInstagram(rawImageUrl) : undefined;
-    if (rawImageUrl?.startsWith("data:") && imageUrl && !imageUrl.startsWith("data:")) {
-      await updateFirstPostMediaUrl(post.id, imageUrl);
+    let imageUrl: string | undefined;
+    try {
+      if (rawImageUrl?.startsWith("data:")) {
+        console.log(`[Agent] Post ${post.id}: convertendo data URL → Supabase`);
+        const proxyUrl = await uploadDataUrlToStorage(rawImageUrl, "published");
+        await updateFirstPostMediaUrl(post.id, proxyUrl);
+        const idx = proxyUrl.search(/\/(storage|manus-storage)\//);
+        imageUrl =
+          idx >= 0 ? await storageGetSignedUrl(proxyUrl.slice(idx)) : proxyUrl;
+      } else if (rawImageUrl) {
+        imageUrl = await resolveMediaUrlForInstagram(rawImageUrl);
+      }
+    } catch (imgErr: any) {
+      await updatePost(post.id, { mcpPending: 0 });
+      result.errors.push(`Post ${post.id}: ${imgErr.message}`);
+      continue;
     }
 
     // Encontra conta Instagram vinculada ao post (banco ou env var)
@@ -464,6 +475,7 @@ export async function runAutonomousAgent(): Promise<{
     }
   }
 
+  if (!options?.postId) {
   // ── 2. Responder comentários ─────────────────────────────────
   const igAccount = allAccounts.find((a: any) => a.platform === "instagram" && a.accessToken);
   const { token: envIgTokenForComments } = resolveIgAccessTokenFromEnv();
@@ -518,6 +530,7 @@ export async function runAutonomousAgent(): Promise<{
         result.errors.push(`LI connections: ${e.message}`);
       }
     }
+  }
   }
 
   console.log(`[Agent] Ciclo completo: ${result.postsPublished} publicados, ${result.connectionsAccepted} convites aceitos, ${result.connectionsSent} solicitações enviadas`);

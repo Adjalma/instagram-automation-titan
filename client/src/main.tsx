@@ -66,10 +66,22 @@ const trpcClient = trpc.createClient({
       url: "/api/trpc",
       transformer: superjson,
       fetch(input, init) {
-        return globalThis.fetch(input, {
-          ...(init ?? {}),
-          credentials: "include",
-        });
+        const controller = new AbortController();
+        const timeoutMs = 120_000;
+        const timer = setTimeout(() => controller.abort(), timeoutMs);
+        return globalThis
+          .fetch(input, {
+            ...(init ?? {}),
+            credentials: "include",
+            signal: controller.signal,
+          })
+          .catch((err) => {
+            if (err?.name === "AbortError") {
+              throw new Error("Tempo esgotado (120s). A publicação pode continuar no servidor — atualize a página.");
+            }
+            throw err;
+          })
+          .finally(() => clearTimeout(timer));
       },
     }),
   ],

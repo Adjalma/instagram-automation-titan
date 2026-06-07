@@ -482,7 +482,7 @@ export const appRouter = router({
         throw new Error("Post sem imagem — Instagram exige pelo menos uma imagem para publicar.");
       }
 
-      const result = await runAutonomousAgent();
+      const result = await runAutonomousAgent({ postId: input.postId });
       const published = result.postsPublished > 0;
       const refreshed = await getPostById(input.postId);
 
