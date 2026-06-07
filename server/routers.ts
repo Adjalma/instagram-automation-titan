@@ -2,6 +2,7 @@ import { COOKIE_NAME, TRIARC_LOGO_URL } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
+import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { instagramAccounts } from "../drizzle/schema";
@@ -619,14 +620,29 @@ export const appRouter = router({
       includelogo: z.boolean().optional(),
     })).mutation(async ({ input }) => {
       const account = await getAccountById(input.accountId);
-      if (!account) throw new Error("Conta não encontrada");
-      let prompt = buildTriarcImagePrompt(input.theme);
-      if (input.description?.trim()) {
-        prompt += `\nVisual context: ${input.description.trim()}`;
+      if (!account) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Conta não encontrada" });
       }
-      const { url } = await generateImage({ prompt });
-      if (!url) throw new Error("Gemini não retornou URL da imagem");
-      return { url };
+
+      let prompt = buildTriarcImagePrompt(input.theme.trim());
+      const extra = input.description?.trim().slice(0, 500);
+      if (extra) {
+        prompt += `\nVisual context: ${extra}`;
+      }
+
+      try {
+        const started = Date.now();
+        const { url } = await generateImage({ prompt });
+        console.log(`[generateArt] OK em ${Date.now() - started}ms theme="${input.theme}"`);
+        if (!url) {
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Gemini não retornou URL da imagem" });
+        }
+        return { url };
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error("[generateArt] FALHA:", msg);
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: msg });
+      }
     }),
   }),
 

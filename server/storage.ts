@@ -2,6 +2,8 @@ import { ENV } from "./_core/env";
 
 const STORAGE_BUCKET = process.env.SUPABASE_STORAGE_BUCKET ?? "triarc-social";
 
+let bucketEnsured = false;
+
 function appendHashSuffix(relKey: string): string {
   const hash = crypto.randomUUID().replace(/-/g, "").slice(0, 8);
   const lastDot = relKey.lastIndexOf(".");
@@ -20,6 +22,48 @@ function supabaseHeaders() {
   };
 }
 
+/** Cria bucket público se não existir (evita 404 no upload). */
+export async function ensureStorageBucket(): Promise<void> {
+  if (bucketEnsured) return;
+  if (!ENV.supabaseUrl || !ENV.supabaseServiceRoleKey) {
+    throw new Error("SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY não configurados");
+  }
+
+  const listRes = await fetch(`${ENV.supabaseUrl}/storage/v1/bucket`, {
+    headers: supabaseHeaders(),
+  });
+
+  if (listRes.ok) {
+    const buckets = (await listRes.json()) as Array<{ id: string; name: string }>;
+    if (buckets.some((b) => b.id === STORAGE_BUCKET || b.name === STORAGE_BUCKET)) {
+      bucketEnsured = true;
+      return;
+    }
+  }
+
+  const createRes = await fetch(`${ENV.supabaseUrl}/storage/v1/bucket`, {
+    method: "POST",
+    headers: { ...supabaseHeaders(), "content-type": "application/json" },
+    body: JSON.stringify({
+      id: STORAGE_BUCKET,
+      name: STORAGE_BUCKET,
+      public: true,
+      file_size_limit: 10485760,
+    }),
+  });
+
+  if (createRes.ok || createRes.status === 409) {
+    bucketEnsured = true;
+    console.log(`[Storage] Bucket "${STORAGE_BUCKET}" pronto`);
+    return;
+  }
+
+  const err = await createRes.text().catch(() => "");
+  throw new Error(
+    `Não foi possível criar bucket "${STORAGE_BUCKET}" (${createRes.status}): ${err.slice(0, 200)}`
+  );
+}
+
 export async function storagePut(
   relKey: string,
   data: Buffer | Uint8Array | string,
@@ -29,6 +73,8 @@ export async function storagePut(
     throw new Error("SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY não configurados");
   }
 
+  await ensureStorageBucket();
+
   const key = appendHashSuffix(normalizeKey(relKey));
   const uploadUrl = `${ENV.supabaseUrl}/storage/v1/object/${STORAGE_BUCKET}/${key}`;
 
@@ -36,13 +82,18 @@ export async function storagePut(
 
   const res = await fetch(uploadUrl, {
     method: "POST",
-    headers: { ...supabaseHeaders(), "content-type": contentType },
+    headers: {
+      ...supabaseHeaders(),
+      "content-type": contentType,
+      "x-upsert": "true",
+      "cache-control": "3600",
+    },
     body: raw as unknown as BodyInit,
   });
 
   if (!res.ok) {
     const err = await res.text().catch(() => "");
-    throw new Error(`Supabase storage upload failed (${res.status}): ${err}`);
+    throw new Error(`Supabase storage upload failed (${res.status}): ${err.slice(0, 300)}`);
   }
 
   const publicUrl = `${ENV.supabaseUrl}/storage/v1/object/public/${STORAGE_BUCKET}/${key}`;
@@ -70,7 +121,6 @@ export async function storageGetSignedUrl(relKey: string): Promise<string> {
   });
 
   if (!res.ok) {
-    // fallback: public URL
     return `${ENV.supabaseUrl}/storage/v1/object/public/${STORAGE_BUCKET}/${key}`;
   }
 

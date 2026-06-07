@@ -853,6 +853,7 @@ function registerOAuthRoutes(app2) {
 
 // server/storage.ts
 var STORAGE_BUCKET = process.env.SUPABASE_STORAGE_BUCKET ?? "triarc-social";
+var bucketEnsured = false;
 function appendHashSuffix(relKey) {
   const hash = crypto.randomUUID().replace(/-/g, "").slice(0, 8);
   const lastDot = relKey.lastIndexOf(".");
@@ -868,21 +869,62 @@ function supabaseHeaders() {
     apikey: ENV.supabaseServiceRoleKey
   };
 }
+async function ensureStorageBucket() {
+  if (bucketEnsured) return;
+  if (!ENV.supabaseUrl || !ENV.supabaseServiceRoleKey) {
+    throw new Error("SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY n\xE3o configurados");
+  }
+  const listRes = await fetch(`${ENV.supabaseUrl}/storage/v1/bucket`, {
+    headers: supabaseHeaders()
+  });
+  if (listRes.ok) {
+    const buckets = await listRes.json();
+    if (buckets.some((b) => b.id === STORAGE_BUCKET || b.name === STORAGE_BUCKET)) {
+      bucketEnsured = true;
+      return;
+    }
+  }
+  const createRes = await fetch(`${ENV.supabaseUrl}/storage/v1/bucket`, {
+    method: "POST",
+    headers: { ...supabaseHeaders(), "content-type": "application/json" },
+    body: JSON.stringify({
+      id: STORAGE_BUCKET,
+      name: STORAGE_BUCKET,
+      public: true,
+      file_size_limit: 10485760
+    })
+  });
+  if (createRes.ok || createRes.status === 409) {
+    bucketEnsured = true;
+    console.log(`[Storage] Bucket "${STORAGE_BUCKET}" pronto`);
+    return;
+  }
+  const err = await createRes.text().catch(() => "");
+  throw new Error(
+    `N\xE3o foi poss\xEDvel criar bucket "${STORAGE_BUCKET}" (${createRes.status}): ${err.slice(0, 200)}`
+  );
+}
 async function storagePut(relKey, data, contentType = "application/octet-stream") {
   if (!ENV.supabaseUrl || !ENV.supabaseServiceRoleKey) {
     throw new Error("SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY n\xE3o configurados");
   }
+  await ensureStorageBucket();
   const key = appendHashSuffix(normalizeKey(relKey));
   const uploadUrl = `${ENV.supabaseUrl}/storage/v1/object/${STORAGE_BUCKET}/${key}`;
   const raw = typeof data === "string" ? Buffer.from(data) : data;
   const res = await fetch(uploadUrl, {
     method: "POST",
-    headers: { ...supabaseHeaders(), "content-type": contentType },
+    headers: {
+      ...supabaseHeaders(),
+      "content-type": contentType,
+      "x-upsert": "true",
+      "cache-control": "3600"
+    },
     body: raw
   });
   if (!res.ok) {
     const err = await res.text().catch(() => "");
-    throw new Error(`Supabase storage upload failed (${res.status}): ${err}`);
+    throw new Error(`Supabase storage upload failed (${res.status}): ${err.slice(0, 300)}`);
   }
   const publicUrl = `${ENV.supabaseUrl}/storage/v1/object/public/${STORAGE_BUCKET}/${key}`;
   return { key, url: publicUrl };
@@ -997,6 +1039,7 @@ var systemRouter = router({
 // server/routers.ts
 init_schema();
 init_db();
+import { TRPCError as TRPCError2 } from "@trpc/server";
 import { z as z3 } from "zod";
 import { eq as eq5 } from "drizzle-orm";
 
@@ -1103,13 +1146,12 @@ async function invokeAnthropicRest(params, apiKey) {
 }
 
 // server/_core/imageGeneration.ts
-var GEMINI_TIMEOUT_MS = 5e4;
+var GEMINI_TIMEOUT_MS = 12e4;
 var IMAGE_NO_TEXT_RULES = `CRITICAL RULES: Do NOT render any text, letters, words, numbers, typography, headlines, titles or captions inside the image. No Portuguese or English visible. Convey the topic only through abstract visuals, icons, symbols, colors and composition. All readable text belongs in the Instagram caption, not in the image.`;
 var TRIARC_VISUAL_STYLE = "Modern premium tech aesthetic, cyan (#00BFFF) and dark navy (#0A1628), minimalist corporate design, subtle circuit patterns and holographic glow. Place the Triarc Solutions logo emblem (circular tech badge with gears) in the bottom-right corner. 1080x1080 square, magazine quality.";
 var GEMINI_IMAGE_MODEL_FALLBACKS = [
   "gemini-2.5-flash-image",
-  "gemini-3.1-flash-image",
-  "gemini-3-pro-image"
+  "gemini-3.1-flash-image-preview"
 ];
 function buildTriarcImagePrompt(topic) {
   return `Premium Instagram visual for Triarc Solutions, a Brazilian tech company. Visual mood inspired by the concept: "${topic}". ${TRIARC_VISUAL_STYLE} ${IMAGE_NO_TEXT_RULES}`;
@@ -1118,14 +1160,17 @@ function formatGeminiHttpError(status, model, detail) {
   if (status === 429) {
     const isFreeTierZero = detail.includes("free_tier") && (detail.includes("limit: 0") || detail.includes('"limit":0'));
     if (isFreeTierZero) {
-      return "Gera\xE7\xE3o de IMAGEM no Gemini est\xE1 com cota 0 no tier gratuito \u2014 separado do saldo de texto. Vincule billing ao projeto da API key, crie NOVA GEMINI_API_KEY, atualize no Vercel. Alternativa: cole URL de imagem manualmente.";
+      return "Gera\xE7\xE3o de IMAGEM no Gemini est\xE1 com cota 0 no tier gratuito \u2014 separado do saldo de texto. Vincule billing ao projeto da API key, crie NOVA GEMINI_API_KEY, atualize no Vercel.";
     }
     return "Limite Gemini atingido. Aguarde ~1 minuto ou cole URL de imagem manualmente.";
   }
   if (status === 403) {
     return "GEMINI_API_KEY inv\xE1lida ou sem permiss\xE3o. Verifique ai.google.dev.";
   }
-  return `Gemini falhou (${status}) [${model}]: ${detail.slice(0, 300)}`;
+  if (status === 400 && detail.includes("responseModalities")) {
+    return `Configura\xE7\xE3o Gemini inv\xE1lida [${model}]. Contate suporte \u2014 responseModalities.`;
+  }
+  return `Gemini falhou (${status}) [${model}]: ${detail.slice(0, 400)}`;
 }
 function uniqueModels(primary) {
   const seen = /* @__PURE__ */ new Set();
@@ -1139,23 +1184,39 @@ async function callGeminiImage(model, body) {
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${ENV.geminiApiKey}`;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), GEMINI_TIMEOUT_MS);
+  const started = Date.now();
   try {
-    return await fetch(endpoint, {
+    const response = await fetch(endpoint, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(body),
       signal: controller.signal
     });
+    console.log(`[Gemini] ${model} \u2192 HTTP ${response.status} em ${Date.now() - started}ms`);
+    return response;
   } catch (err) {
     if (err instanceof Error && err.name === "AbortError") {
       throw new Error(
-        "Gemini demorou mais de 50s. No Vercel Hobby o limite \xE9 10s \u2014 fa\xE7a upgrade Pro ou cole uma URL de imagem manualmente."
+        `Gemini (${model}) excedeu ${GEMINI_TIMEOUT_MS / 1e3}s. Tente novamente ou cole URL manualmente.`
       );
     }
     throw err;
   } finally {
     clearTimeout(timer);
   }
+}
+function extractImagePart(result) {
+  if (result.promptFeedback?.blockReason) {
+    throw new Error(`Gemini bloqueou o prompt: ${result.promptFeedback.blockReason}`);
+  }
+  const candidate = result.candidates?.[0];
+  if (!candidate) {
+    throw new Error("Gemini n\xE3o retornou candidatos \u2014 prompt pode ter sido bloqueado.");
+  }
+  if (candidate.finishReason && candidate.finishReason !== "STOP") {
+    console.warn(`[Gemini] finishReason=${candidate.finishReason}`);
+  }
+  return candidate.content?.parts?.find((p) => p.inlineData?.data);
 }
 async function generateImage(options) {
   if (!ENV.geminiApiKey) {
@@ -1165,8 +1226,10 @@ async function generateImage(options) {
 
 ${IMAGE_NO_TEXT_RULES}`;
   const body = {
-    contents: [{ parts: [{ text: prompt }] }],
-    generationConfig: { responseModalities: ["IMAGE"] }
+    contents: [{ role: "user", parts: [{ text: prompt }] }],
+    generationConfig: {
+      responseModalities: ["TEXT", "IMAGE"]
+    }
   };
   const models = uniqueModels(ENV.geminiImageModel);
   let lastError = "";
@@ -1181,31 +1244,34 @@ ${IMAGE_NO_TEXT_RULES}`;
       const detail = await response.text().catch(() => "");
       throw new Error(formatGeminiHttpError(response.status, model, detail));
     }
-    const result = await response.json();
-    const imagePart = result.candidates?.[0]?.content?.parts?.find((p) => p.inlineData);
+    let result;
+    try {
+      result = await response.json();
+    } catch {
+      throw new Error(`Gemini (${model}) retornou JSON inv\xE1lido.`);
+    }
+    const imagePart = extractImagePart(result);
     if (!imagePart?.inlineData) {
       throw new Error(`Gemini (${model}) n\xE3o retornou imagem \u2014 tente outro tema ou URL manual.`);
     }
     const { data: b64Data, mimeType } = imagePart.inlineData;
     const buffer = Buffer.from(b64Data, "base64");
     const ext = mimeType.split("/")[1]?.replace("jpeg", "jpg") ?? "png";
-    try {
-      const { url } = await storagePut(`generated/${Date.now()}.${ext}`, buffer, mimeType);
-      console.log(`[Gemini] Imagem gerada com ${model}`);
-      return { url };
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      if (msg.includes("Supabase storage")) {
-        throw new Error(
-          `${msg} \u2014 crie o bucket "${process.env.SUPABASE_STORAGE_BUCKET ?? "triarc-social"}" no Supabase Storage (p\xFAblico).`
-        );
-      }
-      throw err;
-    }
+    const { url } = await storagePut(`generated/${Date.now()}.${ext}`, buffer, mimeType);
+    console.log(`[Gemini] Imagem OK (${model}) \u2192 ${url.slice(0, 80)}...`);
+    return { url };
   }
   throw new Error(
     `Nenhum modelo Gemini de imagem dispon\xEDvel. ${lastError}. Verifique GEMINI_API_KEY e ai.dev/rate-limit.`
   );
+}
+async function probeImageStack() {
+  return {
+    geminiKey: !!ENV.geminiApiKey,
+    geminiModel: ENV.geminiImageModel,
+    supabase: !!(ENV.supabaseUrl && ENV.supabaseServiceRoleKey),
+    bucket: process.env.SUPABASE_STORAGE_BUCKET ?? "triarc-social"
+  };
 }
 
 // server/instagram.ts
@@ -2863,15 +2929,28 @@ Destaque o impacto, tecnologias usadas e valor para o cliente.`
       includelogo: z3.boolean().optional()
     })).mutation(async ({ input }) => {
       const account = await getAccountById(input.accountId);
-      if (!account) throw new Error("Conta n\xE3o encontrada");
-      let prompt = buildTriarcImagePrompt(input.theme);
-      if (input.description?.trim()) {
-        prompt += `
-Visual context: ${input.description.trim()}`;
+      if (!account) {
+        throw new TRPCError2({ code: "NOT_FOUND", message: "Conta n\xE3o encontrada" });
       }
-      const { url } = await generateImage({ prompt });
-      if (!url) throw new Error("Gemini n\xE3o retornou URL da imagem");
-      return { url };
+      let prompt = buildTriarcImagePrompt(input.theme.trim());
+      const extra = input.description?.trim().slice(0, 500);
+      if (extra) {
+        prompt += `
+Visual context: ${extra}`;
+      }
+      try {
+        const started = Date.now();
+        const { url } = await generateImage({ prompt });
+        console.log(`[generateArt] OK em ${Date.now() - started}ms theme="${input.theme}"`);
+        if (!url) {
+          throw new TRPCError2({ code: "INTERNAL_SERVER_ERROR", message: "Gemini n\xE3o retornou URL da imagem" });
+        }
+        return { url };
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error("[generateArt] FALHA:", msg);
+        throw new TRPCError2({ code: "INTERNAL_SERVER_ERROR", message: msg });
+      }
     })
   }),
   actionPlan: router({
@@ -3240,8 +3319,12 @@ app.get("/api/health", async (_req, res) => {
       ADMIN_EMAIL: process.env.ADMIN_EMAIL || "(n\xE3o definido)",
       ADMIN_PASSWORD: !!process.env.ADMIN_PASSWORD,
       NODE_ENV: process.env.NODE_ENV || "(not set)",
-      SUPABASE_URL: process.env.SUPABASE_URL ? "set" : "not set"
+      SUPABASE_URL: process.env.SUPABASE_URL ? "set" : "not set",
+      GEMINI_API_KEY: process.env.GEMINI_API_KEY ? "set" : "not set",
+      GEMINI_IMAGE_MODEL: process.env.GEMINI_IMAGE_MODEL ?? "gemini-2.5-flash-image (default)",
+      SUPABASE_STORAGE_BUCKET: process.env.SUPABASE_STORAGE_BUCKET ?? "triarc-social (default)"
     },
+    imageStack: await probeImageStack(),
     ts: (/* @__PURE__ */ new Date()).toISOString()
   });
 });
@@ -3261,11 +3344,18 @@ app.get("/api/cron/tick", async (req, res) => {
     return res.status(500).json({ error: err.message });
   }
 });
-app.use("/api/trpc", createExpressMiddleware({ router: appRouter, createContext }));
+app.use("/api/trpc", createExpressMiddleware({
+  router: appRouter,
+  createContext,
+  onError: ({ path, error }) => {
+    console.error(`[tRPC] ${path ?? "?"}:`, error.message);
+  }
+}));
 sdk.ensureAdminUser().catch((e) => console.error("[Auth] Erro ao criar admin:", e));
 seedTriarcContent().catch((e) => console.error("[Seed] Erro triac_content:", e));
 seedContentThemes().catch((e) => console.error("[Seed] Erro content_themes:", e));
-var config = { maxDuration: 60 };
+ensureStorageBucket().catch((e) => console.error("[Storage] Bucket:", e.message));
+var config = { maxDuration: 120 };
 var vercel_default = app;
 export {
   config,

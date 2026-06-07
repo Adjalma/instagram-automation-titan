@@ -8,18 +8,18 @@ export type GenerateImageOptions = {
 
 export type GenerateImageResponse = { url?: string };
 
-const GEMINI_TIMEOUT_MS = 50_000;
+/** Vercel Hobby (sem Fluid) ≈10s; com Fluid até 300s. */
+const GEMINI_TIMEOUT_MS = 120_000;
 
-/** Modelos de imagem erram muito texto em PT — proibir texto na arte. */
 const IMAGE_NO_TEXT_RULES = `CRITICAL RULES: Do NOT render any text, letters, words, numbers, typography, headlines, titles or captions inside the image. No Portuguese or English visible. Convey the topic only through abstract visuals, icons, symbols, colors and composition. All readable text belongs in the Instagram caption, not in the image.`;
 
 const TRIARC_VISUAL_STYLE =
   "Modern premium tech aesthetic, cyan (#00BFFF) and dark navy (#0A1628), minimalist corporate design, subtle circuit patterns and holographic glow. Place the Triarc Solutions logo emblem (circular tech badge with gears) in the bottom-right corner. 1080x1080 square, magazine quality.";
 
+/** Modelos verificados — evita loop lento em previews inexistentes. */
 const GEMINI_IMAGE_MODEL_FALLBACKS = [
   "gemini-2.5-flash-image",
-  "gemini-3.1-flash-image",
-  "gemini-3-pro-image",
+  "gemini-3.1-flash-image-preview",
 ] as const;
 
 export function buildTriarcImagePrompt(topic: string): string {
@@ -34,8 +34,7 @@ function formatGeminiHttpError(status: number, model: string, detail: string): s
     if (isFreeTierZero) {
       return (
         "Geração de IMAGEM no Gemini está com cota 0 no tier gratuito — separado do saldo de texto. " +
-        "Vincule billing ao projeto da API key, crie NOVA GEMINI_API_KEY, atualize no Vercel. " +
-        "Alternativa: cole URL de imagem manualmente."
+        "Vincule billing ao projeto da API key, crie NOVA GEMINI_API_KEY, atualize no Vercel."
       );
     }
     return "Limite Gemini atingido. Aguarde ~1 minuto ou cole URL de imagem manualmente.";
@@ -43,7 +42,10 @@ function formatGeminiHttpError(status: number, model: string, detail: string): s
   if (status === 403) {
     return "GEMINI_API_KEY inválida ou sem permissão. Verifique ai.google.dev.";
   }
-  return `Gemini falhou (${status}) [${model}]: ${detail.slice(0, 300)}`;
+  if (status === 400 && detail.includes("responseModalities")) {
+    return `Configuração Gemini inválida [${model}]. Contate suporte — responseModalities.`;
+  }
+  return `Gemini falhou (${status}) [${model}]: ${detail.slice(0, 400)}`;
 }
 
 function uniqueModels(primary: string): string[] {
@@ -59,24 +61,49 @@ async function callGeminiImage(model: string, body: object): Promise<Response> {
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${ENV.geminiApiKey}`;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), GEMINI_TIMEOUT_MS);
+  const started = Date.now();
   try {
-    return await fetch(endpoint, {
+    const response = await fetch(endpoint, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(body),
       signal: controller.signal,
     });
+    console.log(`[Gemini] ${model} → HTTP ${response.status} em ${Date.now() - started}ms`);
+    return response;
   } catch (err: unknown) {
     if (err instanceof Error && err.name === "AbortError") {
       throw new Error(
-        "Gemini demorou mais de 50s. No Vercel Hobby o limite é 10s — faça upgrade Pro " +
-        "ou cole uma URL de imagem manualmente."
+        `Gemini (${model}) excedeu ${GEMINI_TIMEOUT_MS / 1000}s. Tente novamente ou cole URL manualmente.`
       );
     }
     throw err;
   } finally {
     clearTimeout(timer);
   }
+}
+
+function extractImagePart(result: {
+  candidates?: Array<{
+    content?: { parts?: Array<{ inlineData?: { data: string; mimeType: string }; text?: string }> };
+    finishReason?: string;
+  }>;
+  promptFeedback?: { blockReason?: string };
+}) {
+  if (result.promptFeedback?.blockReason) {
+    throw new Error(`Gemini bloqueou o prompt: ${result.promptFeedback.blockReason}`);
+  }
+
+  const candidate = result.candidates?.[0];
+  if (!candidate) {
+    throw new Error("Gemini não retornou candidatos — prompt pode ter sido bloqueado.");
+  }
+
+  if (candidate.finishReason && candidate.finishReason !== "STOP") {
+    console.warn(`[Gemini] finishReason=${candidate.finishReason}`);
+  }
+
+  return candidate.content?.parts?.find((p) => p.inlineData?.data);
 }
 
 export async function generateImage(
@@ -90,10 +117,12 @@ export async function generateImage(
     ? options.prompt
     : `${options.prompt}\n\n${IMAGE_NO_TEXT_RULES}`;
 
-  // Só texto no prompt — referência de logo via URL costuma falhar (502) e aumenta latência
+  // gemini-2.5-flash-image exige TEXT+IMAGE (IMAGE-only pode falhar com 400)
   const body = {
-    contents: [{ parts: [{ text: prompt }] }],
-    generationConfig: { responseModalities: ["IMAGE"] },
+    contents: [{ role: "user", parts: [{ text: prompt }] }],
+    generationConfig: {
+      responseModalities: ["TEXT", "IMAGE"],
+    },
   };
 
   const models = uniqueModels(ENV.geminiImageModel);
@@ -113,13 +142,14 @@ export async function generateImage(
       throw new Error(formatGeminiHttpError(response.status, model, detail));
     }
 
-    const result = (await response.json()) as {
-      candidates?: Array<{
-        content?: { parts?: Array<{ inlineData?: { data: string; mimeType: string } }> };
-      }>;
-    };
+    let result: unknown;
+    try {
+      result = await response.json();
+    } catch {
+      throw new Error(`Gemini (${model}) retornou JSON inválido.`);
+    }
 
-    const imagePart = result.candidates?.[0]?.content?.parts?.find((p) => p.inlineData);
+    const imagePart = extractImagePart(result as Parameters<typeof extractImagePart>[0]);
     if (!imagePart?.inlineData) {
       throw new Error(`Gemini (${model}) não retornou imagem — tente outro tema ou URL manual.`);
     }
@@ -128,22 +158,27 @@ export async function generateImage(
     const buffer = Buffer.from(b64Data, "base64");
     const ext = mimeType.split("/")[1]?.replace("jpeg", "jpg") ?? "png";
 
-    try {
-      const { url } = await storagePut(`generated/${Date.now()}.${ext}`, buffer, mimeType);
-      console.log(`[Gemini] Imagem gerada com ${model}`);
-      return { url };
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      if (msg.includes("Supabase storage")) {
-        throw new Error(
-          `${msg} — crie o bucket "${process.env.SUPABASE_STORAGE_BUCKET ?? "triarc-social"}" no Supabase Storage (público).`
-        );
-      }
-      throw err;
-    }
+    const { url } = await storagePut(`generated/${Date.now()}.${ext}`, buffer, mimeType);
+    console.log(`[Gemini] Imagem OK (${model}) → ${url.slice(0, 80)}...`);
+    return { url };
   }
 
   throw new Error(
     `Nenhum modelo Gemini de imagem disponível. ${lastError}. Verifique GEMINI_API_KEY e ai.dev/rate-limit.`
   );
+}
+
+/** Diagnóstico rápido (health/debug) — não gera imagem completa. */
+export async function probeImageStack(): Promise<{
+  geminiKey: boolean;
+  geminiModel: string;
+  supabase: boolean;
+  bucket: string;
+}> {
+  return {
+    geminiKey: !!ENV.geminiApiKey,
+    geminiModel: ENV.geminiImageModel,
+    supabase: !!(ENV.supabaseUrl && ENV.supabaseServiceRoleKey),
+    bucket: process.env.SUPABASE_STORAGE_BUCKET ?? "triarc-social",
+  };
 }

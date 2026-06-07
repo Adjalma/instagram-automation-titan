@@ -13,6 +13,8 @@ import { sdk } from "./_core/sdk";
 import { seedTriarcContent, seedContentThemes } from "./seed-triarc";
 import { getDb, getLastDbError } from "./db";
 import { sql } from "drizzle-orm";
+import { ensureStorageBucket } from "./storage";
+import { probeImageStack } from "./_core/imageGeneration";
 
 const app = express();
 app.use(express.json({ limit: "50mb" }));
@@ -61,7 +63,11 @@ app.get("/api/health", async (_req, res) => {
       ADMIN_PASSWORD: !!process.env.ADMIN_PASSWORD,
       NODE_ENV: process.env.NODE_ENV || "(not set)",
       SUPABASE_URL: process.env.SUPABASE_URL ? "set" : "not set",
+      GEMINI_API_KEY: process.env.GEMINI_API_KEY ? "set" : "not set",
+      GEMINI_IMAGE_MODEL: process.env.GEMINI_IMAGE_MODEL ?? "gemini-2.5-flash-image (default)",
+      SUPABASE_STORAGE_BUCKET: process.env.SUPABASE_STORAGE_BUCKET ?? "triarc-social (default)",
     },
+    imageStack: await probeImageStack(),
     ts: new Date().toISOString(),
   });
 });
@@ -84,14 +90,21 @@ app.get("/api/cron/tick", async (req, res) => {
   }
 });
 
-app.use("/api/trpc", createExpressMiddleware({ router: appRouter, createContext }));
+app.use("/api/trpc", createExpressMiddleware({
+  router: appRouter,
+  createContext,
+  onError: ({ path, error }) => {
+    console.error(`[tRPC] ${path ?? "?"}:`, error.message);
+  },
+}));
 
 // Inicialização no cold start
 sdk.ensureAdminUser().catch(e => console.error("[Auth] Erro ao criar admin:", e));
 seedTriarcContent().catch(e => console.error("[Seed] Erro triac_content:", e));
 seedContentThemes().catch(e => console.error("[Seed] Erro content_themes:", e));
+ensureStorageBucket().catch(e => console.error("[Storage] Bucket:", e.message));
 
-/** Geração de imagem Gemini pode levar 15–60s — requer Pro no Vercel (Hobby = 10s max). */
-export const config = { maxDuration: 60 };
+/** Geração de imagem Gemini pode levar 15–120s. */
+export const config = { maxDuration: 120 };
 
 export default app;
