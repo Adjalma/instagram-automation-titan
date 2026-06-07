@@ -11,7 +11,12 @@ export function formatFetchError(err: unknown, step: string): string {
   ].filter(Boolean);
   const joined = parts.join(" — ");
   if (/fetch failed/i.test(joined)) {
-    return `${step}: falha de rede (timeout ou conexão). Verifique SUPABASE_URL e token Meta.`;
+    const hint = /upload Supabase|signed URL|Supabase/i.test(step)
+      ? `${step}: falha ao conectar no Supabase. Verifique SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY.`
+      : /Instagram|rupload|Meta/i.test(step)
+      ? `${step}: falha ao conectar na API Meta. Verifique IG_ACCESS_TOKEN.`
+      : `${step}: falha de rede (timeout ou conexão).`;
+    return hint;
   }
   return joined;
 }

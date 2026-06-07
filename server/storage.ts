@@ -135,10 +135,7 @@ export async function storagePut(
   return { key, url: supabasePublicObjectUrl(key) };
 }
 
-export async function uploadDataUrlToStorage(
-  dataUrl: string,
-  relKeyPrefix = "generated"
-): Promise<{ signedUrl: string; displayUrl: string }> {
+export function parseDataUrlBuffer(dataUrl: string): { buffer: Buffer; mimeType: string } {
   const match = /^data:([^;]+);base64,(.+)$/s.exec(dataUrl);
   if (!match) throw new Error("data URL inválida");
   const mimeType = match[1];
@@ -146,6 +143,14 @@ export async function uploadDataUrlToStorage(
   if (buffer.length > 8 * 1024 * 1024) {
     throw new Error("Imagem muito grande (>8MB). Gere a imagem de novo com Gerar Imagem.");
   }
+  return { buffer, mimeType };
+}
+
+export async function uploadDataUrlToStorage(
+  dataUrl: string,
+  relKeyPrefix = "generated"
+): Promise<{ signedUrl: string; displayUrl: string }> {
+  const { buffer, mimeType } = parseDataUrlBuffer(dataUrl);
   const ext = mimeType.split("/")[1]?.replace("jpeg", "jpg") ?? "png";
   const { key } = await storagePut(`${relKeyPrefix}/${Date.now()}.${ext}`, buffer, mimeType);
   const signedUrl = await storageGetSignedUrl(key);

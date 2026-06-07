@@ -3,7 +3,7 @@
  * Caminho enxuto — sem side effects do agente completo.
  */
 import { ENV, resolveIgAccessTokenFromEnv } from "./_core/env";
-import { publishToInstagram } from "./autonomousAgent";
+import { publishToInstagram, publishToInstagramFromBuffer } from "./autonomousAgent";
 import {
   getPostById,
   getPostMedia,
@@ -14,20 +14,10 @@ import {
 } from "./db";
 import { formatFetchError } from "./httpFetch";
 import {
-  uploadDataUrlToStorage,
+  parseDataUrlBuffer,
   getInstagramAccessibleUrl,
+  uploadDataUrlToStorage,
 } from "./storage";
-
-async function resolveImageForInstagram(postId: number, rawUrl: string): Promise<string> {
-  if (rawUrl.startsWith("data:")) {
-    console.log(`[PublishNow] Post ${postId}: data URL → Supabase`);
-    const { signedUrl, displayUrl } = await uploadDataUrlToStorage(rawUrl, "published");
-    await updateFirstPostMediaUrl(postId, displayUrl);
-    return signedUrl;
-  }
-
-  return getInstagramAccessibleUrl(rawUrl);
-}
 
 export async function publishPostNow(postId: number): Promise<{
   success: boolean;
@@ -77,17 +67,36 @@ export async function publishPostNow(postId: number): Promise<{
 
   const prevLogs = await getPublicationLogsByPost(postId);
   const attempt = prevLogs.length + 1;
+  const rawUrl = media[0].mediaUrl;
 
   try {
-    const imageUrl = await resolveImageForInstagram(postId, media[0].mediaUrl);
-    console.log(`[PublishNow] Post ${postId} imageUrl=${imageUrl.slice(0, 100)}... token=${tokenSource}`);
+    let igRes;
 
-    const igRes = await publishToInstagram({
-      igUserId,
-      accessToken: envIgToken,
-      caption: post.caption ?? "",
-      imageUrl,
-    });
+    if (rawUrl.startsWith("data:")) {
+      // Upload direto para Meta — não depende do Supabase (post legado)
+      console.log(`[PublishNow] Post ${postId}: data URL → upload direto Meta (token=${tokenSource})`);
+      const { buffer, mimeType } = parseDataUrlBuffer(rawUrl);
+      igRes = await publishToInstagramFromBuffer({
+        igUserId,
+        accessToken: envIgToken,
+        caption: post.caption ?? "",
+        buffer,
+        mimeType,
+      });
+      // Backup opcional no Supabase (não bloqueia publicação)
+      void uploadDataUrlToStorage(rawUrl, "published")
+        .then(({ displayUrl }) => updateFirstPostMediaUrl(postId, displayUrl))
+        .catch((e) => console.warn(`[PublishNow] Supabase backup post ${postId}:`, e instanceof Error ? e.message : e));
+    } else {
+      const imageUrl = await getInstagramAccessibleUrl(rawUrl);
+      console.log(`[PublishNow] Post ${postId} imageUrl=${imageUrl.slice(0, 100)}... token=${tokenSource}`);
+      igRes = await publishToInstagram({
+        igUserId,
+        accessToken: envIgToken,
+        caption: post.caption ?? "",
+        imageUrl,
+      });
+    }
 
     await updatePost(postId, {
       status: "published",
@@ -115,7 +124,7 @@ export async function publishPostNow(postId: number): Promise<{
   } catch (err: unknown) {
     const raw = err instanceof Error ? err.message : String(err);
     const msg =
-      /Instagram|Supabase|upload|imagem|token|data URL/i.test(raw)
+      /Instagram|Supabase|upload|imagem|token|data URL|rupload|resumable/i.test(raw)
         ? raw.startsWith(`Post ${postId}`) ? raw : `Post ${postId}: ${raw}`
         : formatFetchError(err, `Post ${postId}`);
     console.error(`[PublishNow] Falha post ${postId}:`, msg);

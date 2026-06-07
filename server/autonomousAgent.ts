@@ -18,10 +18,35 @@ import {
 } from "./db";
 import { publishToLinkedIn } from "./linkedin";
 import { publishToFacebook } from "./facebook";
-import { uploadDataUrlToStorage, getInstagramAccessibleUrl } from "./storage";
+import { uploadDataUrlToStorage, getInstagramAccessibleUrl, parseDataUrlBuffer } from "./storage";
 import { fetchWithRetry } from "./httpFetch";
 
 const IG_GRAPH = "https://graph.facebook.com/v21.0";
+
+async function finishInstagramPublish(
+  igUserId: string,
+  creationId: string,
+  accessToken: string,
+): Promise<{ postId: string; permalink: string }> {
+  const publishRes = await fetchWithRetry(
+    `${IG_GRAPH}/${igUserId}/media_publish`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ creation_id: creationId, access_token: accessToken }).toString(),
+      timeoutMs: 90_000,
+    },
+    "Instagram publicar"
+  );
+
+  if (!publishRes.ok) {
+    const err = await publishRes.text();
+    throw new Error(`Instagram publish (${publishRes.status}): ${err.slice(0, 300)}`);
+  }
+
+  const { id: mediaId } = (await publishRes.json()) as { id: string };
+  return { postId: mediaId, permalink: `https://www.instagram.com/p/${mediaId}/` };
+}
 
 /** URL que os servidores da Meta conseguem baixar (HTTPS direto, sem redirect do app). */
 async function resolveMediaUrlForInstagram(mediaUrl: string): Promise<string> {
@@ -69,26 +94,68 @@ export async function publishToInstagram(params: {
   }
 
   const { id: creationId } = (await containerRes.json()) as { id: string };
+  return finishInstagramPublish(igUserId, creationId, accessToken);
+}
 
-  const publishRes = await fetchWithRetry(
-    `${IG_GRAPH}/${igUserId}/media_publish`,
+/** Upload direto de bytes — contorna Supabase (posts legados com data URL). */
+export async function publishToInstagramFromBuffer(params: {
+  igUserId: string;
+  accessToken: string;
+  caption: string;
+  buffer: Buffer;
+  mimeType: string;
+}): Promise<{ postId: string; permalink: string }> {
+  const { igUserId, accessToken, caption, buffer, mimeType } = params;
+
+  const containerRes = await fetchWithRetry(
+    `${IG_GRAPH}/${igUserId}/media`,
     {
       method: "POST",
       headers: { "content-type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({ creation_id: creationId, access_token: accessToken }).toString(),
+      body: new URLSearchParams({
+        media_type: "IMAGE",
+        upload_type: "resumable",
+        caption,
+        access_token: accessToken,
+      }).toString(),
       timeoutMs: 90_000,
     },
-    "Instagram publicar"
+    "Instagram resumable session"
   );
 
-  if (!publishRes.ok) {
-    const err = await publishRes.text();
-    throw new Error(`Instagram publish (${publishRes.status}): ${err.slice(0, 300)}`);
+  if (!containerRes.ok) {
+    const err = await containerRes.text();
+    throw new Error(`Instagram resumable (${containerRes.status}): ${err.slice(0, 300)}`);
   }
 
-  const { id: mediaId } = (await publishRes.json()) as { id: string };
-  const permalink = `https://www.instagram.com/p/${mediaId}/`;
-  return { postId: mediaId, permalink };
+  const session = (await containerRes.json()) as { id: string; uri?: string };
+  const uploadUri = session.uri;
+  if (!uploadUri) {
+    throw new Error("Instagram não retornou URI de upload (resumable)");
+  }
+
+  const uploadRes = await fetchWithRetry(
+    uploadUri,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `OAuth ${accessToken}`,
+        "Content-Type": mimeType,
+        offset: "0",
+        file_size: String(buffer.length),
+      },
+      body: buffer as unknown as BodyInit,
+      timeoutMs: 120_000,
+    },
+    "Instagram rupload"
+  );
+
+  if (!uploadRes.ok) {
+    const err = await uploadRes.text();
+    throw new Error(`Instagram rupload (${uploadRes.status}): ${err.slice(0, 300)}`);
+  }
+
+  return finishInstagramPublish(igUserId, session.id, accessToken);
 }
 
 // ─── Instagram Comments ───────────────────────────────────────────────────────
@@ -372,13 +439,14 @@ export async function runAutonomousAgent(options?: {
 
     const media = await getPostMedia(post.id) as any[];
     const rawImageUrl = media?.[0]?.mediaUrl || undefined;
+    const isDataUrl = Boolean(rawImageUrl?.startsWith("data:"));
     let imageUrl: string | undefined;
+    let dataBuffer: { buffer: Buffer; mimeType: string } | undefined;
+
     try {
-      if (rawImageUrl?.startsWith("data:")) {
-        console.log(`[Agent] Post ${post.id}: convertendo data URL → Supabase`);
-        const { signedUrl, displayUrl } = await uploadDataUrlToStorage(rawImageUrl, "published");
-        await updateFirstPostMediaUrl(post.id, displayUrl);
-        imageUrl = signedUrl;
+      if (isDataUrl && rawImageUrl) {
+        console.log(`[Agent] Post ${post.id}: data URL → upload direto Meta`);
+        dataBuffer = parseDataUrlBuffer(rawImageUrl);
       } else if (rawImageUrl) {
         imageUrl = await resolveMediaUrlForInstagram(rawImageUrl);
       }
@@ -421,12 +489,26 @@ export async function runAutonomousAgent(options?: {
     const attempt = prevLogs.length + 1;
 
     try {
-      const igRes = await publishToInstagram({
-        igUserId,
-        accessToken: igToken,
-        caption: post.caption ?? "",
-        imageUrl,
-      });
+      const igRes = isDataUrl && dataBuffer
+        ? await publishToInstagramFromBuffer({
+            igUserId,
+            accessToken: igToken,
+            caption: post.caption ?? "",
+            buffer: dataBuffer.buffer,
+            mimeType: dataBuffer.mimeType,
+          })
+        : await publishToInstagram({
+            igUserId,
+            accessToken: igToken,
+            caption: post.caption ?? "",
+            imageUrl,
+          });
+
+      if (isDataUrl && rawImageUrl) {
+        void uploadDataUrlToStorage(rawImageUrl, "published")
+          .then(({ displayUrl }) => updateFirstPostMediaUrl(post.id, displayUrl))
+          .catch((e) => console.warn(`[Agent] Supabase backup post ${post.id}:`, e instanceof Error ? e.message : e));
+      }
 
       await updatePost(post.id, {
         status: "published",

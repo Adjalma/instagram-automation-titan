@@ -991,7 +991,8 @@ function formatFetchError(err, step) {
   ].filter(Boolean);
   const joined = parts.join(" \u2014 ");
   if (/fetch failed/i.test(joined)) {
-    return `${step}: falha de rede (timeout ou conex\xE3o). Verifique SUPABASE_URL e token Meta.`;
+    const hint = /upload Supabase|signed URL|Supabase/i.test(step) ? `${step}: falha ao conectar no Supabase. Verifique SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY.` : /Instagram|rupload|Meta/i.test(step) ? `${step}: falha ao conectar na API Meta. Verifique IG_ACCESS_TOKEN.` : `${step}: falha de rede (timeout ou conex\xE3o).`;
+    return hint;
   }
   return joined;
 }
@@ -1122,7 +1123,7 @@ async function storagePut(relKey, data, contentType = "application/octet-stream"
   await uploadBytes(key, raw, contentType);
   return { key, url: supabasePublicObjectUrl(key) };
 }
-async function uploadDataUrlToStorage(dataUrl, relKeyPrefix = "generated") {
+function parseDataUrlBuffer(dataUrl) {
   const match = /^data:([^;]+);base64,(.+)$/s.exec(dataUrl);
   if (!match) throw new Error("data URL inv\xE1lida");
   const mimeType = match[1];
@@ -1130,6 +1131,10 @@ async function uploadDataUrlToStorage(dataUrl, relKeyPrefix = "generated") {
   if (buffer.length > 8 * 1024 * 1024) {
     throw new Error("Imagem muito grande (>8MB). Gere a imagem de novo com Gerar Imagem.");
   }
+  return { buffer, mimeType };
+}
+async function uploadDataUrlToStorage(dataUrl, relKeyPrefix = "generated") {
+  const { buffer, mimeType } = parseDataUrlBuffer(dataUrl);
   const ext = mimeType.split("/")[1]?.replace("jpeg", "jpg") ?? "png";
   const { key } = await storagePut(`${relKeyPrefix}/${Date.now()}.${ext}`, buffer, mimeType);
   const signedUrl = await storageGetSignedUrl(key);
@@ -2261,6 +2266,24 @@ async function publishToFacebook(params) {
 
 // server/autonomousAgent.ts
 var IG_GRAPH2 = "https://graph.facebook.com/v21.0";
+async function finishInstagramPublish(igUserId, creationId, accessToken) {
+  const publishRes = await fetchWithRetry(
+    `${IG_GRAPH2}/${igUserId}/media_publish`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ creation_id: creationId, access_token: accessToken }).toString(),
+      timeoutMs: 9e4
+    },
+    "Instagram publicar"
+  );
+  if (!publishRes.ok) {
+    const err = await publishRes.text();
+    throw new Error(`Instagram publish (${publishRes.status}): ${err.slice(0, 300)}`);
+  }
+  const { id: mediaId } = await publishRes.json();
+  return { postId: mediaId, permalink: `https://www.instagram.com/p/${mediaId}/` };
+}
 async function resolveMediaUrlForInstagram(mediaUrl) {
   if (mediaUrl.startsWith("data:")) {
     throw new Error("Imagem em data URL \u2014 use Publicar Agora para converter automaticamente");
@@ -2293,23 +2316,54 @@ async function publishToInstagram(params) {
     throw new Error(`Instagram container (${containerRes.status}): ${err.slice(0, 300)}`);
   }
   const { id: creationId } = await containerRes.json();
-  const publishRes = await fetchWithRetry(
-    `${IG_GRAPH2}/${igUserId}/media_publish`,
+  return finishInstagramPublish(igUserId, creationId, accessToken);
+}
+async function publishToInstagramFromBuffer(params) {
+  const { igUserId, accessToken, caption, buffer, mimeType } = params;
+  const containerRes = await fetchWithRetry(
+    `${IG_GRAPH2}/${igUserId}/media`,
     {
       method: "POST",
       headers: { "content-type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({ creation_id: creationId, access_token: accessToken }).toString(),
+      body: new URLSearchParams({
+        media_type: "IMAGE",
+        upload_type: "resumable",
+        caption,
+        access_token: accessToken
+      }).toString(),
       timeoutMs: 9e4
     },
-    "Instagram publicar"
+    "Instagram resumable session"
   );
-  if (!publishRes.ok) {
-    const err = await publishRes.text();
-    throw new Error(`Instagram publish (${publishRes.status}): ${err.slice(0, 300)}`);
+  if (!containerRes.ok) {
+    const err = await containerRes.text();
+    throw new Error(`Instagram resumable (${containerRes.status}): ${err.slice(0, 300)}`);
   }
-  const { id: mediaId } = await publishRes.json();
-  const permalink = `https://www.instagram.com/p/${mediaId}/`;
-  return { postId: mediaId, permalink };
+  const session = await containerRes.json();
+  const uploadUri = session.uri;
+  if (!uploadUri) {
+    throw new Error("Instagram n\xE3o retornou URI de upload (resumable)");
+  }
+  const uploadRes = await fetchWithRetry(
+    uploadUri,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `OAuth ${accessToken}`,
+        "Content-Type": mimeType,
+        offset: "0",
+        file_size: String(buffer.length)
+      },
+      body: buffer,
+      timeoutMs: 12e4
+    },
+    "Instagram rupload"
+  );
+  if (!uploadRes.ok) {
+    const err = await uploadRes.text();
+    throw new Error(`Instagram rupload (${uploadRes.status}): ${err.slice(0, 300)}`);
+  }
+  return finishInstagramPublish(igUserId, session.id, accessToken);
 }
 async function fetchIgComments(mediaId, accessToken) {
   const res = await fetch(
@@ -2516,13 +2570,13 @@ async function runAutonomousAgent(options) {
     await updatePost(post.id, { mcpPending: 1 });
     const media = await getPostMedia(post.id);
     const rawImageUrl = media?.[0]?.mediaUrl || void 0;
+    const isDataUrl = Boolean(rawImageUrl?.startsWith("data:"));
     let imageUrl;
+    let dataBuffer;
     try {
-      if (rawImageUrl?.startsWith("data:")) {
-        console.log(`[Agent] Post ${post.id}: convertendo data URL \u2192 Supabase`);
-        const { signedUrl, displayUrl } = await uploadDataUrlToStorage(rawImageUrl, "published");
-        await updateFirstPostMediaUrl(post.id, displayUrl);
-        imageUrl = signedUrl;
+      if (isDataUrl && rawImageUrl) {
+        console.log(`[Agent] Post ${post.id}: data URL \u2192 upload direto Meta`);
+        dataBuffer = parseDataUrlBuffer(rawImageUrl);
       } else if (rawImageUrl) {
         imageUrl = await resolveMediaUrlForInstagram(rawImageUrl);
       }
@@ -2553,12 +2607,21 @@ async function runAutonomousAgent(options) {
     const prevLogs = await getPublicationLogsByPost(post.id);
     const attempt = prevLogs.length + 1;
     try {
-      const igRes = await publishToInstagram({
+      const igRes = isDataUrl && dataBuffer ? await publishToInstagramFromBuffer({
+        igUserId,
+        accessToken: igToken,
+        caption: post.caption ?? "",
+        buffer: dataBuffer.buffer,
+        mimeType: dataBuffer.mimeType
+      }) : await publishToInstagram({
         igUserId,
         accessToken: igToken,
         caption: post.caption ?? "",
         imageUrl
       });
+      if (isDataUrl && rawImageUrl) {
+        void uploadDataUrlToStorage(rawImageUrl, "published").then(({ displayUrl }) => updateFirstPostMediaUrl(post.id, displayUrl)).catch((e) => console.warn(`[Agent] Supabase backup post ${post.id}:`, e instanceof Error ? e.message : e));
+      }
       await updatePost(post.id, {
         status: "published",
         publishedAt: /* @__PURE__ */ new Date(),
@@ -2667,15 +2730,6 @@ async function publishToOtherPlatforms(postId, caption, imageUrl, allAccounts) {
 
 // server/publishPostNow.ts
 init_db();
-async function resolveImageForInstagram(postId, rawUrl) {
-  if (rawUrl.startsWith("data:")) {
-    console.log(`[PublishNow] Post ${postId}: data URL \u2192 Supabase`);
-    const { signedUrl, displayUrl } = await uploadDataUrlToStorage(rawUrl, "published");
-    await updateFirstPostMediaUrl(postId, displayUrl);
-    return signedUrl;
-  }
-  return getInstagramAccessibleUrl(rawUrl);
-}
 async function publishPostNow(postId) {
   const post = await getPostById(postId);
   if (!post) {
@@ -2714,15 +2768,30 @@ async function publishPostNow(postId) {
   await updatePost(postId, { mcpPending: 1 });
   const prevLogs = await getPublicationLogsByPost(postId);
   const attempt = prevLogs.length + 1;
+  const rawUrl = media[0].mediaUrl;
   try {
-    const imageUrl = await resolveImageForInstagram(postId, media[0].mediaUrl);
-    console.log(`[PublishNow] Post ${postId} imageUrl=${imageUrl.slice(0, 100)}... token=${tokenSource}`);
-    const igRes = await publishToInstagram({
-      igUserId,
-      accessToken: envIgToken,
-      caption: post.caption ?? "",
-      imageUrl
-    });
+    let igRes;
+    if (rawUrl.startsWith("data:")) {
+      console.log(`[PublishNow] Post ${postId}: data URL \u2192 upload direto Meta (token=${tokenSource})`);
+      const { buffer, mimeType } = parseDataUrlBuffer(rawUrl);
+      igRes = await publishToInstagramFromBuffer({
+        igUserId,
+        accessToken: envIgToken,
+        caption: post.caption ?? "",
+        buffer,
+        mimeType
+      });
+      void uploadDataUrlToStorage(rawUrl, "published").then(({ displayUrl }) => updateFirstPostMediaUrl(postId, displayUrl)).catch((e) => console.warn(`[PublishNow] Supabase backup post ${postId}:`, e instanceof Error ? e.message : e));
+    } else {
+      const imageUrl = await getInstagramAccessibleUrl(rawUrl);
+      console.log(`[PublishNow] Post ${postId} imageUrl=${imageUrl.slice(0, 100)}... token=${tokenSource}`);
+      igRes = await publishToInstagram({
+        igUserId,
+        accessToken: envIgToken,
+        caption: post.caption ?? "",
+        imageUrl
+      });
+    }
     await updatePost(postId, {
       status: "published",
       publishedAt: /* @__PURE__ */ new Date(),
@@ -2746,7 +2815,7 @@ async function publishPostNow(postId) {
     };
   } catch (err) {
     const raw = err instanceof Error ? err.message : String(err);
-    const msg = /Instagram|Supabase|upload|imagem|token|data URL/i.test(raw) ? raw.startsWith(`Post ${postId}`) ? raw : `Post ${postId}: ${raw}` : formatFetchError(err, `Post ${postId}`);
+    const msg = /Instagram|Supabase|upload|imagem|token|data URL|rupload|resumable/i.test(raw) ? raw.startsWith(`Post ${postId}`) ? raw : `Post ${postId}: ${raw}` : formatFetchError(err, `Post ${postId}`);
     console.error(`[PublishNow] Falha post ${postId}:`, msg);
     await updatePost(postId, { mcpPending: 0, retryCount: attempt }).catch(() => {
     });
