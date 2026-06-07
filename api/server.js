@@ -2249,14 +2249,15 @@ async function runAutonomousAgent() {
     const igAccount2 = allAccounts.find(
       (a) => a.id === post.accountId && a.platform === "instagram" && a.accessToken
     ) ?? allAccounts.find((a) => a.platform === "instagram" && a.accessToken);
-    const igToken2 = igAccount2?.accessToken || ENV.igAccessToken;
+    const useEnvToken = Boolean(ENV.igAccessToken?.trim());
+    const igToken2 = useEnvToken ? ENV.igAccessToken.trim() : igAccount2?.accessToken || "";
     if (!igToken2) {
       console.warn(`[Agent] Post ${post.id}: sem token Instagram \u2014 configure IG_ACCESS_TOKEN ou conecte em Contas`);
       await updatePost(post.id, { mcpPending: 0 });
       result.errors.push(`Post ${post.id}: sem token Instagram`);
       continue;
     }
-    const igUserId = igAccount2?.linkedinUrn?.startsWith("ig:") ? igAccount2.linkedinUrn.replace("ig:", "") : ENV.igUserId;
+    const igUserId = useEnvToken && ENV.igUserId ? ENV.igUserId : igAccount2?.linkedinUrn?.startsWith("ig:") ? igAccount2.linkedinUrn.replace("ig:", "") : ENV.igUserId;
     if (!igUserId) {
       console.warn(`[Agent] Post ${post.id}: IG_USER_ID n\xE3o configurado`);
       await updatePost(post.id, { mcpPending: 0 });
@@ -2286,7 +2287,9 @@ async function runAutonomousAgent() {
       console.log(`[Agent] Post ${post.id} publicado no Instagram: ${igRes.permalink}`);
       await publishToOtherPlatforms(post.id, post.caption ?? "", imageUrl, allAccounts);
     } catch (err) {
-      await createPublicationLog({ postId: post.id, attempt, status: "failed", error: err.message });
+      const tokenHint = useEnvToken ? " (token: IG_ACCESS_TOKEN env)" : " (token: Contas OAuth)";
+      const errMsg = `${err.message}${tokenHint}`;
+      await createPublicationLog({ postId: post.id, attempt, status: "failed", error: errMsg });
       if (attempt >= MAX_RETRIES2) {
         await updatePost(post.id, { status: "rejected", mcpPending: 0, retryCount: attempt });
         await notifyOwner({ title: "\u274C Falha ao publicar", content: `Post #${post.id} falhou ap\xF3s ${MAX_RETRIES2} tentativas: ${err.message}` });

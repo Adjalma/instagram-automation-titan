@@ -366,7 +366,9 @@ export async function runAutonomousAgent(): Promise<{
       (a: any) => a.id === post.accountId && a.platform === "instagram" && a.accessToken
     ) ?? allAccounts.find((a: any) => a.platform === "instagram" && a.accessToken);
 
-    const igToken = igAccount?.accessToken || ENV.igAccessToken;
+    // Com IG_ACCESS_TOKEN no Vercel: usa só env (Page token), ignora OAuth de Contas
+    const useEnvToken = Boolean(ENV.igAccessToken?.trim());
+    const igToken = useEnvToken ? ENV.igAccessToken.trim() : (igAccount?.accessToken || "");
     if (!igToken) {
       console.warn(`[Agent] Post ${post.id}: sem token Instagram — configure IG_ACCESS_TOKEN ou conecte em Contas`);
       await updatePost(post.id, { mcpPending: 0 });
@@ -374,9 +376,11 @@ export async function runAutonomousAgent(): Promise<{
       continue;
     }
 
-    const igUserId = igAccount?.linkedinUrn?.startsWith("ig:")
-      ? igAccount.linkedinUrn.replace("ig:", "")
-      : ENV.igUserId;
+    const igUserId = useEnvToken && ENV.igUserId
+      ? ENV.igUserId
+      : igAccount?.linkedinUrn?.startsWith("ig:")
+        ? igAccount.linkedinUrn.replace("ig:", "")
+        : ENV.igUserId;
 
     if (!igUserId) {
       console.warn(`[Agent] Post ${post.id}: IG_USER_ID não configurado`);
@@ -416,7 +420,9 @@ export async function runAutonomousAgent(): Promise<{
       await publishToOtherPlatforms(post.id, post.caption ?? "", imageUrl, allAccounts);
 
     } catch (err: any) {
-      await createPublicationLog({ postId: post.id, attempt, status: "failed", error: err.message });
+      const tokenHint = useEnvToken ? " (token: IG_ACCESS_TOKEN env)" : " (token: Contas OAuth)";
+      const errMsg = `${err.message}${tokenHint}`;
+      await createPublicationLog({ postId: post.id, attempt, status: "failed", error: errMsg });
 
       if (attempt >= MAX_RETRIES) {
         await updatePost(post.id, { status: "rejected", mcpPending: 0, retryCount: attempt });
