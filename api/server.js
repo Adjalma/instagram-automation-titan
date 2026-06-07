@@ -1061,9 +1061,11 @@ async function ensureStorageBucket() {
   if (!ENV.supabaseUrl || !ENV.supabaseServiceRoleKey) {
     throw new Error("SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY n\xE3o configurados");
   }
-  const listRes = await fetch(`${ENV.supabaseUrl}/storage/v1/bucket`, {
-    headers: supabaseHeaders()
-  });
+  const listRes = await fetchWithRetry(
+    `${ENV.supabaseUrl}/storage/v1/bucket`,
+    { headers: supabaseHeaders(), timeoutMs: 15e3 },
+    "Supabase list buckets"
+  );
   if (listRes.ok) {
     const buckets = await listRes.json();
     if (buckets.some((b) => b.id === STORAGE_BUCKET || b.name === STORAGE_BUCKET)) {
@@ -1071,16 +1073,21 @@ async function ensureStorageBucket() {
       return;
     }
   }
-  const createRes = await fetch(`${ENV.supabaseUrl}/storage/v1/bucket`, {
-    method: "POST",
-    headers: { ...supabaseHeaders("application/json"), "content-type": "application/json" },
-    body: JSON.stringify({
-      id: STORAGE_BUCKET,
-      name: STORAGE_BUCKET,
-      public: true,
-      file_size_limit: 10485760
-    })
-  });
+  const createRes = await fetchWithRetry(
+    `${ENV.supabaseUrl}/storage/v1/bucket`,
+    {
+      method: "POST",
+      headers: { ...supabaseHeaders("application/json"), "content-type": "application/json" },
+      body: JSON.stringify({
+        id: STORAGE_BUCKET,
+        name: STORAGE_BUCKET,
+        public: true,
+        file_size_limit: 10485760
+      }),
+      timeoutMs: 15e3
+    },
+    "Supabase create bucket"
+  );
   if (createRes.ok || createRes.status === 409) {
     bucketEnsured = true;
     console.log(`[Storage] Bucket "${STORAGE_BUCKET}" pronto`);
@@ -1110,7 +1117,6 @@ async function storagePut(relKey, data, contentType = "application/octet-stream"
   if (!ENV.supabaseUrl || !ENV.supabaseServiceRoleKey) {
     throw new Error("SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY n\xE3o configurados");
   }
-  await ensureStorageBucket();
   const key = appendHashSuffix(normalizeKey(relKey));
   const raw = typeof data === "string" ? Buffer.from(data) : Buffer.from(data);
   await uploadBytes(key, raw, contentType);
@@ -1125,25 +1131,45 @@ async function uploadDataUrlToStorage(dataUrl, relKeyPrefix = "generated") {
     throw new Error("Imagem muito grande (>8MB). Gere a imagem de novo com Gerar Imagem.");
   }
   const ext = mimeType.split("/")[1]?.replace("jpeg", "jpg") ?? "png";
-  const { url } = await storagePut(`${relKeyPrefix}/${Date.now()}.${ext}`, buffer, mimeType);
-  return url;
+  const { key } = await storagePut(`${relKeyPrefix}/${Date.now()}.${ext}`, buffer, mimeType);
+  const signedUrl = await storageGetSignedUrl(key);
+  return { signedUrl, displayUrl: publicStorageUrl(key) };
 }
-async function storageGetSignedUrl(relKey) {
+async function storageGetSignedUrl(relKey, expiresIn = 86400) {
   if (!ENV.supabaseUrl || !ENV.supabaseServiceRoleKey) {
     return publicStorageUrl(normalizeKey(relKey));
   }
   const key = normalizeKey(relKey);
   const signUrl = `${ENV.supabaseUrl}/storage/v1/object/sign/${STORAGE_BUCKET}/${key}`;
-  const res = await fetch(signUrl, {
-    method: "POST",
-    headers: { ...supabaseHeaders("application/json"), "content-type": "application/json" },
-    body: JSON.stringify({ expiresIn: 3600 })
-  });
+  const res = await fetchWithRetry(
+    signUrl,
+    {
+      method: "POST",
+      headers: { ...supabaseHeaders("application/json"), "content-type": "application/json" },
+      body: JSON.stringify({ expiresIn }),
+      timeoutMs: 3e4
+    },
+    "Supabase signed URL"
+  );
   if (!res.ok) {
-    return `${ENV.supabaseUrl}/storage/v1/object/public/${STORAGE_BUCKET}/${key}`;
+    return supabasePublicObjectUrl(key);
   }
   const { signedURL } = await res.json();
-  return `${ENV.supabaseUrl}${signedURL}`;
+  return `${ENV.supabaseUrl.replace(/\/$/, "")}${signedURL}`;
+}
+async function getInstagramAccessibleUrl(mediaUrl) {
+  const key = extractStorageKey(mediaUrl);
+  if (key) {
+    return storageGetSignedUrl(key);
+  }
+  if (mediaUrl.startsWith("/storage/") || mediaUrl.startsWith("/manus-storage/")) {
+    const k = mediaUrl.replace(/^\/(?:storage|manus-storage)\//, "");
+    return storageGetSignedUrl(k);
+  }
+  if (mediaUrl.startsWith("http://") || mediaUrl.startsWith("https://")) {
+    return mediaUrl;
+  }
+  throw new Error(`URL de imagem inv\xE1lida: ${mediaUrl.slice(0, 80)}`);
 }
 
 // server/_core/storageProxy.ts
@@ -2227,39 +2253,13 @@ async function resolveMediaUrlForInstagram(mediaUrl) {
   if (mediaUrl.startsWith("data:")) {
     throw new Error("Imagem em data URL \u2014 use Publicar Agora para converter automaticamente");
   }
-  const key = extractStorageKey(mediaUrl);
-  if (key) {
-    return supabasePublicObjectUrl(key);
-  }
-  if (mediaUrl.startsWith("/storage/") || mediaUrl.startsWith("/manus-storage/")) {
-    const k = mediaUrl.replace(/^\/(?:storage|manus-storage)\//, "");
-    return supabasePublicObjectUrl(k);
-  }
-  if (mediaUrl.startsWith("http://") || mediaUrl.startsWith("https://")) {
-    return mediaUrl;
-  }
-  if (mediaUrl.startsWith("/")) {
-    return `${ENV.appUrl.replace(/\/$/, "")}${mediaUrl}`;
-  }
-  return mediaUrl;
+  return getInstagramAccessibleUrl(mediaUrl);
 }
 var LI_API = "https://api.linkedin.com/v2";
 async function publishToInstagram(params) {
   const { igUserId, accessToken, caption, imageUrl } = params;
   if (!imageUrl) {
     throw new Error("Instagram requer pelo menos uma imagem");
-  }
-  try {
-    const probe = await fetchWithRetry(
-      imageUrl,
-      { method: "GET", headers: { Range: "bytes=0-4095" }, timeoutMs: 3e4 },
-      "verificar imagem para Instagram"
-    );
-    if (!probe.ok && probe.status !== 206) {
-      throw new Error(`Imagem inacess\xEDvel (HTTP ${probe.status}). Meta n\xE3o consegue baixar.`);
-    }
-  } catch (err) {
-    throw new Error(formatFetchError(err, "Imagem inacess\xEDvel para Meta"));
   }
   const containerBody = {
     caption,
@@ -2508,8 +2508,9 @@ async function runAutonomousAgent(options) {
     try {
       if (rawImageUrl?.startsWith("data:")) {
         console.log(`[Agent] Post ${post.id}: convertendo data URL \u2192 Supabase`);
-        imageUrl = await uploadDataUrlToStorage(rawImageUrl, "published");
-        await updateFirstPostMediaUrl(post.id, imageUrl);
+        const { signedUrl, displayUrl } = await uploadDataUrlToStorage(rawImageUrl, "published");
+        await updateFirstPostMediaUrl(post.id, displayUrl);
+        imageUrl = signedUrl;
       } else if (rawImageUrl) {
         imageUrl = await resolveMediaUrlForInstagram(rawImageUrl);
       }
@@ -2657,22 +2658,11 @@ init_db();
 async function resolveImageForInstagram(postId, rawUrl) {
   if (rawUrl.startsWith("data:")) {
     console.log(`[PublishNow] Post ${postId}: data URL \u2192 Supabase`);
-    const publicUrl = await uploadDataUrlToStorage(rawUrl, "published");
-    await updateFirstPostMediaUrl(postId, publicUrl);
-    return publicUrl;
+    const { signedUrl, displayUrl } = await uploadDataUrlToStorage(rawUrl, "published");
+    await updateFirstPostMediaUrl(postId, displayUrl);
+    return signedUrl;
   }
-  const key = extractStorageKey(rawUrl);
-  if (key) {
-    return supabasePublicObjectUrl(key);
-  }
-  if (rawUrl.startsWith("http://") || rawUrl.startsWith("https://")) {
-    return rawUrl;
-  }
-  if (rawUrl.startsWith("/storage/") || rawUrl.startsWith("/manus-storage/")) {
-    const k = rawUrl.replace(/^\/(?:storage|manus-storage)\//, "");
-    return supabasePublicObjectUrl(k);
-  }
-  throw new Error(`URL de imagem inv\xE1lida: ${rawUrl.slice(0, 80)}`);
+  return getInstagramAccessibleUrl(rawUrl);
 }
 async function publishPostNow(postId) {
   const post = await getPostById(postId);
@@ -2743,7 +2733,8 @@ async function publishPostNow(postId) {
       message: "Post publicado no Instagram com sucesso!"
     };
   } catch (err) {
-    const msg = formatFetchError(err, `Post ${postId}`);
+    const raw = err instanceof Error ? err.message : String(err);
+    const msg = /Instagram|Supabase|upload|imagem|token|data URL/i.test(raw) ? raw.startsWith(`Post ${postId}`) ? raw : `Post ${postId}: ${raw}` : formatFetchError(err, `Post ${postId}`);
     console.error(`[PublishNow] Falha post ${postId}:`, msg);
     await updatePost(postId, { mcpPending: 0, retryCount: attempt }).catch(() => {
     });

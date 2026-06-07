@@ -15,33 +15,18 @@ import {
 import { formatFetchError } from "./httpFetch";
 import {
   uploadDataUrlToStorage,
-  extractStorageKey,
-  supabasePublicObjectUrl,
+  getInstagramAccessibleUrl,
 } from "./storage";
 
 async function resolveImageForInstagram(postId: number, rawUrl: string): Promise<string> {
   if (rawUrl.startsWith("data:")) {
     console.log(`[PublishNow] Post ${postId}: data URL → Supabase`);
-    const publicUrl = await uploadDataUrlToStorage(rawUrl, "published");
-    await updateFirstPostMediaUrl(postId, publicUrl);
-    return publicUrl;
+    const { signedUrl, displayUrl } = await uploadDataUrlToStorage(rawUrl, "published");
+    await updateFirstPostMediaUrl(postId, displayUrl);
+    return signedUrl;
   }
 
-  const key = extractStorageKey(rawUrl);
-  if (key) {
-    return supabasePublicObjectUrl(key);
-  }
-
-  if (rawUrl.startsWith("http://") || rawUrl.startsWith("https://")) {
-    return rawUrl;
-  }
-
-  if (rawUrl.startsWith("/storage/") || rawUrl.startsWith("/manus-storage/")) {
-    const k = rawUrl.replace(/^\/(?:storage|manus-storage)\//, "");
-    return supabasePublicObjectUrl(k);
-  }
-
-  throw new Error(`URL de imagem inválida: ${rawUrl.slice(0, 80)}`);
+  return getInstagramAccessibleUrl(rawUrl);
 }
 
 export async function publishPostNow(postId: number): Promise<{
@@ -128,7 +113,11 @@ export async function publishPostNow(postId: number): Promise<{
       message: "Post publicado no Instagram com sucesso!",
     };
   } catch (err: unknown) {
-    const msg = formatFetchError(err, `Post ${postId}`);
+    const raw = err instanceof Error ? err.message : String(err);
+    const msg =
+      /Instagram|Supabase|upload|imagem|token|data URL/i.test(raw)
+        ? raw.startsWith(`Post ${postId}`) ? raw : `Post ${postId}: ${raw}`
+        : formatFetchError(err, `Post ${postId}`);
     console.error(`[PublishNow] Falha post ${postId}:`, msg);
 
     await updatePost(postId, { mcpPending: 0, retryCount: attempt }).catch(() => {});

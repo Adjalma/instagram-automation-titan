@@ -18,8 +18,8 @@ import {
 } from "./db";
 import { publishToLinkedIn } from "./linkedin";
 import { publishToFacebook } from "./facebook";
-import { uploadDataUrlToStorage, extractStorageKey, supabasePublicObjectUrl } from "./storage";
-import { fetchWithRetry, formatFetchError } from "./httpFetch";
+import { uploadDataUrlToStorage, getInstagramAccessibleUrl } from "./storage";
+import { fetchWithRetry } from "./httpFetch";
 
 const IG_GRAPH = "https://graph.facebook.com/v21.0";
 
@@ -28,25 +28,7 @@ async function resolveMediaUrlForInstagram(mediaUrl: string): Promise<string> {
   if (mediaUrl.startsWith("data:")) {
     throw new Error("Imagem em data URL — use Publicar Agora para converter automaticamente");
   }
-
-  const key = extractStorageKey(mediaUrl);
-  if (key) {
-    return supabasePublicObjectUrl(key);
-  }
-
-  if (mediaUrl.startsWith("/storage/") || mediaUrl.startsWith("/manus-storage/")) {
-    const k = mediaUrl.replace(/^\/(?:storage|manus-storage)\//, "");
-    return supabasePublicObjectUrl(k);
-  }
-
-  if (mediaUrl.startsWith("http://") || mediaUrl.startsWith("https://")) {
-    return mediaUrl;
-  }
-
-  if (mediaUrl.startsWith("/")) {
-    return `${ENV.appUrl.replace(/\/$/, "")}${mediaUrl}`;
-  }
-  return mediaUrl;
+  return getInstagramAccessibleUrl(mediaUrl);
 }
 const LI_API = "https://api.linkedin.com/v2";
 
@@ -62,20 +44,6 @@ export async function publishToInstagram(params: {
 
   if (!imageUrl) {
     throw new Error("Instagram requer pelo menos uma imagem");
-  }
-
-  // Meta baixa a imagem desta URL — verificar acessibilidade antes
-  try {
-    const probe = await fetchWithRetry(
-      imageUrl,
-      { method: "GET", headers: { Range: "bytes=0-4095" }, timeoutMs: 30_000 },
-      "verificar imagem para Instagram"
-    );
-    if (!probe.ok && probe.status !== 206) {
-      throw new Error(`Imagem inacessível (HTTP ${probe.status}). Meta não consegue baixar.`);
-    }
-  } catch (err: unknown) {
-    throw new Error(formatFetchError(err, "Imagem inacessível para Meta"));
   }
 
   const containerBody: Record<string, string> = {
@@ -408,8 +376,9 @@ export async function runAutonomousAgent(options?: {
     try {
       if (rawImageUrl?.startsWith("data:")) {
         console.log(`[Agent] Post ${post.id}: convertendo data URL → Supabase`);
-        imageUrl = await uploadDataUrlToStorage(rawImageUrl, "published");
-        await updateFirstPostMediaUrl(post.id, imageUrl);
+        const { signedUrl, displayUrl } = await uploadDataUrlToStorage(rawImageUrl, "published");
+        await updateFirstPostMediaUrl(post.id, displayUrl);
+        imageUrl = signedUrl;
       } else if (rawImageUrl) {
         imageUrl = await resolveMediaUrlForInstagram(rawImageUrl);
       }

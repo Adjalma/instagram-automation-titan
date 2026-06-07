@@ -57,9 +57,11 @@ export async function ensureStorageBucket(): Promise<void> {
     throw new Error("SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY não configurados");
   }
 
-  const listRes = await fetch(`${ENV.supabaseUrl}/storage/v1/bucket`, {
-    headers: supabaseHeaders(),
-  });
+  const listRes = await fetchWithRetry(
+    `${ENV.supabaseUrl}/storage/v1/bucket`,
+    { headers: supabaseHeaders(), timeoutMs: 15_000 },
+    "Supabase list buckets"
+  );
 
   if (listRes.ok) {
     const buckets = (await listRes.json()) as Array<{ id: string; name: string }>;
@@ -69,16 +71,21 @@ export async function ensureStorageBucket(): Promise<void> {
     }
   }
 
-  const createRes = await fetch(`${ENV.supabaseUrl}/storage/v1/bucket`, {
-    method: "POST",
-    headers: { ...supabaseHeaders("application/json"), "content-type": "application/json" },
-    body: JSON.stringify({
-      id: STORAGE_BUCKET,
-      name: STORAGE_BUCKET,
-      public: true,
-      file_size_limit: 10485760,
-    }),
-  });
+  const createRes = await fetchWithRetry(
+    `${ENV.supabaseUrl}/storage/v1/bucket`,
+    {
+      method: "POST",
+      headers: { ...supabaseHeaders("application/json"), "content-type": "application/json" },
+      body: JSON.stringify({
+        id: STORAGE_BUCKET,
+        name: STORAGE_BUCKET,
+        public: true,
+        file_size_limit: 10485760,
+      }),
+      timeoutMs: 15_000,
+    },
+    "Supabase create bucket"
+  );
 
   if (createRes.ok || createRes.status === 409) {
     bucketEnsured = true;
@@ -119,11 +126,10 @@ export async function storagePut(
     throw new Error("SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY não configurados");
   }
 
-  await ensureStorageBucket();
-
   const key = appendHashSuffix(normalizeKey(relKey));
   const raw = typeof data === "string" ? Buffer.from(data) : Buffer.from(data);
 
+  // Bucket já criado no cold start — upload direto evita timeout no list buckets
   await uploadBytes(key, raw, contentType);
 
   return { key, url: supabasePublicObjectUrl(key) };
@@ -132,7 +138,7 @@ export async function storagePut(
 export async function uploadDataUrlToStorage(
   dataUrl: string,
   relKeyPrefix = "generated"
-): Promise<string> {
+): Promise<{ signedUrl: string; displayUrl: string }> {
   const match = /^data:([^;]+);base64,(.+)$/s.exec(dataUrl);
   if (!match) throw new Error("data URL inválida");
   const mimeType = match[1];
@@ -141,8 +147,9 @@ export async function uploadDataUrlToStorage(
     throw new Error("Imagem muito grande (>8MB). Gere a imagem de novo com Gerar Imagem.");
   }
   const ext = mimeType.split("/")[1]?.replace("jpeg", "jpg") ?? "png";
-  const { url } = await storagePut(`${relKeyPrefix}/${Date.now()}.${ext}`, buffer, mimeType);
-  return url;
+  const { key } = await storagePut(`${relKeyPrefix}/${Date.now()}.${ext}`, buffer, mimeType);
+  const signedUrl = await storageGetSignedUrl(key);
+  return { signedUrl, displayUrl: publicStorageUrl(key) };
 }
 
 export async function storageGet(relKey: string): Promise<{ key: string; url: string }> {
@@ -150,7 +157,7 @@ export async function storageGet(relKey: string): Promise<{ key: string; url: st
   return { key, url: publicStorageUrl(key) };
 }
 
-export async function storageGetSignedUrl(relKey: string): Promise<string> {
+export async function storageGetSignedUrl(relKey: string, expiresIn = 86400): Promise<string> {
   if (!ENV.supabaseUrl || !ENV.supabaseServiceRoleKey) {
     return publicStorageUrl(normalizeKey(relKey));
   }
@@ -158,16 +165,37 @@ export async function storageGetSignedUrl(relKey: string): Promise<string> {
   const key = normalizeKey(relKey);
   const signUrl = `${ENV.supabaseUrl}/storage/v1/object/sign/${STORAGE_BUCKET}/${key}`;
 
-  const res = await fetch(signUrl, {
-    method: "POST",
-    headers: { ...supabaseHeaders("application/json"), "content-type": "application/json" },
-    body: JSON.stringify({ expiresIn: 3600 }),
-  });
+  const res = await fetchWithRetry(
+    signUrl,
+    {
+      method: "POST",
+      headers: { ...supabaseHeaders("application/json"), "content-type": "application/json" },
+      body: JSON.stringify({ expiresIn }),
+      timeoutMs: 30_000,
+    },
+    "Supabase signed URL"
+  );
 
   if (!res.ok) {
-    return `${ENV.supabaseUrl}/storage/v1/object/public/${STORAGE_BUCKET}/${key}`;
+    return supabasePublicObjectUrl(key);
   }
 
   const { signedURL } = (await res.json()) as { signedURL: string };
-  return `${ENV.supabaseUrl}${signedURL}`;
+  return `${ENV.supabaseUrl.replace(/\/$/, "")}${signedURL}`;
+}
+
+/** URL HTTPS que a Meta consegue baixar (signed > public > proxy app). */
+export async function getInstagramAccessibleUrl(mediaUrl: string): Promise<string> {
+  const key = extractStorageKey(mediaUrl);
+  if (key) {
+    return storageGetSignedUrl(key);
+  }
+  if (mediaUrl.startsWith("/storage/") || mediaUrl.startsWith("/manus-storage/")) {
+    const k = mediaUrl.replace(/^\/(?:storage|manus-storage)\//, "");
+    return storageGetSignedUrl(k);
+  }
+  if (mediaUrl.startsWith("http://") || mediaUrl.startsWith("https://")) {
+    return mediaUrl;
+  }
+  throw new Error(`URL de imagem inválida: ${mediaUrl.slice(0, 80)}`);
 }
