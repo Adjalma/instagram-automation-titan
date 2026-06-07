@@ -125,8 +125,8 @@ async function persistImage(b64Data: string, mimeType: string): Promise<string> 
     return url;
   } catch (storageErr: unknown) {
     const msg = storageErr instanceof Error ? storageErr.message : String(storageErr);
-    console.error("[Gemini] Storage falhou, usando data URL:", msg);
-    return `data:${mimeType};base64,${b64Data}`;
+    console.error("[Gemini] Storage falhou:", msg);
+    throw new Error(`Falha ao salvar imagem no Supabase: ${msg.slice(0, 150)}`);
   }
 }
 

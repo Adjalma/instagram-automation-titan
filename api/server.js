@@ -366,6 +366,7 @@ __export(db_exports, {
   getThemeBySlug: () => getThemeBySlug,
   getUserByEmail: () => getUserByEmail,
   getUserByOpenId: () => getUserByOpenId,
+  updateFirstPostMediaUrl: () => updateFirstPostMediaUrl,
   updatePost: () => updatePost,
   upsertUser: () => upsertUser
 });
@@ -555,6 +556,14 @@ async function getPostMedia(postId) {
   const db = await getDb();
   if (!db) return [];
   return db.select().from(postMedia).where(eq(postMedia.postId, postId)).orderBy(postMedia.sortOrder);
+}
+async function updateFirstPostMediaUrl(postId, mediaUrl) {
+  const db = await getDb();
+  if (!db) return;
+  const rows = await db.select({ id: postMedia.id }).from(postMedia).where(eq(postMedia.postId, postId)).orderBy(postMedia.sortOrder).limit(1);
+  if (rows[0]) {
+    await db.update(postMedia).set({ mediaUrl }).where(eq(postMedia.id, rows[0].id));
+  }
 }
 async function deletePostMedia(id) {
   const db = await getDb();
@@ -961,6 +970,15 @@ async function storagePut(relKey, data, contentType = "application/octet-stream"
   await uploadBytes(key, raw, contentType);
   return { key, url: publicStorageUrl(key) };
 }
+async function uploadDataUrlToStorage(dataUrl, relKeyPrefix = "generated") {
+  const match = /^data:([^;]+);base64,(.+)$/s.exec(dataUrl);
+  if (!match) throw new Error("data URL inv\xE1lida");
+  const mimeType = match[1];
+  const buffer = Buffer.from(match[2], "base64");
+  const ext = mimeType.split("/")[1]?.replace("jpeg", "jpg") ?? "png";
+  const { url } = await storagePut(`${relKeyPrefix}/${Date.now()}.${ext}`, buffer, mimeType);
+  return url;
+}
 async function storageGetSignedUrl(relKey) {
   if (!ENV.supabaseUrl || !ENV.supabaseServiceRoleKey) {
     return publicStorageUrl(normalizeKey(relKey));
@@ -1272,8 +1290,8 @@ async function persistImage(b64Data, mimeType) {
     return url;
   } catch (storageErr) {
     const msg = storageErr instanceof Error ? storageErr.message : String(storageErr);
-    console.error("[Gemini] Storage falhou, usando data URL:", msg);
-    return `data:${mimeType};base64,${b64Data}`;
+    console.error("[Gemini] Storage falhou:", msg);
+    throw new Error(`Falha ao salvar imagem no Supabase: ${msg.slice(0, 150)}`);
   }
 }
 async function generateImage(options) {
@@ -2031,7 +2049,8 @@ async function publishToFacebook(params) {
 var IG_GRAPH2 = "https://graph.facebook.com/v21.0";
 async function resolveMediaUrlForInstagram(mediaUrl) {
   if (mediaUrl.startsWith("data:")) {
-    throw new Error("Instagram n\xE3o aceita imagem em data: URL \u2014 gere ou envie a imagem de novo");
+    console.log("[Agent] Convertendo data URL \u2192 Supabase para publica\xE7\xE3o IG");
+    return await uploadDataUrlToStorage(mediaUrl, "published");
   }
   let storagePath = mediaUrl;
   const storageIdx = mediaUrl.search(/\/(storage|manus-storage)\//);
@@ -2282,7 +2301,10 @@ async function runAutonomousAgent() {
     await updatePost(post.id, { mcpPending: 1 });
     const media = await getPostMedia(post.id);
     const rawImageUrl = media?.[0]?.mediaUrl || void 0;
-    const imageUrl = rawImageUrl ? await resolveMediaUrlForInstagram(rawImageUrl) : void 0;
+    let imageUrl = rawImageUrl ? await resolveMediaUrlForInstagram(rawImageUrl) : void 0;
+    if (rawImageUrl?.startsWith("data:") && imageUrl && !imageUrl.startsWith("data:")) {
+      await updateFirstPostMediaUrl(post.id, imageUrl);
+    }
     const igAccount2 = allAccounts.find(
       (a) => a.id === post.accountId && a.platform === "instagram" && a.accessToken
     ) ?? allAccounts.find((a) => a.platform === "instagram" && a.accessToken);

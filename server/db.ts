@@ -253,6 +253,20 @@ export async function getPostMedia(postId: number) {
   return db.select().from(postMedia).where(eq(postMedia.postId, postId)).orderBy(postMedia.sortOrder);
 }
 
+export async function updateFirstPostMediaUrl(postId: number, mediaUrl: string) {
+  const db = await getDb();
+  if (!db) return;
+  const rows = await db
+    .select({ id: postMedia.id })
+    .from(postMedia)
+    .where(eq(postMedia.postId, postId))
+    .orderBy(postMedia.sortOrder)
+    .limit(1);
+  if (rows[0]) {
+    await db.update(postMedia).set({ mediaUrl }).where(eq(postMedia.id, rows[0].id));
+  }
+}
+
 export async function deletePostMedia(id: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");

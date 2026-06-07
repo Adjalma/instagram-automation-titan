@@ -107,6 +107,19 @@ export async function storagePut(
   return { key, url: publicStorageUrl(key) };
 }
 
+export async function uploadDataUrlToStorage(
+  dataUrl: string,
+  relKeyPrefix = "generated"
+): Promise<string> {
+  const match = /^data:([^;]+);base64,(.+)$/s.exec(dataUrl);
+  if (!match) throw new Error("data URL inválida");
+  const mimeType = match[1];
+  const buffer = Buffer.from(match[2], "base64");
+  const ext = mimeType.split("/")[1]?.replace("jpeg", "jpg") ?? "png";
+  const { url } = await storagePut(`${relKeyPrefix}/${Date.now()}.${ext}`, buffer, mimeType);
+  return url;
+}
+
 export async function storageGet(relKey: string): Promise<{ key: string; url: string }> {
   const key = normalizeKey(relKey);
   return { key, url: publicStorageUrl(key) };

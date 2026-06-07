@@ -13,19 +13,20 @@ import { ENV, resolveIgAccessTokenFromEnv } from "./_core/env";
 import { invokeLLM } from "./_core/llm";
 import { notifyOwner } from "./_core/notification";
 import {
-  getAllAccounts, getAllPosts, getPostsByStatus, getPostMedia,
+  getAllAccounts, getAllPosts, getPostsByStatus, getPostMedia, updateFirstPostMediaUrl,
   updatePost, createPublicationLog, getPublicationLogsByPost,
 } from "./db";
 import { publishToLinkedIn } from "./linkedin";
 import { publishToFacebook } from "./facebook";
-import { storageGetSignedUrl } from "./storage";
+import { storageGetSignedUrl, uploadDataUrlToStorage } from "./storage";
 
 const IG_GRAPH = "https://graph.facebook.com/v21.0";
 
 /** URL que os servidores da Meta conseguem baixar (HTTPS direto, sem redirect do app). */
 async function resolveMediaUrlForInstagram(mediaUrl: string): Promise<string> {
   if (mediaUrl.startsWith("data:")) {
-    throw new Error("Instagram não aceita imagem em data: URL — gere ou envie a imagem de novo");
+    console.log("[Agent] Convertendo data URL → Supabase para publicação IG");
+    return await uploadDataUrlToStorage(mediaUrl, "published");
   }
 
   let storagePath = mediaUrl;
@@ -374,7 +375,10 @@ export async function runAutonomousAgent(): Promise<{
 
     const media = await getPostMedia(post.id) as any[];
     const rawImageUrl = media?.[0]?.mediaUrl || undefined;
-    const imageUrl = rawImageUrl ? await resolveMediaUrlForInstagram(rawImageUrl) : undefined;
+    let imageUrl = rawImageUrl ? await resolveMediaUrlForInstagram(rawImageUrl) : undefined;
+    if (rawImageUrl?.startsWith("data:") && imageUrl && !imageUrl.startsWith("data:")) {
+      await updateFirstPostMediaUrl(post.id, imageUrl);
+    }
 
     // Encontra conta Instagram vinculada ao post (banco ou env var)
     const igAccount = allAccounts.find(
