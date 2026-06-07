@@ -1113,6 +1113,15 @@ var GEMINI_IMAGE_MODEL_FALLBACKS = [
 function buildTriarcImagePrompt(topic) {
   return `Premium Instagram visual for Triarc Solutions, a Brazilian tech company. Visual mood inspired by the concept: "${topic}". ${TRIARC_VISUAL_STYLE} ${IMAGE_NO_TEXT_RULES}`;
 }
+function formatGeminiHttpError(status, model, detail) {
+  if (status === 429) {
+    return "Cota da API Gemini esgotada. Gera\xE7\xE3o de imagem exige billing ativo no Google AI Studio (ai.google.dev) \u2014 o plano gratuito pode ter limite 0 para modelos de imagem. Ative faturamento ou aguarde ~1 min e tente de novo. Alternativa: cole uma URL de imagem manualmente.";
+  }
+  if (status === 403) {
+    return "GEMINI_API_KEY inv\xE1lida ou sem permiss\xE3o para gerar imagens. Verifique a chave em ai.google.dev.";
+  }
+  return `Gemini falhou (${status}) [${model}]: ${detail.slice(0, 300)}`;
+}
 function uniqueModels(primary) {
   const seen = /* @__PURE__ */ new Set();
   return [primary, ...GEMINI_IMAGE_MODEL_FALLBACKS].filter((m) => {
@@ -1167,7 +1176,7 @@ ${IMAGE_NO_TEXT_RULES}`;
     }
     if (!response.ok) {
       const detail = await response.text().catch(() => "");
-      throw new Error(`Gemini image generation failed (${response.status}) [${model}]: ${detail}`);
+      throw new Error(formatGeminiHttpError(response.status, model, detail));
     }
     const result = await response.json();
     const imagePart = result.candidates?.[0]?.content?.parts?.find((p) => p.inlineData);

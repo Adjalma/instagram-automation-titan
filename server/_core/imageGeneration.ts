@@ -26,6 +26,20 @@ export function buildTriarcImagePrompt(topic: string): string {
   return `Premium Instagram visual for Triarc Solutions, a Brazilian tech company. Visual mood inspired by the concept: "${topic}". ${TRIARC_VISUAL_STYLE} ${IMAGE_NO_TEXT_RULES}`;
 }
 
+function formatGeminiHttpError(status: number, model: string, detail: string): string {
+  if (status === 429) {
+    return (
+      "Cota da API Gemini esgotada. Geração de imagem exige billing ativo no Google AI Studio " +
+      "(ai.google.dev) — o plano gratuito pode ter limite 0 para modelos de imagem. " +
+      "Ative faturamento ou aguarde ~1 min e tente de novo. Alternativa: cole uma URL de imagem manualmente."
+    );
+  }
+  if (status === 403) {
+    return "GEMINI_API_KEY inválida ou sem permissão para gerar imagens. Verifique a chave em ai.google.dev.";
+  }
+  return `Gemini falhou (${status}) [${model}]: ${detail.slice(0, 300)}`;
+}
+
 function uniqueModels(primary: string): string[] {
   const seen = new Set<string>();
   return [primary, ...GEMINI_IMAGE_MODEL_FALLBACKS].filter((m) => {
@@ -93,7 +107,7 @@ export async function generateImage(
 
     if (!response.ok) {
       const detail = await response.text().catch(() => "");
-      throw new Error(`Gemini image generation failed (${response.status}) [${model}]: ${detail}`);
+      throw new Error(formatGeminiHttpError(response.status, model, detail));
     }
 
     const result = (await response.json()) as {
