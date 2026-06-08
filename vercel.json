@@ -1,0 +1,18 @@
+{
+  "version": 2,
+  "buildCommand": "pnpm build",
+  "outputDirectory": "dist/public",
+  "functions": {
+    "api/server.js": {
+      "maxDuration": 300
+    }
+  },
+  "routes": [
+    { "src": "/api/(.*)",           "dest": "/api/server" },
+    { "src": "/auth/(.*)",          "dest": "/api/server" },
+    { "src": "/storage/(.*)",       "dest": "/api/server" },
+    { "src": "/manus-storage/(.*)", "dest": "/api/server" },
+    { "handle": "filesystem" },
+    { "src": "/(.*)",               "dest": "/index.html" }
+  ]
+}

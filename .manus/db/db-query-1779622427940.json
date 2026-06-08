@@ -1,0 +1,50 @@
+{
+  "query": "SELECT id, platform, handle, displayName, accessToken IS NOT NULL as hasToken, LENGTH(accessToken) as tokenLen, tokenExpiresAt, linkedinUrn FROM instagram_accounts ORDER BY id;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3F5sJN7FajWtXbb.root --database 3LYkMyiPgdB2gzxf44Hk3M --execute SELECT id, platform, handle, displayName, accessToken IS NOT NULL as hasToken, LENGTH(accessToken) as tokenLen, tokenExpiresAt, linkedinUrn FROM instagram_accounts ORDER BY id;",
+  "rows": [
+    {
+      "id": "2",
+      "platform": "instagram",
+      "handle": "triarcsolutions",
+      "displayName": "Triarc Solutions",
+      "hasToken": "0",
+      "tokenLen": "NULL",
+      "tokenExpiresAt": "NULL",
+      "linkedinUrn": "NULL"
+    },
+    {
+      "id": "30001",
+      "platform": "facebook",
+      "handle": "Triarcsolutions",
+      "displayName": "Triarc Solutions",
+      "hasToken": "1",
+      "tokenLen": "322",
+      "tokenExpiresAt": "2026-07-22 15:59:14",
+      "linkedinUrn": "fb:personal"
+    },
+    {
+      "id": "30002",
+      "platform": "linkedin",
+      "handle": "triarcsolutions",
+      "displayName": "Triarc Solutions Brasil",
+      "hasToken": "1",
+      "tokenLen": "350",
+      "tokenExpiresAt": "2026-07-22 23:42:18",
+      "linkedinUrn": "urn:li:person:1XiBr9fBHQ"
+    },
+    {
+      "id": "60001",
+      "platform": "tiktok",
+      "handle": "triacsolutions",
+      "displayName": "Triarc Solutions",
+      "hasToken": "0",
+      "tokenLen": "NULL",
+      "tokenExpiresAt": "NULL",
+      "linkedinUrn": "NULL"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tplatform\thandle\tdisplayName\thasToken\ttokenLen\ttokenExpiresAt\tlinkedinUrn\n2\tinstagram\ttriarcsolutions\tTriarc Solutions\t0\tNULL\tNULL\tNULL\n30001\tfacebook\tTriarcsolutions\tTriarc Solutions\t1\t322\t2026-07-22 15:59:14\tfb:personal\n30002\tlinkedin\ttriarcsolutions\tTriarc Solutions Brasil\t1\t350\t2026-07-22 23:42:18\turn:li:person:1XiBr9fBHQ\n60001\ttiktok\ttriacsolutions\tTriarc Solutions\t0\tNULL\tNULL\tNULL\n",
+  "stderr": "",
+  "execution_time_ms": 264
+}

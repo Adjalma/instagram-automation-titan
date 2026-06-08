@@ -1,1 +1,0 @@
-ALTER TABLE `research_topics` ADD `publishHour` int DEFAULT 8 NOT NULL;

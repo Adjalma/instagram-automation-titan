@@ -2,9 +2,17 @@
  * Rotas para tarefas agendadas — chamadas pelo agente Manus via HTTP.
  *
  * Fluxo correto:
- * 1. GET /pending-posts → retorna posts aprovados, marca mcpPending=1 para evitar duplicatas
- * 2. POST /publish-result → agente reporta sucesso/falha do Instagram
- *    → em caso de SUCESSO: publica automaticamente no LinkedIn e Facebook
+ * 1. GET /pending-posts
+ *    → Publica imediatamente no LinkedIn e Facebook via servidor (direto)
+ *    → Retorna os posts para o AGENT cron publicar no Instagram via MCP
+ *    → Marca mcpPending=1 para evitar duplicatas no Instagram
+ *
+ * 2. POST /publish-result
+ *    → AGENT reporta resultado da publicação no Instagram
+ *    → Atualiza status do post no banco
+ *
+ * LinkedIn e Facebook NÃO dependem do resultado do Instagram.
+ * Os 3 canais publicam o mesmo conteúdo de forma independente.
  */
 import type { Express, Request, Response } from "express";
 import { sdk } from "./_core/sdk";
@@ -30,67 +38,169 @@ async function getUser(req: Request) {
   try { return await sdk.authenticateRequest(req); } catch { return null; }
 }
 
-/** Publica em LinkedIn e Facebook após sucesso no Instagram */
-async function publishToOtherPlatforms(postId: number, caption: string, imageUrl?: string) {
+/**
+ * Resolve a URL pública de uma mídia (signed URL do S3 se necessário).
+ */
+async function resolveMediaUrl(mediaUrl: string): Promise<string> {
+  if (mediaUrl.startsWith("/manus-storage/")) {
+    return storageGetSignedUrl(mediaUrl.replace("/manus-storage/", ""));
+  }
+  return mediaUrl;
+}
+
+/**
+ * Publica um post no LinkedIn e no Facebook imediatamente.
+ * Chamado no momento em que o post entra na fila (pending-posts),
+ * de forma independente do Instagram.
+ * Verifica flags linkedinPublished / facebookPublished para evitar duplicatas.
+ */
+async function publishToSocialPlatforms(postId: number, caption: string, imageUrl?: string) {
+  const post = await getPostById(postId) as any;
   const allAccounts = await getAllAccounts() as any[];
 
-  // LinkedIn
-  const linkedinAccounts = allAccounts.filter(
-    (a: any) => a.platform === "linkedin" && a.accessToken && a.linkedinUrn
-  );
-  for (const liAccount of linkedinAccounts) {
-    try {
-      const result = await publishToLinkedIn({
-        accessToken: liAccount.accessToken,
-        linkedinUrn: liAccount.linkedinUrn,
-        caption,
-        imageUrl,
-      });
-      await updatePost(postId, { linkedinPublished: 1 });
-      console.log(`[LinkedIn] Post ${postId} publicado: ${result.postId}`);
-      await notifyOwner({
-        title: "✅ Post publicado no LinkedIn",
-        content: `Post #${postId} publicado!\nLink: ${result.permalink}`,
-      });
-    } catch (err: any) {
-      console.error(`[LinkedIn] Falha post ${postId}:`, err.message);
+  // ── LinkedIn ──────────────────────────────────────────────────
+  if (!post?.linkedinPublished) {
+    const linkedinAccounts = allAccounts.filter(
+      (a: any) => a.platform === "linkedin" && a.accessToken && a.linkedinUrn
+    );
+    for (const liAccount of linkedinAccounts) {
+      try {
+        const result = await publishToLinkedIn({
+          accessToken: liAccount.accessToken,
+          linkedinUrn: liAccount.linkedinUrn,
+          caption,
+          imageUrl,
+        });
+        await updatePost(postId, { linkedinPublished: 1 });
+        console.log(`[LinkedIn] Post ${postId} publicado: ${result.postId}`);
+        await notifyOwner({
+          title: "✅ Post publicado no LinkedIn",
+          content: `Post #${postId} publicado!\nLink: ${result.permalink}`,
+        });
+      } catch (err: any) {
+        console.error(`[LinkedIn] Falha post ${postId}:`, err.message);
+      }
     }
+  } else {
+    console.log(`[LinkedIn] Post ${postId} já publicado — ignorando.`);
   }
 
-  // Facebook
-  const facebookAccounts = allAccounts.filter(
-    (a: any) => a.platform === "facebook" && a.accessToken && (a.linkedinUrn?.startsWith("fb:page:") || a.linkedinUrn === "fb:personal")
-  );
-  for (const fbAccount of facebookAccounts) {
-    // fb:page:{id} → publica na Page; fb:personal → publica no feed pessoal (usa "me")
-    const pageId = fbAccount.linkedinUrn.startsWith("fb:page:")
-      ? fbAccount.linkedinUrn.replace("fb:page:", "")
-      : "me";
-    try {
-      const result = await publishToFacebook({
-        pageToken: fbAccount.accessToken,
-        pageId,
-        caption,
-        imageUrl,
-      });
-      await updatePost(postId, { facebookPublished: 1 });
-      console.log(`[Facebook] Post ${postId} publicado: ${result.postId}`);
-      await notifyOwner({
-        title: "✅ Post publicado no Facebook",
-        content: `Post #${postId} publicado!\nLink: ${result.permalink}`,
-      });
-    } catch (err: any) {
-      console.error(`[Facebook] Falha post ${postId}:`, err.message);
+  // ── Facebook ──────────────────────────────────────────────────
+  if (!post?.facebookPublished) {
+    const facebookAccounts = allAccounts.filter(
+      (a: any) => a.platform === "facebook" && a.accessToken &&
+        (a.linkedinUrn?.startsWith("fb:page:") || a.linkedinUrn === "fb:personal")
+    );
+    for (const fbAccount of facebookAccounts) {
+      const pageId = fbAccount.linkedinUrn.startsWith("fb:page:")
+        ? fbAccount.linkedinUrn.replace("fb:page:", "")
+        : "me";
+      try {
+        const result = await publishToFacebook({
+          pageToken: fbAccount.accessToken,
+          pageId,
+          caption,
+          imageUrl,
+        });
+        await updatePost(postId, { facebookPublished: 1 });
+        console.log(`[Facebook] Post ${postId} publicado: ${result.postId}`);
+        await notifyOwner({
+          title: "✅ Post publicado no Facebook",
+          content: `Post #${postId} publicado!\nLink: ${result.permalink}`,
+        });
+      } catch (err: any) {
+        console.error(`[Facebook] Falha post ${postId}:`, err.message);
+      }
     }
+  } else {
+    console.log(`[Facebook] Post ${postId} já publicado — ignorando.`);
   }
 }
 
 export function registerScheduledRoutes(app: Express) {
+
+  /**
+   * GET /api/scheduled/pending-posts
+   *
+   * 1. Filtra posts aprovados de contas INSTAGRAM (platform='instagram')
+   * 2. Publica imediatamente no LinkedIn e Facebook (servidor direto, sem depender do MCP)
+   * 3. Retorna os posts para o AGENT cron publicar no Instagram via MCP
+   * 4. Marca mcpPending=1 para evitar dupla entrega ao Instagram
+   */
+  app.get("/api/scheduled/pending-posts", async (req: Request, res: Response) => {
+    try {
+      const user = await getUser(req);
+      if (!user) return res.status(401).json({ error: "Unauthorized" });
+
+      // Contas Instagram (inclui contas antigas sem campo platform)
+      const allAccounts = await getAllAccounts() as any[];
+      const instagramAccountIds = new Set(
+        allAccounts
+          .filter((a: any) => a.platform === "instagram" || !a.platform)
+          .map((a: any) => a.id)
+      );
+
+      const approved = await getPostsByStatus("approved");
+      const now = new Date();
+
+      // Somente posts de contas Instagram, prontos para publicar
+      const pendingPosts = (approved as any[]).filter((p) => {
+        if (!instagramAccountIds.has(p.accountId)) return false;
+        if (p.mcpPending) return false;
+        if ((p.retryCount ?? 0) >= MAX_RETRIES) return false;
+        if (p.nextRetryAt && new Date(p.nextRetryAt) > now) return false;
+        return true;
+      });
+
+      console.log(`[ScheduledRoutes] pending-posts: ${approved.length} aprovados, ${pendingPosts.length} prontos para Instagram`);
+
+      if (pendingPosts.length === 0) {
+        return res.json({ posts: [] });
+      }
+
+      // Marcar mcpPending=1 ANTES de retornar (evita duplicata no Instagram)
+      await Promise.all(pendingPosts.map((p: any) => updatePost(p.id, { mcpPending: 1 })));
+
+      // Resolver mídias e preparar payload para o AGENT cron
+      const postsWithMedia = await Promise.all(
+        pendingPosts.map(async (post: any) => {
+          const media = await getPostMedia(post.id);
+          const mediaWithUrls = await Promise.all(
+            (media as any[]).map(async (m) => ({
+              ...m,
+              publicUrl: await resolveMediaUrl(m.mediaUrl),
+            }))
+          );
+          return { ...post, media: mediaWithUrls };
+        })
+      );
+
+      // Publicar no LinkedIn e Facebook AGORA (independente do Instagram)
+      // Executa em paralelo para todos os posts, sem bloquear a resposta ao AGENT
+      Promise.all(
+        postsWithMedia.map(async (post) => {
+          const imageUrl = post.media?.[0]?.publicUrl;
+          try {
+            await publishToSocialPlatforms(post.id, post.caption || "", imageUrl);
+          } catch (e: any) {
+            console.error(`[ScheduledRoutes] Erro ao publicar post ${post.id} em LinkedIn/Facebook:`, e.message);
+          }
+        })
+      ).catch((e) => console.error("[ScheduledRoutes] Erro geral LinkedIn/Facebook:", e.message));
+
+      console.log(`[ScheduledRoutes] Retornando ${postsWithMedia.length} post(s) para o AGENT publicar no Instagram`);
+      return res.json({ posts: postsWithMedia });
+    } catch (err: any) {
+      console.error("[ScheduledRoutes] Erro ao buscar posts pendentes:", err.message);
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
   /**
    * POST /api/scheduled/publish-result
-   * Recebe o resultado de uma publicação feita pelo agente Manus via MCP.
+   * Recebe o resultado da publicação no Instagram feita pelo AGENT cron via MCP.
    * Body: { postId, instagramPostId, permalink, success, error? }
-   * Em caso de sucesso: publica automaticamente no LinkedIn e Facebook.
+   * Apenas atualiza o status do post — LinkedIn/Facebook já foram publicados no pending-posts.
    */
   app.post("/api/scheduled/publish-result", async (req: Request, res: Response) => {
     try {
@@ -104,7 +214,7 @@ export function registerScheduledRoutes(app: Express) {
       const previousLogs = await getPublicationLogsByPost(postIdNum);
       const attempt = previousLogs.length + 1;
 
-      console.log(`[ScheduledRoutes] publish-result recebido: postId=${postIdNum} success=${success} instagramPostId=${instagramPostId}`);
+      console.log(`[ScheduledRoutes] publish-result: postId=${postIdNum} success=${success} instagramPostId=${instagramPostId}`);
 
       if (success && instagramPostId) {
         await updatePost(postIdNum, {
@@ -126,33 +236,12 @@ export function registerScheduledRoutes(app: Express) {
 
         await notifyOwner({
           title: "✅ Post publicado no Instagram",
-          content: `Post #${postIdNum} publicado com sucesso!\nInstagram ID: ${instagramPostId}\nLink: ${permalink || "N/A"}`,
+          content: `Post #${postIdNum} publicado!\nInstagram ID: ${instagramPostId}\nLink: ${permalink || "N/A"}`,
         });
 
         console.log(`[ScheduledRoutes] Post ${postIdNum} publicado no Instagram: ${instagramPostId}`);
-
-        // Buscar dados do post para publicar nas outras plataformas
-        try {
-          const post = await getPostById(postIdNum);
-          if (post) {
-            const media = await getPostMedia(postIdNum) as any[];
-            let imageUrl: string | undefined;
-            if (media?.[0]?.mediaUrl) {
-              const url = media[0].mediaUrl;
-              imageUrl = url.startsWith("/manus-storage/")
-                ? await storageGetSignedUrl(url.replace("/manus-storage/", ""))
-                : url;
-            }
-            // Publicar no LinkedIn e Facebook (não bloqueia a resposta)
-            publishToOtherPlatforms(postIdNum, (post as any).caption || "", imageUrl).catch((e) =>
-              console.error("[ScheduledRoutes] Erro ao publicar em outras plataformas:", e.message)
-            );
-          }
-        } catch (e: any) {
-          console.error("[ScheduledRoutes] Erro ao buscar post para outras plataformas:", e.message);
-        }
-
         return res.json({ ok: true });
+
       } else {
         await createPublicationLog({
           postId: postIdNum,
@@ -165,15 +254,15 @@ export function registerScheduledRoutes(app: Express) {
         if (newRetryCount < MAX_RETRIES) {
           const nextRetryAt = new Date(Date.now() + 5 * 60 * 1000);
           await updatePost(postIdNum, { mcpPending: 0, retryCount: newRetryCount, nextRetryAt });
-          console.warn(`[ScheduledRoutes] Post ${postIdNum} falhou (tentativa ${newRetryCount}/${MAX_RETRIES}), próxima em ${nextRetryAt.toISOString()}: ${error}`);
+          console.warn(`[ScheduledRoutes] Post ${postIdNum} falhou (${newRetryCount}/${MAX_RETRIES}), próxima tentativa em ${nextRetryAt.toISOString()}`);
           return res.json({ ok: false, error, willRetry: true, attempt: newRetryCount, nextRetryAt });
         } else {
           await updatePost(postIdNum, { mcpPending: 0, retryCount: newRetryCount, status: "rejected" });
           await notifyOwner({
             title: "❌ Falha ao publicar post no Instagram",
-            content: `Post #${postIdNum} falhou após ${MAX_RETRIES} tentativas.\nÚltimo erro: ${error || "Desconhecido"}`,
+            content: `Post #${postIdNum} falhou após ${MAX_RETRIES} tentativas.\nErro: ${error || "Desconhecido"}`,
           });
-          console.error(`[ScheduledRoutes] Post ${postIdNum} rejeitado após ${MAX_RETRIES} tentativas: ${error}`);
+          console.error(`[ScheduledRoutes] Post ${postIdNum} rejeitado após ${MAX_RETRIES} tentativas`);
           return res.json({ ok: false, error, willRetry: false, maxRetriesReached: true });
         }
       }
@@ -184,63 +273,8 @@ export function registerScheduledRoutes(app: Express) {
   });
 
   /**
-   * GET /api/scheduled/pending-posts
-   * Retorna posts aprovados com mcpPending=0 prontos para publicação no Instagram via MCP.
-   * Marca mcpPending=1 imediatamente para evitar publicação duplicada.
-   * Não publica em LinkedIn/Facebook aqui — isso acontece em publish-result após sucesso.
-   */
-  app.get("/api/scheduled/pending-posts", async (req: Request, res: Response) => {
-    try {
-      const user = await getUser(req);
-      if (!user) return res.status(401).json({ error: "Unauthorized" });
-
-      const approved = await getPostsByStatus("approved");
-      const now = new Date();
-      const pendingPosts = (approved as any[]).filter((p) => {
-        if (p.mcpPending) return false;
-        if ((p.retryCount ?? 0) >= MAX_RETRIES) return false;
-        if (p.nextRetryAt && new Date(p.nextRetryAt) > now) return false;
-        return true;
-      });
-
-      console.log(`[ScheduledRoutes] pending-posts: ${approved.length} aprovados, ${pendingPosts.length} prontos para publicar`);
-
-      if (pendingPosts.length === 0) {
-        return res.json({ posts: [] });
-      }
-
-      // Marcar mcpPending=1 ANTES de retornar para evitar duplicatas
-      await Promise.all(pendingPosts.map((p: any) => updatePost(p.id, { mcpPending: 1 })));
-
-      const postsWithMedia = await Promise.all(
-        pendingPosts.map(async (post: any) => {
-          const media = await getPostMedia(post.id);
-          const mediaWithUrls = await Promise.all(
-            (media as any[]).map(async (m) => {
-              let mediaUrl: string = m.mediaUrl;
-              if (mediaUrl.startsWith("/manus-storage/")) {
-                const key = mediaUrl.replace("/manus-storage/", "");
-                mediaUrl = await storageGetSignedUrl(key);
-              }
-              return { ...m, publicUrl: mediaUrl };
-            })
-          );
-          return { ...post, media: mediaWithUrls };
-        })
-      );
-
-      console.log(`[ScheduledRoutes] Retornando ${postsWithMedia.length} post(s) para publicação`);
-      return res.json({ posts: postsWithMedia });
-    } catch (err: any) {
-      console.error("[ScheduledRoutes] Erro ao buscar posts pendentes:", err.message);
-      return res.status(500).json({ error: err.message });
-    }
-  });
-
-  /**
    * GET /api/scheduled/insights/:instagramPostId
-   * Endpoint interno: retorna likes/comments do banco para um post do Instagram.
-   * Chamado pelo router analytics.syncAllInsights.
+   * Endpoint interno: retorna likes/comments para um post do Instagram.
    */
   app.get("/api/scheduled/insights/:instagramPostId", async (req: Request, res: Response) => {
     const internalKey = req.headers['x-internal-key'];

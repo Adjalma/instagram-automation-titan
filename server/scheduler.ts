@@ -10,8 +10,10 @@ import { getPostsByStatus, updatePost, getDb } from "./db";
 import { researchTopics, researchRuns, posts, postMedia } from "../drizzle/schema";
 import { eq } from "drizzle-orm";
 import { invokeLLM } from "./_core/llm";
-import { generateImage } from "./_core/imageGeneration";
+import { generateImage, buildTriarcImagePrompt } from "./_core/imageGeneration";
 import { ENV } from "./_core/env";
+import { TRIARC_LOGO_URL } from "@shared/const";
+import { runAutonomousAgent } from "./autonomousAgent";
 
 const INTERVAL_MS = parseInt(process.env.SCHEDULER_INTERVAL_MS || "300000", 10);
 const TZ_OFFSET = -3; // America/Sao_Paulo (UTC-3)
@@ -91,24 +93,23 @@ async function runTopicResearch(topic: { id: number; name: string; query: string
       ? llmRes.choices[0].message.content
       : `Novidades em ${topic.name}! Acompanhe as tendências com a Triarc Solutions. triarcsolutions.com.br`;
 
-    const prompt = `Premium Instagram post for Triarc Solutions tech company. Topic: "${topic.name}". Headline: "${articles[0].title}". Ultra-modern tech aesthetic, deep navy blue (#0A1628) background with electric cyan (#00BFFF) and neon purple (#7B2FBE) accents. Futuristic data visualization, glowing circuit patterns, holographic overlays. Bold typography with topic name. Place the Triarc Solutions logo (circular tech emblem with gears and code symbols, navy blue, gray and green) prominently in the bottom-right corner. 1080x1080 square, magazine quality.`;
     const { url: imageUrl } = await generateImage({
-      prompt,
-      originalImages: [{ url: "https://tsm.triarcsolutions.com.br/manus-storage/triarc-logo_4d0b8405.jpeg", mimeType: "image/jpeg" }],
+      prompt: buildTriarcImagePrompt(topic.name),
+      originalImages: [{ url: TRIARC_LOGO_URL, mimeType: "image/jpeg" }],
     });
     if (!imageUrl) throw new Error("Falha ao gerar imagem");
 
-    // autoPublish=1 → vai direto para fila do MCP sem aprovacao manual
+    // autoPublish=1 → vai direto para fila do agente sem aprovacao manual
     const postStatus = topic.autoPublish === 1 ? 'approved' : 'pending';
     const [postResult] = await db.insert(posts).values({
       userId: 1,
       accountId: topic.accountId,
       caption,
       theme: `Pesquisa Diária: ${topic.name}`,
-      status: postStatus,
+      status: postStatus as any,
       mcpPending: 0,
-    });
-    const postId = (postResult as any).insertId as number;
+    }).returning({ id: posts.id });
+    const postId = postResult.id;
 
     await db.insert(postMedia).values({ postId, mediaUrl: imageUrl as string, mediaType: "image", sortOrder: 0 });
     await db.insert(researchRuns).values({
@@ -142,7 +143,8 @@ async function checkAndRunTopicsForHour(date: string, hour: number) {
 }
 
 // ─── Loop principal ───────────────────────────────────────────────────────────
-async function tick() {
+/** Tick único: agendados, pesquisa diária e agente autônomo (dev + cron Vercel). */
+export async function runSchedulerTick(): Promise<void> {
   await promoteScheduledPosts();
 
   const { date, hour } = getBrasiliaDateHour();
@@ -153,6 +155,16 @@ async function tick() {
   });
 
   await checkAndRunTopicsForHour(date, hour);
+
+  await runAutonomousAgent();
+}
+
+async function tick() {
+  try {
+    await runSchedulerTick();
+  } catch (err: any) {
+    console.error("[Scheduler] Tick erro:", err?.message);
+  }
 }
 
 export function startScheduler() {

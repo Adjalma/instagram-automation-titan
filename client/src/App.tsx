@@ -19,35 +19,40 @@ import Research from "@/pages/Research";
 import Accounts from "@/pages/Accounts";
 import MarketIntel from "@/pages/MarketIntel";
 import ActionPlan from "@/pages/ActionPlan";
-import Privacy from "@/pages/Privacy";
+import Login from "./pages/Login";
+import Privacy from "./pages/Privacy";
+
+function DashboardRoutes() {
+  return (
+    <Switch>
+      <Route path="/" component={Home} />
+      <Route path="/create" component={CreatePost} />
+      <Route path="/approval" component={Approval} />
+      <Route path="/calendar" component={CalendarView} />
+      <Route path="/themes" component={Themes} />
+      <Route path="/history" component={HistoryView} />
+      <Route path="/automation" component={Automation} />
+      <Route path="/assets" component={Assets} />
+      <Route path="/logs" component={PublicationLogs} />
+      <Route path="/analytics" component={Analytics} />
+      <Route path="/research" component={Research} />
+      <Route path="/accounts" component={Accounts} />
+      <Route path="/market-intel" component={MarketIntel} />
+      <Route path="/action-plan" component={ActionPlan} />
+      <Route path="/404" component={NotFound} />
+      <Route component={NotFound} />
+    </Switch>
+  );
+}
 
 function Router() {
   return (
     <Switch>
-      {/* Páginas públicas — sem DashboardLayout */}
+      <Route path="/login" component={Login} />
       <Route path="/privacidade" component={Privacy} />
-
-      {/* Todas as demais rotas dentro do DashboardLayout */}
       <Route>
         <DashboardLayout>
-          <Switch>
-            <Route path={"/"} component={Home} />
-            <Route path={"/create"} component={CreatePost} />
-            <Route path={"/approval"} component={Approval} />
-            <Route path={"/calendar"} component={CalendarView} />
-            <Route path={"/themes"} component={Themes} />
-            <Route path={"/history"} component={HistoryView} />
-            <Route path={"/automation"} component={Automation} />
-            <Route path={"/assets"} component={Assets} />
-            <Route path={"/logs"} component={PublicationLogs} />
-            <Route path={"/analytics"} component={Analytics} />
-            <Route path={"/research"} component={Research} />
-            <Route path={"/accounts"} component={Accounts} />
-            <Route path={"/market-intel"} component={MarketIntel} />
-            <Route path={"/action-plan"} component={ActionPlan} />
-            <Route path={"/404"} component={NotFound} />
-            <Route component={NotFound} />
-          </Switch>
+          <DashboardRoutes />
         </DashboardLayout>
       </Route>
     </Switch>

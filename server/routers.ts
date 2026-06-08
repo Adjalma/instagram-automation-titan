@@ -1,7 +1,9 @@
-import { COOKIE_NAME } from "@shared/const";
+import { COOKIE_NAME, TRIARC_LOGO_URL } from "@shared/const";
+import { filterTriacForSocial, parseSocialExcludeEnv, TRIARC_SOCIAL_APP_CONTEXT } from "@shared/triarcSocial";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
+import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { instagramAccounts } from "../drizzle/schema";
@@ -14,18 +16,28 @@ import {
   getPublicationLogs, getPublicationLogsByPost, createPublicationLog,
 } from "./db";
 import { invokeLLM } from "./_core/llm";
-import { generateImage } from "./_core/imageGeneration";
+import { generateImage, buildTriarcImagePrompt } from "./_core/imageGeneration";
+import { createImageJob, getImageJob, kickImageJob, dispatchImageJobProcessing } from "./imageJobs";
 import { notifyOwner } from "./_core/notification";
 import { storagePut } from "./storage";
 import { processScheduledPosts, fetchPostInsights } from "./instagram";
+import { runAutonomousAgent } from "./autonomousAgent";
+import { publishPostNow } from "./publishPostNow";
+import { resolveIgAccessTokenFromEnv } from "./_core/env";
 import { researchRouter } from "./routers/research";
 import { seedTriarcContent, TRIARC_SERVICES, TRIARC_PROJECTS } from "./seed-triarc";
 import { triacContent, TriacContent } from "../drizzle/schema";
 import { getDb } from "./db";
 
-const APP_CONTEXT = `A Triarc Solutions é uma empresa de tecnologia e inovação com sede em Macaé/RJ. Site oficial: triarcsolutions.com.br. Pilares: Gestão, Treinamento e Tecnologia. Serviços: desenvolvimento de software sob encomenda, IA e automação, gestão empresarial, suporte técnico em TI, automação industrial, treinamento profissional, licenciamento de software e data science. Projetos em destaque: TopFlow.ai (SEO com IA), COPE (plataforma de conexão de profissionais), SS-Milhas (gestão de milhas), TransCarga (logística inteligente), TRIARC CRM, NutriSystem, Grupo Conecta e mais de 36 projetos entregues. O Triarc Social Manager é a plataforma interna de automação de conteúdo para Instagram da Triarc Solutions.`;
+const APP_CONTEXT = TRIARC_SOCIAL_APP_CONTEXT;
 
 const TRIARC_TONE = `Use um tom corporativo profissional, moderno e acessível. Posicione a Triarc Solutions como referência em tecnologia e inovação. Destaque expertise técnica, resultados concretos e valor para o cliente. Sempre inclua CTA direcionando para triarcsolutions.com.br. Use hashtags do nicho tech/inovação/negócios.`;
+
+const CAPTION_PT_RULES = `REGRAS DE PORTUGUÊS (obrigatório):
+- Português brasileiro correto, com acentuação perfeita (ção, ã, ões, etc.)
+- Zero erros de ortografia ou digitação
+- Frases completas e gramaticalmente corretas
+- Não invente palavras nem use anglicismos desnecessários`;
 
 export const appRouter = router({
   system: systemRouter,
@@ -59,8 +71,8 @@ export const appRouter = router({
       profileUrl: z.string().optional(),
     })).mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) throw new Error("DB unavailable");
-      const [result] = await db.insert(instagramAccounts).values({
+      if (!db) throw new Error("Banco de dados indisponível. Verifique se DATABASE_URL está configurada nas variáveis de ambiente do Vercel.");
+      const result = await db.insert(instagramAccounts).values({
         handle: input.handle,
         displayName: input.displayName,
         platform: input.platform,
@@ -68,12 +80,12 @@ export const appRouter = router({
         tone: input.tone,
         bio: input.bio ?? null,
         profileUrl: input.profileUrl ?? null,
-      });
-      return { id: (result as any).insertId };
+      }).returning({ id: instagramAccounts.id });
+      return { id: result[0].id };
     }),
     delete: protectedProcedure.input(z.object({ id: z.number() })).mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) throw new Error("DB unavailable");
+      if (!db) throw new Error("Banco de dados indisponível. Verifique se DATABASE_URL está configurada nas variáveis de ambiente do Vercel.");
       await db.delete(instagramAccounts).where(eq(instagramAccounts.id, input.id));
       return { success: true };
     }),
@@ -86,19 +98,29 @@ export const appRouter = router({
       theme: z.string().optional(),
       scheduledAt: z.string().optional(),
       mediaUrls: z.array(z.string()).optional(),
+      mediaUrl: z.string().optional(),
     })).mutation(async ({ ctx, input }) => {
+      const scheduledDate = input.scheduledAt ? new Date(input.scheduledAt) : undefined;
+      const isFutureSchedule = scheduledDate && scheduledDate > new Date();
       const { id } = await createPost({
         userId: ctx.user.id,
         accountId: input.accountId,
         caption: input.caption,
         theme: input.theme,
-        scheduledAt: input.scheduledAt ? new Date(input.scheduledAt) : undefined,
-        status: "draft",
+        scheduledAt: scheduledDate,
+        status: isFutureSchedule ? "scheduled" : "pending",
+        mcpPending: 0,
       });
-      if (input.mediaUrls) {
-        for (let i = 0; i < input.mediaUrls.length; i++) {
-          await addPostMedia(id, input.mediaUrls[i], "image", i);
-        }
+      const urls = input.mediaUrls ?? (input.mediaUrl ? [input.mediaUrl] : []);
+      for (let i = 0; i < urls.length; i++) {
+        await addPostMedia(id, urls[i], "image", i);
+      }
+      if (!isFutureSchedule) {
+        const account = await getAccountById(input.accountId);
+        await notifyOwner({
+          title: "Novo post pronto para aprovação",
+          content: `Um post para @${account?.handle ?? "desconhecido"} está aguardando sua aprovação. Tema: ${input.theme ?? "Sem tema"}`,
+        });
       }
       return { id };
     }),
@@ -234,8 +256,23 @@ export const appRouter = router({
       // Busca projetos e serviços reais da Triarc como base de conteúdo
       const db = await getDb();
       const triacItems = db ? await db.select().from(triacContent) : [];
-      const contentItems = triacItems.length > 0 ? triacItems : TRIARC_PROJECTS.map((p, i) => ({ id: i + 1, name: p.name, subtitle: p.subtitle, description: p.description, category: p.category, type: "projeto" as const }));
-      if (contentItems.length === 0) throw new Error("Nenhum conteúdo Triarc encontrado");
+      const rawItems = triacItems.length > 0
+        ? triacItems
+        : [
+            ...TRIARC_SERVICES,
+            ...TRIARC_PROJECTS.map((p, i) => ({
+              id: i + 100,
+              name: p.name,
+              subtitle: p.subtitle,
+              description: p.description,
+              category: p.category,
+              type: "projeto" as const,
+              status: p.status,
+            })),
+          ];
+      const extraExcluded = parseSocialExcludeEnv(process.env.TRIARC_SOCIAL_EXCLUDE);
+      const contentItems = filterTriacForSocial(rawItems as any[], extraExcluded);
+      if (contentItems.length === 0) throw new Error("Nenhum app/serviço Triarc ativo para redes (ver filtro SOCIAL_EXCLUDED)");
 
       // Best posting times (Brazilian timezone UTC-3)
       const bestTimes = [
@@ -265,7 +302,7 @@ export const appRouter = router({
               messages: [
                 {
                   role: "system",
-                  content: `Você é um especialista em marketing de conteúdo para Instagram. ${APP_CONTEXT}\n\n${toneInstruction}\n\nA legenda deve incluir:\n- Texto envolvente e relevante ao tema/projeto/serviço\n- Hashtags estratégicas (8-15 hashtags do nicho tech, inovação, negócios)\n- CTA claro direcionando para triarcsolutions.com.br\n- Emojis moderados e profissionais\n\nResponda APENAS com a legenda pronta.`,
+                  content: `Você é um especialista em marketing de conteúdo para Instagram. ${APP_CONTEXT}\n\n${toneInstruction}\n\n${CAPTION_PT_RULES}\n\nA legenda deve incluir:\n- Texto envolvente e relevante ao tema/projeto/serviço\n- Hashtags estratégicas (8-15 hashtags do nicho tech, inovação, negócios)\n- CTA claro direcionando para triarcsolutions.com.br\n- Emojis moderados e profissionais\n\nResponda APENAS com a legenda pronta.`,
                 },
                 {
                   role: "user",
@@ -282,14 +319,27 @@ export const appRouter = router({
           // Generate art with AI
           let mediaUrl = "";
           try {
-            const style = "Design moderno e limpo com elementos tech, cores azul ciano (#00BFFF) e cinza escuro, estilo corporativo premium, minimalista e sofisticado";
             const artResult = await generateImage({
-              prompt: `Instagram post for Triarc Solutions tech company. Topic: ${theme.name}. ${style}. Place the Triarc Solutions logo (circular tech emblem with gears and code symbols, navy blue, gray and green) prominently in the bottom-right corner. Professional social media design, 1080x1080 square.`,
-              originalImages: [{ url: "https://tsm.triarcsolutions.com.br/manus-storage/triarc-logo_4d0b8405.jpeg", mimeType: "image/jpeg" }],
+              prompt: buildTriarcImagePrompt(theme.name),
+              originalImages: [{ url: TRIARC_LOGO_URL, mimeType: "image/jpeg" }],
             });
             mediaUrl = artResult.url ?? "";
           } catch (e) {
             // Art generation failed, post without media
+          }
+
+          // Verificar duplicata: mesmo tema, mesma conta, mesmo dia
+          const dayStart = new Date(scheduleDate); dayStart.setHours(0,0,0,0);
+          const dayEnd = new Date(scheduleDate); dayEnd.setHours(23,59,59,999);
+          const { posts: postsTable } = await import("../drizzle/schema");
+          const { and: andOp, eq: eqOp, gte, lte } = await import("drizzle-orm");
+          const dbInst = await getDb();
+          const existing = dbInst ? await dbInst.select().from(postsTable).where(
+            andOp(eqOp(postsTable.accountId, account.id), eqOp(postsTable.theme, theme.name), gte(postsTable.scheduledAt, dayStart), lte(postsTable.scheduledAt, dayEnd))
+          ).limit(1) : [];
+          if (existing.length > 0) {
+            console.log(`[generateWeek] Duplicata ignorada: tema "${theme.name}" conta ${account.id} dia ${scheduleDate.toISOString().split('T')[0]}`);
+            continue;
           }
 
           const { id } = await createPost({
@@ -343,7 +393,7 @@ export const appRouter = router({
             messages: [
               {
                 role: "system",
-                content: `Você é um especialista em marketing para Instagram. ${APP_CONTEXT}\n\n${toneInstruction}\n\nInclua hashtags estratégicas do nicho tech/inovação, CTA claro para triarcsolutions.com.br. Responda APENAS com a legenda.`,
+                content: `Você é um especialista em marketing para Instagram. ${APP_CONTEXT}\n\n${toneInstruction}\n\n${CAPTION_PT_RULES}\n\nInclua hashtags estratégicas do nicho tech/inovação, CTA claro para triarcsolutions.com.br. Responda APENAS com a legenda.`,
               },
               { role: "user", content: `Legenda para @triarcsolutions. Tema/Projeto: ${theme}. Destaque o impacto e valor para o cliente.` },
             ],
@@ -356,10 +406,9 @@ export const appRouter = router({
 
         let mediaUrl = "";
         try {
-          const style = "Design moderno tech, cores azul ciano (#00BFFF) e cinza escuro, estilo corporativo premium";
           const artResult = await generateImage({
-            prompt: `Instagram post for Triarc Solutions tech company. Topic: ${theme}. ${style}. Place the Triarc Solutions logo (circular tech emblem with gears and code symbols, navy blue, gray and green) prominently in the bottom-right corner. 1080x1080 square.`,
-            originalImages: [{ url: "https://tsm.triarcsolutions.com.br/manus-storage/triarc-logo_4d0b8405.jpeg", mimeType: "image/jpeg" }],
+            prompt: buildTriarcImagePrompt(theme),
+            originalImages: [{ url: TRIARC_LOGO_URL, mimeType: "image/jpeg" }],
           });
           mediaUrl = artResult.url ?? "";
         } catch (e) { /* continue without media */ }
@@ -401,7 +450,9 @@ export const appRouter = router({
         });
     }),
 
-    approveAll: protectedProcedure.mutation(async () => {
+    approveAll: protectedProcedure.input(z.object({
+      publish: z.boolean().optional(),
+    }).optional()).mutation(async ({ input }) => {
       const pendingPosts = await getPostsByStatus("pending");
       let approved = 0;
       let scheduled = 0;
@@ -415,19 +466,36 @@ export const appRouter = router({
           scheduled++;
         }
       }
-      return { approved, published: 0, scheduled, total: pendingPosts.length };
+      let published = 0;
+      const errors: string[] = [];
+      if (input?.publish && approved > 0) {
+        const agent = await runAutonomousAgent();
+        published = agent.postsPublished;
+        errors.push(...agent.errors);
+      }
+      return { approved, published, scheduled, total: pendingPosts.length, errors };
     }),
 
     processScheduled: protectedProcedure.mutation(async () => {
       return processScheduledPosts();
     }),
 
-    publishNow: protectedProcedure.input(z.object({ postId: z.number() })).mutation(async ({ input }) => {
-      // Marca o post como approved e mcpPending=0 para que o agente o publique na próxima execução
-      const post = await getPostById(input.postId);
-      if (!post) throw new Error("Post not found");
-      await updatePost(input.postId, { status: "approved", mcpPending: 0, retryCount: 0 });
-      return { success: true, message: "Post adicionado à fila de publicação imediata. O agente publicará em breve." };
+    publishNow: protectedProcedure.input(z.object({
+      postId: z.number(),
+      approveFirst: z.boolean().optional(),
+    })).mutation(async ({ input }) => {
+      const result = await publishPostNow(input.postId);
+
+      if (result.published) {
+        return {
+          success: true,
+          published: true,
+          permalink: result.permalink,
+          message: result.message,
+        };
+      }
+
+      throw new Error(result.message);
     }),
 
     getLogs: protectedProcedure.query(async () => {
@@ -441,7 +509,9 @@ export const appRouter = router({
     syncInsights: protectedProcedure.input(z.object({ postId: z.number() })).mutation(async ({ input }) => {
       const post = await getPostById(input.postId);
       if (!post || !(post as any).instagramPostId) throw new Error("Post not published or no Instagram ID");
-      const insights = await fetchPostInsights((post as any).instagramPostId);
+      const account = (post as any).accountId ? await getAccountById((post as any).accountId) : null;
+      const token = (account as any)?.accessToken;
+      const insights = await fetchPostInsights((post as any).instagramPostId, token);
       await updatePost(input.postId, {
         likes: insights.likes ?? 0,
         comments: insights.comments ?? 0,
@@ -453,10 +523,17 @@ export const appRouter = router({
   triacContent: router({
     list: protectedProcedure.input(z.object({
       type: z.enum(["servico", "projeto", "all"]).optional(),
+      /** Default true — oculta apps pessoais/religiosos do catálogo social */
+      socialOnly: z.boolean().optional(),
     }).optional()).query(async ({ input }) => {
       const db = await getDb();
       if (!db) return [];
-      const items = await db.select().from(triacContent);
+      let items = await db.select().from(triacContent);
+      const socialOnly = input?.socialOnly !== false;
+      if (socialOnly) {
+        const extraExcluded = parseSocialExcludeEnv(process.env.TRIARC_SOCIAL_EXCLUDE);
+        items = filterTriacForSocial(items as any[], extraExcluded) as typeof items;
+      }
       if (input?.type && input.type !== "all") {
         return items.filter((i: TriacContent) => i.type === input.type);
       }
@@ -465,9 +542,7 @@ export const appRouter = router({
   }),
 
   analytics: router({
-    // Dados da conta Instagram via MCP (chamado pelo agente, cacheado no banco)
-    // Como o MCP só pode ser chamado pelo agente, estes endpoints retornam dados
-    // armazenados no banco ou buscam via endpoint interno do agente.
+    // Dados da conta Instagram via Graph API (cacheados no banco após sync).
     getAccountStats: protectedProcedure.query(async () => {
       // Retorna stats da conta @triarcsolutions do banco
       const accounts = await getAllAccounts();
@@ -497,20 +572,20 @@ export const appRouter = router({
     syncAllInsights: protectedProcedure.mutation(async () => {
       const published = await getPostsByStatus('published');
       const postsWithId = (published as any[]).filter((p: any) => p.instagramPostId);
+      const accounts = await getAllAccounts() as any[];
       let updated = 0;
       const errors: string[] = [];
       for (const post of postsWithId) {
         try {
-          const port = process.env.PORT || 3000;
-          const res = await fetch(`http://localhost:${port}/api/scheduled/insights/${post.instagramPostId}`, {
-            headers: { 'x-internal-key': process.env.JWT_SECRET || 'internal' }
-          });
-          if (res.ok) {
-            const data = await res.json() as { likes?: number; comments?: number };
-            if (data.likes !== undefined || data.comments !== undefined) {
-              await updatePost(post.id, { likes: data.likes ?? (post as any).likes ?? 0, comments: data.comments ?? (post as any).comments ?? 0 });
-              updated++;
-            }
+          const account = accounts.find((a: any) => a.id === post.accountId && a.platform === 'instagram')
+            ?? accounts.find((a: any) => a.platform === 'instagram');
+          const insights = await fetchPostInsights(post.instagramPostId, account?.accessToken);
+          if (insights.likes !== undefined || insights.comments !== undefined) {
+            await updatePost(post.id, {
+              likes: insights.likes ?? post.likes ?? 0,
+              comments: insights.comments ?? post.comments ?? 0,
+            });
+            updated++;
           }
         } catch (e: any) {
           errors.push(`Post ${post.id}: ${e.message}`);
@@ -548,14 +623,13 @@ export const appRouter = router({
       theme: z.string(),
       extraContext: z.string().optional(),
     })).mutation(async ({ input }) => {
-      const account = await getAccountById(input.accountId);
-      if (!account) throw new Error("Account not found");
       const toneInstruction = TRIARC_TONE;
       const response = await invokeLLM({
+        maxTokens: 2048,
         messages: [
           {
             role: "system",
-            content: `Você é um especialista em marketing de conteúdo para Instagram. ${APP_CONTEXT}\n\n${toneInstruction}\n\nA legenda deve incluir:\n- Texto envolvente e relevante ao tema/projeto/serviço\n- Hashtags estratégicas (8-15 hashtags do nicho tech, inovação, negócios)\n- CTA claro para triarcsolutions.com.br\n- Emojis moderados e profissionais\n\nResponda APENAS com a legenda pronta, sem explicações adicionais.`,
+            content: `Você é um especialista em marketing de conteúdo para Instagram. ${APP_CONTEXT}\n\n${toneInstruction}\n\n${CAPTION_PT_RULES}\n\nA legenda deve incluir:\n- Texto envolvente e relevante ao tema/projeto/serviço\n- Hashtags estratégicas (8-15 hashtags do nicho tech, inovação, negócios)\n- CTA claro para triarcsolutions.com.br\n- Emojis moderados e profissionais\n\nResponda APENAS com a legenda pronta, sem explicações adicionais.`,
           },
           {
             role: "user",
@@ -563,7 +637,10 @@ export const appRouter = router({
           },
         ],
       });
-      const caption = response.choices?.[0]?.message?.content ?? "Erro ao gerar legenda.";
+      const caption = response.choices?.[0]?.message?.content?.trim();
+      if (!caption) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "IA não retornou legenda. Tente novamente." });
+      }
       return { caption };
     }),
     generateArt: protectedProcedure.input(z.object({
@@ -571,25 +648,53 @@ export const appRouter = router({
       theme: z.string(),
       description: z.string().optional(),
       includelogo: z.boolean().optional(),
-    })).mutation(async ({ input }) => {
+    })).mutation(async ({ ctx, input }) => {
       const account = await getAccountById(input.accountId);
-      if (!account) throw new Error("Account not found");
-      const style = "Design moderno e limpo com elementos tech, cores azul ciano (#00BFFF) e cinza escuro, estilo corporativo premium, minimalista e sofisticado";
-      const prompt = `Instagram post image for Triarc Solutions tech company. Topic: ${input.theme}. ${style}. ${input.description ?? ""}. Place the Triarc Solutions logo (circular tech emblem with gears and code symbols, navy blue, gray and green) prominently in the bottom-right corner. Professional social media design, 1080x1080 square format.`;
-      const { url } = await generateImage({
-        prompt,
-        originalImages: [{ url: "https://tsm.triarcsolutions.com.br/manus-storage/triarc-logo_4d0b8405.jpeg", mimeType: "image/jpeg" }],
-      });
-      return { url };
+      if (!account) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Conta não encontrada" });
+      }
+
+      let prompt = buildTriarcImagePrompt(input.theme.trim());
+      const extra = input.description?.trim().slice(0, 500);
+      if (extra) {
+        prompt += `\nVisual context: ${extra}`;
+      }
+
+      try {
+        const jobId = await createImageJob(ctx.user.id, prompt);
+        dispatchImageJobProcessing(jobId);
+        console.log(`[generateArt] Job ${jobId} enfileirado theme="${input.theme}"`);
+        return { jobId, status: "pending" as const };
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error("[generateArt] FALHA ao enfileirar:", msg);
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: msg });
+      }
+    }),
+    generateArtStatus: protectedProcedure.input(z.object({
+      jobId: z.number(),
+    })).query(async ({ ctx, input }) => {
+      await kickImageJob(input.jobId);
+      const job = await getImageJob(input.jobId, ctx.user.id);
+      if (!job) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Job de imagem não encontrado" });
+      }
+      return {
+        jobId: job.id,
+        status: job.status,
+        url: job.url ?? undefined,
+        error: job.error ?? undefined,
+      };
     }),
   }),
 
   actionPlan: router({
     generate: protectedProcedure.input(z.object({
       period: z.enum(['week', 'month']).default('week'),
-    })).mutation(async () => {
+    })).mutation(async ({ input }) => {
       const published = await getPostsByStatus('published');
       const publishedPosts = published as any[];
+      const periodLabel = input.period === 'month' ? 'ultimo mes' : 'ultima semana';
       const totalLikes = publishedPosts.reduce((s: number, p: any) => s + (p.likes ?? 0), 0);
       const totalComments = publishedPosts.reduce((s: number, p: any) => s + (p.comments ?? 0), 0);
       const avgEngagement = publishedPosts.length > 0
@@ -599,7 +704,7 @@ export const appRouter = router({
         .sort((a: any, b: any) => ((b.likes ?? 0) + (b.comments ?? 0)) - ((a.likes ?? 0) + (a.comments ?? 0)))
         .slice(0, 3)
         .map((p: any) => ({ theme: p.theme || 'Sem tema', likes: p.likes ?? 0, comments: p.comments ?? 0 }));
-      const prompt = "Crie um plano de acao de marketing digital para a Triarc Solutions (empresa de tecnologia de Macae/RJ) baseado nos dados abaixo.\n\nDados de performance:\n- Posts publicados: " + publishedPosts.length + "\n- Total de curtidas: " + totalLikes + "\n- Total de comentarios: " + totalComments + "\n- Engajamento medio por post: " + avgEngagement + "\n- Top posts: " + JSON.stringify(topPosts) + "\n\nRetorne JSON com exatamente esta estrutura:\n{\n  \"diagnosis\": \"diagnostico da performance atual em 3-4 frases\",\n  \"score\": 75,\n  \"actions\": [{ \"priority\": \"alta\", \"title\": \"titulo\", \"description\": \"descricao\", \"metric\": \"metrica\", \"deadline\": \"prazo\" }],\n  \"contentCalendar\": [{ \"day\": \"Segunda\", \"type\": \"Educativo\", \"theme\": \"tema\", \"platform\": \"Instagram\" }],\n  \"kpis\": [{ \"name\": \"KPI\", \"current\": \"atual\", \"target\": \"meta\", \"period\": \"periodo\" }],\n  \"quickWins\": [\"acao 1\", \"acao 2\", \"acao 3\"]\n}";
+      const prompt = "Crie um plano de acao de marketing digital para a Triarc Solutions (empresa de tecnologia de Macae/RJ) para o periodo: " + periodLabel + ". Baseado nos dados abaixo.\n\nDados de performance:\n- Posts publicados: " + publishedPosts.length + "\n- Total de curtidas: " + totalLikes + "\n- Total de comentarios: " + totalComments + "\n- Engajamento medio por post: " + avgEngagement + "\n- Top posts: " + JSON.stringify(topPosts) + "\n\nRetorne JSON com exatamente esta estrutura:\n{\n  \"diagnosis\": \"diagnostico da performance atual em 3-4 frases\",\n  \"score\": 75,\n  \"actions\": [{ \"priority\": \"alta\", \"title\": \"titulo\", \"description\": \"descricao\", \"metric\": \"metrica\", \"deadline\": \"prazo\" }],\n  \"contentCalendar\": [{ \"day\": \"Segunda\", \"type\": \"Educativo\", \"theme\": \"tema\", \"platform\": \"Instagram\" }],\n  \"kpis\": [{ \"name\": \"KPI\", \"current\": \"atual\", \"target\": \"meta\", \"period\": \"periodo\" }],\n  \"quickWins\": [\"acao 1\", \"acao 2\", \"acao 3\"]\n}";
       const res = await invokeLLM({
         messages: [
           { role: 'system', content: 'Voce e um estrategista de marketing digital especializado em empresas de tecnologia B2B no Brasil. Responda SEMPRE em JSON valido sem markdown.' },

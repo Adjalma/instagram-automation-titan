@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" fill="none">
+  <rect width="120" height="120" rx="24" fill="#0ea5e9"/>
+  <text x="50%" y="56%" dominant-baseline="middle" text-anchor="middle"
+        font-family="system-ui, sans-serif" font-weight="800" font-size="64"
+        fill="white">T</text>
+  <text x="50%" y="82%" dominant-baseline="middle" text-anchor="middle"
+        font-family="system-ui, sans-serif" font-weight="600" font-size="16"
+        fill="rgba(255,255,255,0.85)">triarc</text>
+</svg>

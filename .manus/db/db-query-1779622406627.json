@@ -1,0 +1,35 @@
+{
+  "query": "SELECT status, COUNT(*) as total, SUM(mcpPending) as mcp_pending FROM posts GROUP BY status ORDER BY total DESC;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3F5sJN7FajWtXbb.root --database 3LYkMyiPgdB2gzxf44Hk3M --execute SELECT status, COUNT(*) as total, SUM(mcpPending) as mcp_pending FROM posts GROUP BY status ORDER BY total DESC;",
+  "rows": [
+    {
+      "status": "scheduled",
+      "total": "27",
+      "mcp_pending": "0"
+    },
+    {
+      "status": "published",
+      "total": "22",
+      "mcp_pending": "0"
+    },
+    {
+      "status": "rejected",
+      "total": "14",
+      "mcp_pending": "0"
+    },
+    {
+      "status": "approved",
+      "total": "13",
+      "mcp_pending": "0"
+    },
+    {
+      "status": "pending",
+      "total": "2",
+      "mcp_pending": "0"
+    }
+  ],
+  "messages": [],
+  "stdout": "status\ttotal\tmcp_pending\nscheduled\t27\t0\npublished\t22\t0\nrejected\t14\t0\napproved\t13\t0\npending\t2\t0\n",
+  "stderr": "",
+  "execution_time_ms": 270
+}

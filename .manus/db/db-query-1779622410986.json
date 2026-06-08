@@ -1,0 +1,120 @@
+{
+  "query": "SELECT id, status, mcpPending, retryCount, nextRetryAt, instagramPostId, linkedinPublished, facebookPublished, createdAt FROM posts WHERE status='approved' ORDER BY id DESC LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3F5sJN7FajWtXbb.root --database 3LYkMyiPgdB2gzxf44Hk3M --execute SELECT id, status, mcpPending, retryCount, nextRetryAt, instagramPostId, linkedinPublished, facebookPublished, createdAt FROM posts WHERE status='approved' ORDER BY id DESC LIMIT 10;",
+  "rows": [
+    {
+      "id": "780008",
+      "status": "approved",
+      "mcpPending": "0",
+      "retryCount": "0",
+      "nextRetryAt": "NULL",
+      "instagramPostId": "NULL",
+      "linkedinPublished": "0",
+      "facebookPublished": "0",
+      "createdAt": "2026-05-23 11:57:32"
+    },
+    {
+      "id": "780007",
+      "status": "approved",
+      "mcpPending": "0",
+      "retryCount": "0",
+      "nextRetryAt": "NULL",
+      "instagramPostId": "NULL",
+      "linkedinPublished": "0",
+      "facebookPublished": "0",
+      "createdAt": "2026-05-23 11:57:05"
+    },
+    {
+      "id": "780006",
+      "status": "approved",
+      "mcpPending": "0",
+      "retryCount": "0",
+      "nextRetryAt": "NULL",
+      "instagramPostId": "NULL",
+      "linkedinPublished": "0",
+      "facebookPublished": "0",
+      "createdAt": "2026-05-23 11:53:26"
+    },
+    {
+      "id": "780005",
+      "status": "approved",
+      "mcpPending": "0",
+      "retryCount": "0",
+      "nextRetryAt": "NULL",
+      "instagramPostId": "NULL",
+      "linkedinPublished": "0",
+      "facebookPublished": "0",
+      "createdAt": "2026-05-23 11:51:47"
+    },
+    {
+      "id": "780004",
+      "status": "approved",
+      "mcpPending": "0",
+      "retryCount": "0",
+      "nextRetryAt": "NULL",
+      "instagramPostId": "NULL",
+      "linkedinPublished": "0",
+      "facebookPublished": "0",
+      "createdAt": "2026-05-23 11:47:39"
+    },
+    {
+      "id": "780003",
+      "status": "approved",
+      "mcpPending": "0",
+      "retryCount": "0",
+      "nextRetryAt": "NULL",
+      "instagramPostId": "NULL",
+      "linkedinPublished": "0",
+      "facebookPublished": "0",
+      "createdAt": "2026-05-23 11:47:17"
+    },
+    {
+      "id": "780002",
+      "status": "approved",
+      "mcpPending": "0",
+      "retryCount": "0",
+      "nextRetryAt": "NULL",
+      "instagramPostId": "NULL",
+      "linkedinPublished": "0",
+      "facebookPublished": "0",
+      "createdAt": "2026-05-23 11:46:01"
+    },
+    {
+      "id": "780001",
+      "status": "approved",
+      "mcpPending": "0",
+      "retryCount": "0",
+      "nextRetryAt": "NULL",
+      "instagramPostId": "NULL",
+      "linkedinPublished": "0",
+      "facebookPublished": "0",
+      "createdAt": "2026-05-23 11:45:23"
+    },
+    {
+      "id": "690007",
+      "status": "approved",
+      "mcpPending": "0",
+      "retryCount": "0",
+      "nextRetryAt": "NULL",
+      "instagramPostId": "NULL",
+      "linkedinPublished": "0",
+      "facebookPublished": "0",
+      "createdAt": "2026-05-22 15:41:15"
+    },
+    {
+      "id": "690005",
+      "status": "approved",
+      "mcpPending": "0",
+      "retryCount": "0",
+      "nextRetryAt": "NULL",
+      "instagramPostId": "NULL",
+      "linkedinPublished": "0",
+      "facebookPublished": "0",
+      "createdAt": "2026-05-22 15:40:36"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tstatus\tmcpPending\tretryCount\tnextRetryAt\tinstagramPostId\tlinkedinPublished\tfacebookPublished\tcreatedAt\n780008\tapproved\t0\t0\tNULL\tNULL\t0\t0\t2026-05-23 11:57:32\n780007\tapproved\t0\t0\tNULL\tNULL\t0\t0\t2026-05-23 11:57:05\n780006\tapproved\t0\t0\tNULL\tNULL\t0\t0\t2026-05-23 11:53:26\n780005\tapproved\t0\t0\tNULL\tNULL\t0\t0\t2026-05-23 11:51:47\n780004\tapproved\t0\t0\tNULL\tNULL\t0\t0\t2026-05-23 11:47:39\n780003\tapproved\t0\t0\tNULL\tNULL\t0\t0\t2026-05-23 11:47:17\n780002\tapproved\t0\t0\tNULL\tNULL\t0\t0\t2026-05-23 11:46:01\n780001\tapproved\t0\t0\tNULL\tNULL\t0\t0\t2026-05-23 11:45:23\n690007\tapproved\t0\t0\tNULL\tNULL\t0\t0\t2026-05-22 15:41:15\n690005\tapproved\t0\t0\tNULL\tNULL\t0\t0\t2026-05-22 15:40:36\n",
+  "stderr": "",
+  "execution_time_ms": 258
+}

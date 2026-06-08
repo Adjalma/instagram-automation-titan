@@ -1,0 +1,130 @@
+{
+  "query": "\nSELECT theme, DATE(createdAt) as dia, COUNT(*) as total, GROUP_CONCAT(id ORDER BY id) as ids\nFROM posts\nGROUP BY theme, DATE(createdAt)\nHAVING COUNT(*) > 1\nORDER BY dia DESC, total DESC\nLIMIT 20;\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3F5sJN7FajWtXbb.root --database 3LYkMyiPgdB2gzxf44Hk3M --execute \nSELECT theme, DATE(createdAt) as dia, COUNT(*) as total, GROUP_CONCAT(id ORDER BY id) as ids\nFROM posts\nGROUP BY theme, DATE(createdAt)\nHAVING COUNT(*) > 1\nORDER BY dia DESC, total DESC\nLIMIT 20;\n",
+  "rows": [
+    {
+      "theme": "Triarc Key Generator",
+      "dia": "2026-06-07",
+      "total": "2",
+      "ids": "870007,870010"
+    },
+    {
+      "theme": "Inteligência Artificial e Automação",
+      "dia": "2026-06-07",
+      "total": "2",
+      "ids": "870001,870008"
+    },
+    {
+      "theme": "Mir Macaé",
+      "dia": "2026-06-07",
+      "total": "2",
+      "ids": "870003,870006"
+    },
+    {
+      "theme": "Pesquisa Diária: Inteligência Artificial",
+      "dia": "2026-05-24",
+      "total": "2",
+      "ids": "810001,840001"
+    },
+    {
+      "theme": "Pesquisa Diária: Inteligência Artificial",
+      "dia": "2026-05-23",
+      "total": "11",
+      "ids": "720001,720002,750001,780001,780002,780003,780004,780005,780006,780007,780008"
+    },
+    {
+      "theme": "TRIARC CRM",
+      "dia": "2026-05-22",
+      "total": "2",
+      "ids": "690023,690026"
+    },
+    {
+      "theme": "NutriSystem",
+      "dia": "2026-05-22",
+      "total": "2",
+      "ids": "690019,690022"
+    },
+    {
+      "theme": "Triarc Key Generator",
+      "dia": "2026-05-22",
+      "total": "2",
+      "ids": "690007,690010"
+    },
+    {
+      "theme": "Data Science e Analytics",
+      "dia": "2026-05-22",
+      "total": "2",
+      "ids": "690017,690024"
+    },
+    {
+      "theme": "Sintaxe",
+      "dia": "2026-05-22",
+      "total": "2",
+      "ids": "690015,690018"
+    },
+    {
+      "theme": "Licenciamento de Software",
+      "dia": "2026-05-22",
+      "total": "2",
+      "ids": "690013,690020"
+    },
+    {
+      "theme": "Mir Macaé",
+      "dia": "2026-05-22",
+      "total": "2",
+      "ids": "690003,690006"
+    },
+    {
+      "theme": "Sistema de Presença de Eventos",
+      "dia": "2026-05-22",
+      "total": "2",
+      "ids": "690021,690028"
+    },
+    {
+      "theme": "Pesquisa Diária: Inteligência Artificial",
+      "dia": "2026-05-22",
+      "total": "2",
+      "ids": "660001,660002"
+    },
+    {
+      "theme": "Automação Industrial",
+      "dia": "2026-05-22",
+      "total": "2",
+      "ids": "690005,690012"
+    },
+    {
+      "theme": "Inteligência Artificial e Automação",
+      "dia": "2026-05-22",
+      "total": "2",
+      "ids": "690001,690008"
+    },
+    {
+      "theme": "Treinamento Profissional",
+      "dia": "2026-05-22",
+      "total": "2",
+      "ids": "690009,690016"
+    },
+    {
+      "theme": "Axis",
+      "dia": "2026-05-22",
+      "total": "2",
+      "ids": "690011,690014"
+    },
+    {
+      "theme": "Inteligência Artificial e Automação: Soluções avançadas em IA, automação e agentes especialistas. Machine Learning aplicado, processamento de linguagem natural, sistemas de recomendação e automação de fluxos de trabalho.",
+      "dia": "2026-05-20",
+      "total": "3",
+      "ids": "360001,360011,360012"
+    },
+    {
+      "theme": "Treinamento Profissional",
+      "dia": "2026-05-20",
+      "total": "2",
+      "ids": "360052,360082"
+    }
+  ],
+  "messages": [],
+  "stdout": "theme\tdia\ttotal\tids\nTriarc Key Generator\t2026-06-07\t2\t870007,870010\nInteligência Artificial e Automação\t2026-06-07\t2\t870001,870008\nMir Macaé\t2026-06-07\t2\t870003,870006\nPesquisa Diária: Inteligência Artificial\t2026-05-24\t2\t810001,840001\nPesquisa Diária: Inteligência Artificial\t2026-05-23\t11\t720001,720002,750001,780001,780002,780003,780004,780005,780006,780007,780008\nTRIARC CRM\t2026-05-22\t2\t690023,690026\nNutriSystem\t2026-05-22\t2\t690019,690022\nTriarc Key Generator\t2026-05-22\t2\t690007,690010\nData Science e Analytics\t2026-05-22\t2\t690017,690024\nSintaxe\t2026-05-22\t2\t690015,690018\nLicenciamento de Software\t2026-05-22\t2\t690013,690020\nMir Macaé\t2026-05-22\t2\t690003,690006\nSistema de Presença de Eventos\t2026-05-22\t2\t690021,690028\nPesquisa Diária: Inteligência Artificial\t2026-05-22\t2\t660001,660002\nAutomação Industrial\t2026-05-22\t2\t690005,690012\nInteligência Artificial e Automação\t2026-05-22\t2\t690001,690008\nTreinamento Profissional\t2026-05-22\t2\t690009,690016\nAxis\t2026-05-22\t2\t690011,690014\nInteligência Artificial e Automação: Soluções avançadas em IA, automação e agentes especialistas. Machine Learning aplicado, processamento de linguagem natural, sistemas de recomendação e automação de fluxos de trabalho.\t2026-05-20\t3\t360001,360011,360012\nTreinamento Profissional\t2026-05-20\t2\t360052,360082\n",
+  "stderr": "",
+  "execution_time_ms": 257
+}

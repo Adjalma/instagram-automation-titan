@@ -19,7 +19,6 @@ import {
   SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
 import {
   LayoutDashboard, LogOut, PanelLeft, PenSquare, CheckCircle,
@@ -27,8 +26,9 @@ import {
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
+import { Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
-import { Button } from "./ui/button";
 
 // Itens principais na bottom-bar mobile (máx 5)
 const bottomBarItems = [
@@ -66,39 +66,48 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     const saved = localStorage.getItem(SIDEBAR_WIDTH_KEY);
     return saved ? parseInt(saved, 10) : DEFAULT_WIDTH;
   });
-  const { loading, user } = useAuth();
+  const { loading, user, isAuthenticated } = useAuth();
+  const [slowLoad, setSlowLoad] = useState(false);
 
   useEffect(() => {
     localStorage.setItem(SIDEBAR_WIDTH_KEY, sidebarWidth.toString());
   }, [sidebarWidth]);
 
-  if (loading) return <DashboardLayoutSkeleton />;
+  useEffect(() => {
+    if (!loading) { setSlowLoad(false); return; }
+    const t = setTimeout(() => setSlowLoad(true), 12_000);
+    return () => clearTimeout(t);
+  }, [loading]);
+
+  useEffect(() => {
+    if (loading) return;
+    if (isAuthenticated) return;
+    window.location.replace("/login");
+  }, [loading, isAuthenticated]);
+
+  if (loading && !slowLoad) return <DashboardLayoutSkeleton />;
+
+  if (loading && slowLoad) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 p-6 text-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <p className="text-sm text-muted-foreground">Carregando… o servidor pode estar lento.</p>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => window.location.reload()}>Atualizar</Button>
+          <Button onClick={() => { window.location.href = "/login"; }}>Ir para login</Button>
+        </div>
+      </div>
+    );
+  }
 
   if (!user) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-background px-4">
-        <div className="flex flex-col items-center gap-8 w-full max-w-sm">
-          <div className="flex flex-col items-center gap-4">
-            <img
-              src="/manus-storage/triarc-social-manager-logo_dd2d2325.png"
-              alt="Triarc Social Manager"
-              className="w-20 h-20 rounded-2xl object-cover shadow-lg"
-            />
-            <div className="text-center">
-              <h1 className="text-2xl font-bold tracking-tight">Triarc Social Manager</h1>
-              <p className="text-sm text-muted-foreground mt-2">
-                Faça login para acessar o painel de gerenciamento.
-              </p>
-            </div>
-          </div>
-          <Button
-            onClick={() => { window.location.href = getLoginUrl(); }}
-            size="lg"
-            className="w-full"
-          >
-            Entrar com Manus
-          </Button>
-        </div>
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 p-6 text-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <p className="text-sm text-muted-foreground">Redirecionando para login...</p>
+        <Button variant="outline" onClick={() => { window.location.href = "/login"; }}>
+          Ir para login
+        </Button>
       </div>
     );
   }
@@ -178,7 +187,7 @@ function DashboardLayoutContent({
               {!isCollapsed && (
                 <div className="flex items-center gap-2 min-w-0">
                   <img
-                    src="/manus-storage/triarc-social-manager-logo_dd2d2325.png"
+                    src="/logo.svg"
                     alt="Triarc"
                     className="h-7 w-7 rounded-full object-cover"
                   />
@@ -253,7 +262,7 @@ function DashboardLayoutContent({
             <SidebarTrigger className="h-9 w-9 rounded-lg" />
             <div className="flex items-center gap-2">
               <img
-                src="/manus-storage/triarc-social-manager-logo_dd2d2325.png"
+                src="/logo.svg"
                 alt="Triarc"
                 className="h-7 w-7 rounded-full object-cover"
               />

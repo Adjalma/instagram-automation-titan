@@ -165,5 +165,8 @@
 ## Heartbeat HTTP Persistente 2026-05-23
 
 - [x] Endpoint POST /api/scheduled/heartbeat-publish criado (promove scheduled→approved, publica FB/LI inline, enfileira IG para AGENT cron)
-- [ ] Heartbeat criado via manus-heartbeat CLI (a cada 10 min)
-- [ ] task_uid salvo no banco para gerenciamento futuro
+- [x] Heartbeat criado via manus-heartbeat CLI (a cada 10 min) — task_uid: ABqSvvSD8bJirguZXkoJJC
+- [x] task_uid salvo em references/heartbeat-config.json
+- [x] Corrigir posts duplicados no generateWeek (verificação por tema+conta+dia)
+- [x] Corrigir erros TypeScript do GitHub (main.tsx URL|Request, storage.ts regex /s flag)
+- [x] AGENT cron reativado (estava pausado novamente)

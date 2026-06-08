@@ -48,7 +48,7 @@ export default function PublicationLogs() {
             <Clock className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
             <p className="text-muted-foreground font-medium">Nenhum log de publicação ainda.</p>
             <p className="text-sm text-muted-foreground mt-1">
-              Os logs aparecerão aqui após o agente Manus tentar publicar posts aprovados.
+              Os logs aparecerão aqui após o agente autônomo tentar publicar posts aprovados.
             </p>
           </CardContent>
         </Card>

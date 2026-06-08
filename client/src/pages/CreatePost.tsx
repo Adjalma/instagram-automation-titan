@@ -1,328 +1,458 @@
-import { useState, useMemo } from "react";
+import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
+import { getAccountConnectionStatus } from "@/lib/accountStatus";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Loader2, Sparkles, Send, Calendar, X, Plus, Images } from "lucide-react";
-import { useLocation } from "wouter";
+import QueryError from "@/components/QueryError";
+import {
+  Loader2, Sparkles, Send, Image, CalendarClock, AlertCircle, CheckCircle,
+} from "lucide-react";
 
-// Componente para adicionar URL manualmente
-function AddMediaUrlField({ onAdd, disabled }: { onAdd: (url: string) => void; disabled: boolean }) {
-  const [url, setUrl] = useState("");
-  const handleAdd = () => {
-    const trimmed = url.trim();
-    if (!trimmed.startsWith("http")) { toast.error("URL inválida"); return; }
-    onAdd(trimmed);
-    setUrl("");
-  };
-  return (
-    <div className="flex gap-2">
-      <Input
-        placeholder="Adicionar URL de imagem manualmente..."
-        value={url}
-        onChange={e => setUrl(e.target.value)}
-        onKeyDown={e => e.key === "Enter" && !disabled && handleAdd()}
-        disabled={disabled}
-        className="text-sm font-mono"
-      />
-      <Button variant="outline" size="sm" onClick={handleAdd} disabled={disabled || !url.trim()}>
-        <Plus className="h-4 w-4" />
-      </Button>
-    </div>
-  );
-}
+const CAPTION_LIMIT = 2200;
 
 export default function CreatePost() {
-  const [, setLocation] = useLocation();
-  const { data: accounts } = trpc.accounts.list.useQuery();
-  const { data: themes } = trpc.themes.list.useQuery();
-  const { data: triacItems } = trpc.triacContent.list.useQuery();
-  const [accountId, setAccountId] = useState<string>("");
-  const [theme, setTheme] = useState<string>("");
-  const [contentSource, setContentSource] = useState<"theme" | "triac">("triac");
-  const [selectedTriacId, setSelectedTriacId] = useState<string>("");
+  const [accountId, setAccountId] = useState("");
+  const [selectedTheme, setSelectedTheme] = useState("");
+  const [customTheme, setCustomTheme] = useState("");
   const [caption, setCaption] = useState("");
-  const [extraContext, setExtraContext] = useState("");
-  const [mediaUrls, setMediaUrls] = useState<string[]>([]);
   const [scheduledAt, setScheduledAt] = useState("");
-  const [isGeneratingCaption, setIsGeneratingCaption] = useState(false);
-  const [isGeneratingArt, setIsGeneratingArt] = useState(false);
+  const [mediaUrl, setMediaUrl] = useState("");
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+
+  const mountedRef = useRef(true);
+  const cancelImagePollRef = useRef(false);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    cancelImagePollRef.current = false;
+    return () => {
+      mountedRef.current = false;
+      cancelImagePollRef.current = true;
+    };
+  }, []);
+
+  const theme = customTheme.trim() || selectedTheme;
+  const { data: accounts } = trpc.accounts.list.useQuery();
+  const { data: themes, isLoading: themesLoading, isError: themesError, error: themesErr, refetch: refetchThemes } = trpc.themes.list.useQuery();
+  const { data: catalog } = trpc.triacContent.list.useQuery({ socialOnly: true });
+  const utils = trpc.useUtils();
+
+  const createPost = trpc.posts.create.useMutation({
+    onSuccess: () => {
+      if (!mountedRef.current) return;
+      toast.success("✅ Post criado com sucesso!", { description: "Acesse Aprovação para revisar." });
+      setCaption("");
+      setMediaUrl("");
+      setScheduledAt("");
+      setSelectedTheme("");
+      setCustomTheme("");
+      utils.posts.list.invalidate();
+      utils.analytics.getSummary.invalidate();
+    },
+    onError: (e) => {
+      if (!mountedRef.current) return;
+      toast.error("Erro ao criar post", { description: e.message });
+    },
+  });
+
+  useEffect(() => {
+    const busy = isGeneratingImage || isGenerating || createPost.isPending;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (!busy) return;
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [isGeneratingImage, isGenerating, createPost.isPending]);
 
   const generateCaption = trpc.ai.generateCaption.useMutation();
+
   const generateArt = trpc.ai.generateArt.useMutation();
-  const createPost = trpc.posts.create.useMutation();
-  const submitForApproval = trpc.posts.submitForApproval.useMutation();
 
-  const selectedAccount = useMemo(() => accounts?.find(a => a.id === Number(accountId)), [accounts, accountId]);
-  const selectedTriacItem = useMemo(() => triacItems?.find(i => i.id === Number(selectedTriacId)), [triacItems, selectedTriacId]);
 
-  const effectiveTheme = useMemo(() => {
-    if (contentSource === "triac" && selectedTriacItem) {
-      return `${selectedTriacItem.name}: ${selectedTriacItem.description}`;
-    }
-    return theme;
-  }, [contentSource, selectedTriacItem, theme]);
-
-  const handleGenerateCaption = async () => {
-    if (!accountId || !effectiveTheme) { toast.error("Selecione a conta e o projeto/tema primeiro"); return; }
-    setIsGeneratingCaption(true);
-    try {
-      const result = await generateCaption.mutateAsync({ accountId: Number(accountId), theme: effectiveTheme, extraContext: extraContext || undefined });
-      setCaption(typeof result.caption === "string" ? result.caption : "");
-      toast.success("Legenda gerada!");
-    } catch { toast.error("Erro ao gerar legenda"); }
-    finally { setIsGeneratingCaption(false); }
-  };
-
-  const handleGenerateArt = async () => {
-    if (!accountId || !effectiveTheme) { toast.error("Selecione a conta e o projeto/tema primeiro"); return; }
-    if (mediaUrls.length >= 10) { toast.error("Máximo de 10 imagens por carrossel"); return; }
-    setIsGeneratingArt(true);
-    try {
-      const result = await generateArt.mutateAsync({ accountId: Number(accountId), theme: effectiveTheme, description: extraContext || undefined });
-      if (result.url) {
-        setMediaUrls(prev => [...prev, result.url as string]);
-        toast.success(mediaUrls.length === 0 ? "Arte gerada!" : `Slide ${mediaUrls.length + 1} adicionado ao carrossel!`);
-      }
-    } catch { toast.error("Erro ao gerar arte"); }
-    finally { setIsGeneratingArt(false); }
-  };
-
-  const removeMedia = (index: number) => setMediaUrls(prev => prev.filter((_, i) => i !== index));
-
-  const handleSubmit = async (submitApproval: boolean) => {
+  const handleGenerateCaption = useCallback(async () => {
     if (!accountId) { toast.error("Selecione uma conta"); return; }
+    if (!theme) { toast.error("Selecione ou informe um tema"); return; }
+    setIsGenerating(true);
+    const toastId = toast.loading("Gerando legenda com IA...", { description: "Aguarde ~15–30 segundos." });
     try {
-      const result = await createPost.mutateAsync({
+      const data = await generateCaption.mutateAsync({ accountId: Number(accountId), theme });
+      setCaption(data.caption);
+      toast.success("Legenda gerada!", { id: toastId });
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      toast.error("Erro ao gerar legenda", { description: msg, id: toastId, duration: 8000 });
+    } finally {
+      setIsGenerating(false);
+    }
+  }, [accountId, theme, generateCaption]);
+
+  const handleGenerateImage = useCallback(async () => {
+    if (!accountId) { toast.error("Selecione uma conta"); return; }
+    if (!theme) { toast.error("Informe o tema para gerar a imagem"); return; }
+
+    cancelImagePollRef.current = false;
+    setIsGeneratingImage(true);
+    const toastId = toast.loading("Gerando imagem com Gemini...", {
+      description: "Pode levar até 2 min. Você pode sair — a geração continua no servidor.",
+    });
+
+    try {
+      const { jobId } = await generateArt.mutateAsync({
         accountId: Number(accountId),
-        caption,
-        theme: effectiveTheme || undefined,
-        scheduledAt: scheduledAt || undefined,
-        mediaUrls: mediaUrls.length > 0 ? mediaUrls : undefined,
+        theme,
+        description: theme !== caption ? caption.slice(0, 200) || undefined : undefined,
       });
-      if (submitApproval) {
-        await submitForApproval.mutateAsync({ id: result.id });
-        toast.success("Post enviado para aprovação!");
-      } else {
-        toast.success("Rascunho salvo!");
+
+      for (let i = 0; i < 60; i++) {
+        if (cancelImagePollRef.current || !mountedRef.current) {
+          toast.dismiss(toastId);
+          return;
+        }
+
+        await new Promise((r) => setTimeout(r, 3000));
+
+        if (cancelImagePollRef.current || !mountedRef.current) {
+          toast.dismiss(toastId);
+          return;
+        }
+
+        const status = await utils.client.ai.generateArtStatus.query({ jobId });
+
+        if (status.status === "done" && status.url) {
+          if (mountedRef.current) {
+            setMediaUrl(status.url);
+            toast.success("Imagem gerada!", { id: toastId });
+          } else {
+            toast.dismiss(toastId);
+          }
+          return;
+        }
+
+        if (status.status === "failed") {
+          throw new Error(status.error ?? "Falha na geração da imagem");
+        }
       }
-      setLocation("/");
-    } catch { toast.error("Erro ao criar post"); }
-  };
+
+      throw new Error("Tempo esgotado aguardando a imagem. Tente Gerar Imagem novamente em 1 minuto.");
+    } catch (e: unknown) {
+      if (cancelImagePollRef.current || !mountedRef.current) {
+        toast.dismiss(toastId);
+        return;
+      }
+      const msg = e instanceof Error ? e.message : String(e);
+      toast.error("Erro ao gerar imagem", { description: msg, id: toastId, duration: 10000 });
+    } finally {
+      if (mountedRef.current) setIsGeneratingImage(false);
+    }
+  }, [accountId, theme, caption, generateArt, utils.client.ai.generateArtStatus]);
+
+  const handleSubmit = useCallback(() => {
+    if (!accountId) { toast.error("Selecione uma conta"); return; }
+    if (!caption.trim()) { toast.error("A legenda não pode ser vazia"); return; }
+    if (caption.length > CAPTION_LIMIT) { toast.error(`Legenda excede ${CAPTION_LIMIT} caracteres`); return; }
+    if (scheduledAt) {
+      const scheduled = new Date(scheduledAt);
+      if (isNaN(scheduled.getTime())) { toast.error("Data inválida"); return; }
+      if (scheduled <= new Date()) { toast.error("A data de agendamento deve ser no futuro"); return; }
+    }
+    createPost.mutate({
+      accountId: Number(accountId),
+      theme: theme || undefined,
+      caption: caption.trim(),
+      mediaUrls: mediaUrl ? [mediaUrl] : undefined,
+      scheduledAt: scheduledAt || undefined,
+    });
+  }, [accountId, caption, theme, mediaUrl, scheduledAt, createPost]);
+
+  const selectedAccount = accounts?.find((a: any) => String(a.id) === accountId);
+  const selectedAccountStatus = selectedAccount ? getAccountConnectionStatus(selectedAccount) : null;
+
+  const accountsSummary = useMemo(() => {
+    if (!accounts?.length) return { total: 0, connected: 0 };
+    const connected = accounts.filter((a: any) => getAccountConnectionStatus(a).connected).length;
+    return { total: accounts.length, connected };
+  }, [accounts]);
+
+  const captionLength = caption.length;
+  const captionOverLimit = captionLength > CAPTION_LIMIT;
+  const captionWarning = captionLength > CAPTION_LIMIT * 0.9;
+
+  const minDateTime = new Date(Date.now() + 5 * 60 * 1000)
+    .toISOString()
+    .slice(0, 16);
 
   return (
-    <div className="space-y-6 max-w-4xl">
+    <div className="space-y-6 max-w-2xl">
       <div>
-        <h1 className="text-3xl font-extrabold tracking-tight">Criar Post</h1>
-        <p className="label-mono mt-1">Editor de conteúdo // Geração com IA</p>
+        <h1 className="text-2xl font-bold text-foreground">Criar Post</h1>
+        <p className="text-sm text-muted-foreground mt-1">Crie um post manual ou use IA para gerar a legenda e a imagem</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-4">
-          {/* Configuração */}
-          <Card className="card-blueprint">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base font-bold">Configuração</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="label-mono mb-2 block">Conta Destino</label>
-                  <Select value={accountId} onValueChange={setAccountId}>
-                    <SelectTrigger><SelectValue placeholder="Selecionar conta" /></SelectTrigger>
-                    <SelectContent>
-                      {accounts?.map(a => <SelectItem key={a.id} value={String(a.id)}>@{a.handle}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <label className="label-mono mb-2 block">Fonte de Conteúdo</label>
-                  <Select value={contentSource} onValueChange={(v) => setContentSource(v as "theme" | "triac")}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="triac">Projetos e Serviços Triarc</SelectItem>
-                      <SelectItem value="theme">Temas Genéricos</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              {contentSource === "triac" && (
-                <div>
-                  <label className="label-mono mb-2 block">Projeto / Serviço</label>
-                  <Select value={selectedTriacId} onValueChange={setSelectedTriacId}>
-                    <SelectTrigger><SelectValue placeholder="Selecionar projeto ou serviço" /></SelectTrigger>
-                    <SelectContent className="max-h-72">
-                      {triacItems?.filter(i => i.type === "servico").length ? (
-                        <>
-                          <div className="px-2 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wide">💼 Serviços</div>
-                          {triacItems.filter(i => i.type === "servico").map(i => <SelectItem key={i.id} value={String(i.id)}>{i.name}</SelectItem>)}
-                        </>
-                      ) : null}
-                      {triacItems?.filter(i => i.type === "projeto").length ? (
-                        <>
-                          <div className="px-2 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wide mt-1">🚀 Projetos</div>
-                          {triacItems.filter(i => i.type === "projeto").map(i => <SelectItem key={i.id} value={String(i.id)}>{i.name}</SelectItem>)}
-                        </>
-                      ) : null}
-                    </SelectContent>
-                  </Select>
-                  {selectedTriacItem && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{selectedTriacItem.subtitle}</p>}
-                </div>
-              )}
-              {contentSource === "theme" && (
-                <div>
-                  <label className="label-mono mb-2 block">Tema</label>
-                  <Select value={theme} onValueChange={setTheme}>
-                    <SelectTrigger><SelectValue placeholder="Selecionar tema" /></SelectTrigger>
-                    <SelectContent>
-                      {themes?.map(t => <SelectItem key={t.id} value={t.name}>{t.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-              {selectedAccount && (
-                <Badge variant="outline" className={selectedAccount.tone === "personal" ? "border-pink-300 text-pink-600" : "border-cyan-300 text-cyan-700"}>
-                  Tom: {selectedAccount.tone === "personal" ? "Pessoal" : "Corporativo"}
+      {/* Status das contas */}
+      {accounts && accounts.length > 0 && (
+        <Card className="border-dashed">
+          <CardContent className="py-3 px-4 flex flex-wrap items-center gap-2 text-xs">
+            <span className="text-muted-foreground">Contas OAuth:</span>
+            {accounts.map((a: any) => {
+              const st = getAccountConnectionStatus(a);
+              return (
+                <Badge
+                  key={a.id}
+                  variant="outline"
+                  className={
+                    st.level === "full" ? "border-green-500 text-green-700" :
+                    st.level === "partial" ? "border-amber-500 text-amber-700" :
+                    "border-gray-300 text-muted-foreground"
+                  }
+                >
+                  @{a.handle} — {st.label}
                 </Badge>
-              )}
-            </CardContent>
-          </Card>
+              );
+            })}
+            {accountsSummary.connected < accountsSummary.total && (
+              <span className="text-amber-600 flex items-center gap-1">
+                <AlertCircle className="h-3 w-3" />
+                {accountsSummary.total - accountsSummary.connected} sem token — conecte em Contas
+              </span>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      <Card>
+        <CardHeader className="pb-4">
+          <CardTitle className="text-base">Configurações do Post</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          {/* Conta */}
+          <div className="space-y-2">
+            <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Conta *</label>
+            <Select value={accountId} onValueChange={setAccountId}>
+              <SelectTrigger className={!accountId ? "border-amber-400" : ""}>
+                <SelectValue placeholder="Selecionar conta" />
+              </SelectTrigger>
+              <SelectContent>
+                {accounts?.map((a: any) => {
+                  const st = getAccountConnectionStatus(a);
+                  return (
+                    <SelectItem key={a.id} value={String(a.id)}>
+                      @{a.handle} {st.connected ? `(${st.label})` : "(desconectado)"}
+                    </SelectItem>
+                  );
+                })}
+              </SelectContent>
+            </Select>
+            {selectedAccount && (
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="text-xs text-muted-foreground">{selectedAccount.displayName} · {selectedAccount.platform ?? "instagram"}</p>
+                {selectedAccountStatus?.connected ? (
+                  <Badge variant="outline" className="text-[10px] border-green-500 text-green-700">
+                    <CheckCircle className="h-3 w-3 mr-1" />{selectedAccountStatus.label}
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="text-[10px] border-amber-500 text-amber-700">
+                    <AlertCircle className="h-3 w-3 mr-1" />Conecte em Contas antes de publicar
+                  </Badge>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Tema */}
+          <div className="space-y-2">
+            <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Pilar editorial</label>
+            {themesLoading ? (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
+                <Loader2 className="h-4 w-4 animate-spin" /> Carregando temas...
+              </div>
+            ) : themesError ? (
+              <QueryError message={themesErr?.message} onRetry={() => refetchThemes()} />
+            ) : (
+              <>
+                <div className="flex flex-wrap gap-2">
+                  {themes?.map((t: any) => (
+                    <Button
+                      key={t.id}
+                      type="button"
+                      variant={selectedTheme === t.name && !customTheme ? "default" : "outline"}
+                      size="sm"
+                      className="text-xs"
+                      onClick={() => {
+                        setSelectedTheme(t.name);
+                        setCustomTheme("");
+                      }}
+                    >
+                      {t.name}
+                    </Button>
+                  ))}
+                </div>
+                {(!themes || themes.length === 0) && (
+                  <p className="text-xs text-amber-600 flex items-center gap-1">
+                    <AlertCircle className="h-3 w-3" />
+                    Nenhum pilar no banco — acesse Cronograma após o deploy.
+                  </p>
+                )}
+              </>
+            )}
+          </div>
+
+          {/* App / serviço Triarc */}
+          <div className="space-y-2">
+            <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              App ou serviço Triarc (opcional)
+            </label>
+            <p className="text-xs text-muted-foreground">
+              Sobre qual produto falar. Apps excluídos do Instagram corporativo não aparecem aqui.
+            </p>
+            <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto">
+              {catalog?.map((item: any) => (
+                <Button
+                  key={item.id}
+                  type="button"
+                  variant={customTheme === item.name ? "default" : "outline"}
+                  size="sm"
+                  className="text-xs"
+                  onClick={() => {
+                    setCustomTheme(item.name);
+                    setSelectedTheme("");
+                  }}
+                >
+                  {item.name}
+                </Button>
+              ))}
+            </div>
+            <Input
+              placeholder="Ou digite manualmente (app, serviço ou pilar)"
+              value={customTheme}
+              onChange={(e) => {
+                setCustomTheme(e.target.value);
+                if (e.target.value) setSelectedTheme("");
+              }}
+              className="text-sm"
+            />
+            {theme && (
+              <p className="text-xs text-muted-foreground">Tema do post: <strong>{theme}</strong></p>
+            )}
+          </div>
 
           {/* Legenda */}
-          <Card className="card-blueprint">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-base font-bold">Legenda</CardTitle>
-                <Button variant="outline" size="sm" onClick={handleGenerateCaption} disabled={isGeneratingCaption} className="gap-1.5">
-                  {isGeneratingCaption ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Legenda *</label>
+              <div className="flex items-center gap-2">
+                <span className={`text-xs tabular-nums ${
+                  captionOverLimit ? "text-red-500 font-semibold" :
+                  captionWarning ? "text-amber-500" :
+                  "text-muted-foreground"
+                }`}>
+                  {captionLength}/{CAPTION_LIMIT}
+                </span>
+                <Button
+                  variant="outline" size="sm"
+                  onClick={handleGenerateCaption}
+                  disabled={isGenerating || !accountId || !theme}
+                  className="gap-1.5 h-7 text-xs"
+                >
+                  {isGenerating ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
                   Gerar com IA
                 </Button>
               </div>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <Input placeholder="Contexto adicional para a IA (opcional)" value={extraContext} onChange={e => setExtraContext(e.target.value)} className="text-sm" />
-              <Textarea placeholder="Escreva ou gere a legenda do post..." value={caption} onChange={e => setCaption(e.target.value)} rows={8} className="font-mono text-sm resize-none" />
-              <p className="label-mono text-right">{caption.length} caracteres</p>
-            </CardContent>
-          </Card>
-
-          {/* Mídia / Carrossel */}
-          <Card className="card-blueprint">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="text-base font-bold flex items-center gap-2">
-                    <Images className="h-4 w-4" /> Mídia
-                    {mediaUrls.length > 0 && (
-                      <Badge variant="outline" className="text-xs">
-                        {mediaUrls.length}/10 {mediaUrls.length > 1 ? "— Carrossel" : "— Imagem única"}
-                      </Badge>
-                    )}
-                  </CardTitle>
-                  {mediaUrls.length > 1 && (
-                    <p className="text-xs text-muted-foreground mt-0.5">Carrossel: {mediaUrls.length} imagens publicadas em sequência no Instagram</p>
-                  )}
-                </div>
-                <Button variant="outline" size="sm" onClick={handleGenerateArt} disabled={isGeneratingArt || mediaUrls.length >= 10} className="gap-1.5">
-                  {isGeneratingArt ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-                  Gerar Arte IA
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {mediaUrls.length > 0 ? (
-                <div className="grid grid-cols-3 gap-3">
-                  {mediaUrls.map((url, i) => (
-                    <div key={i} className="relative group aspect-square rounded-lg overflow-hidden border">
-                      <img src={url} alt={`Slide ${i + 1}`} className="w-full h-full object-cover" />
-                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
-                      <div className="absolute top-1 left-1 bg-black/60 text-white rounded text-xs px-1.5 py-0.5 font-mono">{i + 1}</div>
-                      <button onClick={() => removeMedia(i)} className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <X className="h-3 w-3" />
-                      </button>
-                    </div>
-                  ))}
-                  {mediaUrls.length < 10 && (
-                    <button
-                      onClick={handleGenerateArt}
-                      disabled={isGeneratingArt}
-                      className="aspect-square rounded-lg border-2 border-dashed flex flex-col items-center justify-center gap-1 text-muted-foreground hover:border-primary hover:text-primary transition-colors disabled:opacity-50"
-                    >
-                      {isGeneratingArt ? <Loader2 className="h-5 w-5 animate-spin" /> : <Plus className="h-5 w-5" />}
-                      <span className="text-xs">Gerar slide</span>
-                    </button>
-                  )}
-                </div>
-              ) : (
-                <div className="border-2 border-dashed rounded-lg p-8 text-center text-muted-foreground">
-                  <Images className="h-8 w-8 mx-auto mb-2 opacity-40" />
-                  <p className="text-sm font-medium">Nenhuma imagem adicionada</p>
-                  <p className="text-xs mt-1">Gere com IA ou cole uma URL abaixo. Até 10 imagens para carrossel.</p>
-                </div>
-              )}
-              <AddMediaUrlField onAdd={(url) => setMediaUrls(prev => [...prev, url])} disabled={mediaUrls.length >= 10} />
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Sidebar direita */}
-        <div className="space-y-4">
-          <Card className="card-blueprint">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base font-bold">Agendamento</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <label className="label-mono mb-2 block">Data e Hora</label>
-              <Input type="datetime-local" value={scheduledAt} onChange={e => setScheduledAt(e.target.value)} className="font-mono text-sm" />
-              {scheduledAt && (
-                <div className="flex items-center gap-1.5 mt-2 text-xs text-muted-foreground">
-                  <Calendar className="h-3 w-3" />
-                  {new Date(scheduledAt).toLocaleString("pt-BR")}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card className="card-blueprint">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base font-bold">Preview</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="rounded-lg border bg-white p-3 space-y-2">
-                <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-full bg-gradient-to-br from-cyan-400 to-pink-400" />
-                  <span className="text-xs font-bold">{selectedAccount ? `@${selectedAccount.handle}` : "Selecione uma conta"}</span>
-                </div>
-                {mediaUrls.length > 0 ? (
-                  <div className="relative aspect-square rounded overflow-hidden bg-muted">
-                    <img src={mediaUrls[0]} alt="Preview" className="w-full h-full object-cover" />
-                    {mediaUrls.length > 1 && (
-                      <div className="absolute bottom-1 right-1 bg-black/70 text-white text-xs px-1.5 py-0.5 rounded font-mono">
-                        1/{mediaUrls.length}
-                      </div>
-                    )}
-                  </div>
-                ) : null}
-                <p className="text-xs leading-relaxed whitespace-pre-wrap line-clamp-6">{caption || "Legenda do post..."}</p>
-              </div>
-            </CardContent>
-          </Card>
-
-          <div className="space-y-2">
-            <Button onClick={() => handleSubmit(true)} className="w-full gap-2" disabled={createPost.isPending}>
-              {createPost.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-              Enviar para Aprovação
-            </Button>
-            <Button variant="outline" onClick={() => handleSubmit(false)} className="w-full" disabled={createPost.isPending}>
-              Salvar Rascunho
-            </Button>
+            </div>
+            <Textarea
+              placeholder="Digite a legenda do post ou gere com IA..."
+              value={caption}
+              onChange={(e) => setCaption(e.target.value)}
+              rows={6}
+              className={`resize-none font-mono text-sm ${
+                captionOverLimit ? "border-red-500 focus-visible:ring-red-500" : ""
+              }`}
+            />
+            {captionOverLimit && (
+              <p className="text-xs text-red-500 flex items-center gap-1">
+                <AlertCircle className="h-3 w-3" />
+                Legenda excede o limite do Instagram ({CAPTION_LIMIT} caracteres)
+              </p>
+            )}
           </div>
-        </div>
-      </div>
+
+          {/* Imagem */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">URL da Imagem</label>
+              <Button
+                variant="outline" size="sm"
+                onClick={handleGenerateImage}
+                disabled={isGeneratingImage || !theme || !accountId}
+                className="gap-1.5 h-7 text-xs"
+              >
+                {isGeneratingImage ? <Loader2 className="h-3 w-3 animate-spin" /> : <Image className="h-3 w-3" />}
+                Gerar Imagem
+              </Button>
+            </div>
+            <Input
+              placeholder="https://... (opcional, gerado automaticamente)"
+              value={mediaUrl}
+              onChange={(e) => setMediaUrl(e.target.value)}
+              className="text-sm"
+            />
+            {mediaUrl && (
+              <div className="rounded-lg overflow-hidden border border-border">
+                <img
+                  src={mediaUrl}
+                  alt="Preview"
+                  className="w-full h-40 object-cover"
+                  loading="lazy"
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Agendamento */}
+          <div className="space-y-2">
+            <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <CalendarClock className="h-3.5 w-3.5 inline mr-1" />
+              Agendar Para (opcional)
+            </label>
+            <Input
+              type="datetime-local"
+              value={scheduledAt}
+              min={minDateTime}
+              onChange={(e) => setScheduledAt(e.target.value)}
+              className="font-mono text-sm"
+            />
+            {scheduledAt && (
+              <p className="text-xs text-muted-foreground">
+                Será publicado em {new Date(scheduledAt).toLocaleString("pt-BR")}
+              </p>
+            )}
+          </div>
+
+          {/* Submit */}
+          <Button
+            onClick={handleSubmit}
+            disabled={createPost.isPending || !accountId || !caption.trim() || captionOverLimit}
+            className="w-full gap-2" size="lg"
+          >
+            {createPost.isPending ? (
+              <Loader2 className="h-5 w-5 animate-spin" />
+            ) : scheduledAt ? (
+              <CalendarClock className="h-5 w-5" />
+            ) : (
+              <Send className="h-5 w-5" />
+            )}
+            {createPost.isPending ? "Criando..." : scheduledAt ? "Agendar Post" : "Criar Post"}
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   );
 }

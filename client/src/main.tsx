@@ -1,7 +1,7 @@
 import { trpc } from "@/lib/trpc";
 import { UNAUTHED_ERR_MSG } from '@shared/const';
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { httpBatchLink, TRPCClientError } from "@trpc/client";
+import { httpLink, TRPCClientError } from "@trpc/client";
 import { createRoot } from "react-dom/client";
 import superjson from "superjson";
 import App from "./App";
@@ -11,21 +11,34 @@ import "./index.css";
 // Override browser tab title
 document.title = "Triarc Social Manager";
 
-// Registrar Service Worker para PWA
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(() => {});
-  });
+// Remove service workers legados imediatamente (não esperar load).
+if ("serviceWorker" in navigator) {
+  void navigator.serviceWorker.getRegistrations().then((regs) =>
+    Promise.all(regs.map((r) => r.unregister()))
+  );
+  if ("caches" in window) {
+    void caches.keys().then((keys) =>
+      Promise.all(keys.map((key) => caches.delete(key)))
+    );
+  }
 }
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 2,
+      staleTime: 30_000,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 const redirectToLoginIfUnauthorized = (error: unknown) => {
   if (!(error instanceof TRPCClientError)) return;
   if (typeof window === "undefined") return;
+  if (window.location.pathname === "/login") return;
 
   const isUnauthorized = error.message === UNAUTHED_ERR_MSG;
-
   if (!isUnauthorized) return;
 
   window.location.href = getLoginUrl();
@@ -49,14 +62,38 @@ queryClient.getMutationCache().subscribe(event => {
 
 const trpcClient = trpc.createClient({
   links: [
-    httpBatchLink({
+    httpLink({
       url: "/api/trpc",
       transformer: superjson,
       fetch(input, init) {
-        return globalThis.fetch(input, {
-          ...(init ?? {}),
-          credentials: "include",
-        });
+        const url = typeof input === "string" ? input : (input as { url: string }).url;
+        const isLongOp = /publishNow|generateArt|generate-image/i.test(url);
+        const isCaption = /generateCaption/i.test(url);
+        const controller = new AbortController();
+        const isAuthMe = /auth\.me/i.test(url);
+        const timeoutMs = isLongOp ? 300_000 : isCaption ? 90_000 : isAuthMe ? 15_000 : 45_000;
+        const timer = setTimeout(() => controller.abort(), timeoutMs);
+        return globalThis
+          .fetch(input, {
+            ...(init ?? {}),
+            credentials: "include",
+            signal: controller.signal,
+          })
+          .catch((err) => {
+            if (err?.name === "AbortError") {
+              throw new Error(
+                isLongOp
+                  ? "Tempo esgotado (5 min). Verifique Logs de publicação ou tente de novo."
+                  : isCaption
+                  ? "Geração de legenda demorou (90s). Tente novamente."
+                  : isAuthMe
+                  ? "Autenticação demorou (15s). Tente /login ou atualize a página."
+                  : "Servidor demorou para responder (45s). Tente atualizar a página."
+              );
+            }
+            throw err;
+          })
+          .finally(() => clearTimeout(timer));
       },
     }),
   ],

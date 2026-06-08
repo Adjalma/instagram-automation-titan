@@ -1,0 +1,114 @@
+{
+  "query": "\nSELECT id, status, theme, accountId, mcpPending, createdAt \nFROM posts \nWHERE DATE(createdAt) >= '2026-06-06'\nORDER BY createdAt DESC\nLIMIT 30;\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3F5sJN7FajWtXbb.root --database 3LYkMyiPgdB2gzxf44Hk3M --execute \nSELECT id, status, theme, accountId, mcpPending, createdAt \nFROM posts \nWHERE DATE(createdAt) >= '2026-06-06'\nORDER BY createdAt DESC\nLIMIT 30;\n",
+  "rows": [
+    {
+      "id": "870013",
+      "status": "pending",
+      "theme": "Licenciamento de Software",
+      "accountId": "2",
+      "mcpPending": "0",
+      "createdAt": "2026-06-07 20:40:23"
+    },
+    {
+      "id": "870012",
+      "status": "pending",
+      "theme": "Automação Industrial",
+      "accountId": "60001",
+      "mcpPending": "0",
+      "createdAt": "2026-06-07 20:40:10"
+    },
+    {
+      "id": "870011",
+      "status": "pending",
+      "theme": "Axis",
+      "accountId": "30002",
+      "mcpPending": "0",
+      "createdAt": "2026-06-07 20:39:57"
+    },
+    {
+      "id": "870010",
+      "status": "pending",
+      "theme": "Triarc Key Generator",
+      "accountId": "30001",
+      "mcpPending": "0",
+      "createdAt": "2026-06-07 20:39:43"
+    },
+    {
+      "id": "870009",
+      "status": "scheduled",
+      "theme": "Treinamento Profissional",
+      "accountId": "2",
+      "mcpPending": "0",
+      "createdAt": "2026-06-07 20:39:30"
+    },
+    {
+      "id": "870008",
+      "status": "scheduled",
+      "theme": "Inteligência Artificial e Automação",
+      "accountId": "60001",
+      "mcpPending": "0",
+      "createdAt": "2026-06-07 20:39:17"
+    },
+    {
+      "id": "870007",
+      "status": "scheduled",
+      "theme": "Triarc Key Generator",
+      "accountId": "30002",
+      "mcpPending": "0",
+      "createdAt": "2026-06-07 20:39:05"
+    },
+    {
+      "id": "870006",
+      "status": "scheduled",
+      "theme": "Mir Macaé",
+      "accountId": "30001",
+      "mcpPending": "0",
+      "createdAt": "2026-06-07 20:38:51"
+    },
+    {
+      "id": "870005",
+      "status": "scheduled",
+      "theme": "Automação Industrial",
+      "accountId": "2",
+      "mcpPending": "0",
+      "createdAt": "2026-06-07 20:38:37"
+    },
+    {
+      "id": "870004",
+      "status": "scheduled",
+      "theme": "Desenvolvimento Sob Encomenda",
+      "accountId": "60001",
+      "mcpPending": "0",
+      "createdAt": "2026-06-07 20:38:24"
+    },
+    {
+      "id": "870003",
+      "status": "scheduled",
+      "theme": "Mir Macaé",
+      "accountId": "30002",
+      "mcpPending": "0",
+      "createdAt": "2026-06-07 20:38:10"
+    },
+    {
+      "id": "870002",
+      "status": "scheduled",
+      "theme": "Farol das Escrituras",
+      "accountId": "30001",
+      "mcpPending": "0",
+      "createdAt": "2026-06-07 20:37:57"
+    },
+    {
+      "id": "870001",
+      "status": "scheduled",
+      "theme": "Inteligência Artificial e Automação",
+      "accountId": "2",
+      "mcpPending": "0",
+      "createdAt": "2026-06-07 20:37:44"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tstatus\ttheme\taccountId\tmcpPending\tcreatedAt\n870013\tpending\tLicenciamento de Software\t2\t0\t2026-06-07 20:40:23\n870012\tpending\tAutomação Industrial\t60001\t0\t2026-06-07 20:40:10\n870011\tpending\tAxis\t30002\t0\t2026-06-07 20:39:57\n870010\tpending\tTriarc Key Generator\t30001\t0\t2026-06-07 20:39:43\n870009\tscheduled\tTreinamento Profissional\t2\t0\t2026-06-07 20:39:30\n870008\tscheduled\tInteligência Artificial e Automação\t60001\t0\t2026-06-07 20:39:17\n870007\tscheduled\tTriarc Key Generator\t30002\t0\t2026-06-07 20:39:05\n870006\tscheduled\tMir Macaé\t30001\t0\t2026-06-07 20:38:51\n870005\tscheduled\tAutomação Industrial\t2\t0\t2026-06-07 20:38:37\n870004\tscheduled\tDesenvolvimento Sob Encomenda\t60001\t0\t2026-06-07 20:38:24\n870003\tscheduled\tMir Macaé\t30002\t0\t2026-06-07 20:38:10\n870002\tscheduled\tFarol das Escrituras\t30001\t0\t2026-06-07 20:37:57\n870001\tscheduled\tInteligência Artificial e Automação\t2\t0\t2026-06-07 20:37:44\n",
+  "stderr": "",
+  "execution_time_ms": 367
+}

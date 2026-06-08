@@ -1,82 +1,12 @@
 {
   "version": "7",
-  "dialect": "mysql",
+  "dialect": "postgresql",
   "entries": [
     {
       "idx": 0,
-      "version": "5",
-      "when": 1776610033679,
-      "tag": "0000_lovely_kitty_pryde",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "5",
-      "when": 1776973124113,
-      "tag": "0001_complex_blob",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "5",
-      "when": 1777483595398,
-      "tag": "0002_brown_phalanx",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "5",
-      "when": 1778667716357,
-      "tag": "0003_flaky_joshua_kane",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "5",
-      "when": 1779306915635,
-      "tag": "0004_nebulous_wildside",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "5",
-      "when": 1779328084988,
-      "tag": "0005_giant_gunslinger",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "5",
-      "when": 1779328910446,
-      "tag": "0006_special_spirit",
-      "breakpoints": true
-    },
-    {
-      "idx": 7,
-      "version": "5",
-      "when": 1779339063284,
-      "tag": "0007_lyrical_corsair",
-      "breakpoints": true
-    },
-    {
-      "idx": 8,
-      "version": "5",
-      "when": 1779383599018,
-      "tag": "0008_absurd_the_hood",
-      "breakpoints": true
-    },
-    {
-      "idx": 9,
-      "version": "5",
-      "when": 1779444522562,
-      "tag": "0009_lyrical_carlie_cooper",
-      "breakpoints": true
-    },
-    {
-      "idx": 10,
-      "version": "5",
-      "when": 1779536783160,
-      "tag": "0010_violet_starhawk",
+      "version": "7",
+      "when": 1779655667836,
+      "tag": "0000_great_talkback",
       "breakpoints": true
     }
   ]

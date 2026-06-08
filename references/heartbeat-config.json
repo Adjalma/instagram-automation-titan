@@ -1,0 +1,1 @@
+{"heartbeat_publish_task_uid":"ABqSvvSD8bJirguZXkoJJC","created_at":"2026-06-08T09:37:00Z","cron":"0 */10 * * * *","path":"/api/scheduled/heartbeat-publish"}
