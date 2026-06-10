@@ -14,32 +14,13 @@ import { ENV } from "./_core/env";
 import { getDb } from "./db";
 import { instagramAccounts } from "../drizzle/schema";
 import { eq } from "drizzle-orm";
-import { buildOAuthState, finishOAuth, parseOAuthState } from "./_core/oauthFinish";
 
-const FB_AUTH_URL = "https://www.facebook.com/v21.0/dialog/oauth";
-const FB_TOKEN_URL = "https://graph.facebook.com/v21.0/oauth/access_token";
-const FB_GRAPH_URL = "https://graph.facebook.com/v21.0";
+const FB_AUTH_URL = "https://www.facebook.com/v19.0/dialog/oauth";
+const FB_TOKEN_URL = "https://graph.facebook.com/v19.0/oauth/access_token";
+const FB_GRAPH_URL = "https://graph.facebook.com/v19.0";
 
-/** Scopes padrão — só Pages (funcionam sem produto Instagram no app Meta). */
-const FB_PAGE_SCOPES = [
-  "pages_show_list",
-  "pages_read_engagement",
-  "pages_manage_posts",
-];
-
-/** Requer produto "Instagram Graph API" + permissões no Meta Developer. */
-const FB_IG_SCOPES = ["instagram_basic", "instagram_content_publish"];
-
-function getFacebookScopes(forInstagram: boolean): string {
-  if (ENV.facebookOAuthScopes.trim()) {
-    return ENV.facebookOAuthScopes.trim();
-  }
-  const scopes = [...FB_PAGE_SCOPES];
-  if (forInstagram && ENV.facebookIgScopes) {
-    scopes.push(...FB_IG_SCOPES);
-  }
-  return scopes.join(",");
-}
+// Permissões mínimas para publicar em Pages
+const FB_SCOPES = ["pages_show_list", "pages_read_engagement", "pages_manage_posts"].join(",");
 
 // Vanity name da página da Triarc Solutions no Facebook
 const FB_PAGE_VANITY = "Triarcsolutions";
@@ -57,10 +38,10 @@ function getRedirectUri(_origin: string): string {
  */
 async function resolvePageToken(
   userToken: string
-): Promise<{ pageId: string; pageToken: string; pageName: string; igUserId?: string } | null> {
+): Promise<{ pageId: string; pageToken: string; pageName: string } | null> {
   try {
     const res = await fetch(
-      `${FB_GRAPH_URL}/me/accounts?fields=id,name,access_token,category,instagram_business_account&access_token=${userToken}`
+      `${FB_GRAPH_URL}/me/accounts?fields=id,name,access_token,category&access_token=${userToken}`
     );
     if (!res.ok) {
       console.warn("[Facebook] /me/accounts status:", res.status, await res.text());
@@ -81,8 +62,7 @@ async function resolvePageToken(
     ) ?? pages[0]; // fallback: primeira página disponível
 
     console.log(`[Facebook] Página selecionada: ${triarc.name} (${triarc.id})`);
-    const igUserId = triarc.instagram_business_account?.id as string | undefined;
-    return { pageId: triarc.id, pageToken: triarc.access_token, pageName: triarc.name, igUserId };
+    return { pageId: triarc.id, pageToken: triarc.access_token, pageName: triarc.name };
   } catch (err) {
     console.warn("[Facebook] Erro ao resolver Page token:", err);
     return null;
@@ -94,24 +74,16 @@ export function registerFacebookRoutes(app: Express) {
   app.get("/api/facebook/auth", (req: Request, res: Response) => {
     const origin = (req.query.origin as string) || "http://localhost:3000";
     const accountId = req.query.accountId as string;
-    const popup = req.query.popup === "1" || req.query.popup === "true";
-    const forInstagram = req.query.forInstagram === "1" || req.query.forInstagram === "true";
     const redirectUri = getRedirectUri(origin);
-    const state = buildOAuthState(origin, accountId, popup);
-    const scope = getFacebookScopes(forInstagram);
+    const state = Buffer.from(JSON.stringify({ origin, accountId })).toString("base64url");
 
     const params = new URLSearchParams({
       client_id: ENV.facebookAppId,
       redirect_uri: redirectUri,
-      scope,
+      scope: FB_SCOPES,
       state,
       response_type: "code",
-      display: popup ? "popup" : "page",
     });
-
-    if (ENV.facebookLoginConfigId) {
-      params.set("config_id", ENV.facebookLoginConfigId);
-    }
 
     res.redirect(`${FB_AUTH_URL}?${params.toString()}`);
   });
@@ -119,12 +91,20 @@ export function registerFacebookRoutes(app: Express) {
   // Step 2: Callback — troca code por token, busca Page token, salva no banco
   app.get("/auth/facebook/callback", async (req: Request, res: Response) => {
     const { code, state, error } = req.query as Record<string, string>;
-    const fallbackOrigin = "https://tsm.triarcsolutions.com.br";
-    const { origin, accountId, popup } = parseOAuthState(state, fallbackOrigin);
 
     if (error) {
       console.error("[Facebook] OAuth error:", error);
-      return finishOAuth(res, { origin, popup, provider: "facebook", success: false, error });
+      return res.redirect("/?facebook_error=" + encodeURIComponent(error));
+    }
+
+    let origin = "http://localhost:3000";
+    let accountId: string | undefined;
+    try {
+      const decoded = JSON.parse(Buffer.from(state, "base64url").toString());
+      origin = decoded.origin;
+      accountId = decoded.accountId;
+    } catch {
+      console.warn("[Facebook] Could not parse state");
     }
 
     const redirectUri = getRedirectUri(origin);
@@ -138,7 +118,7 @@ export function registerFacebookRoutes(app: Express) {
 
       if (!tokenData.access_token) {
         console.error("[Facebook] Token exchange failed:", tokenData);
-        return finishOAuth(res, { origin, popup, provider: "facebook", success: false, error: "token_exchange_failed" });
+        return res.redirect("/?facebook_error=token_exchange_failed");
       }
 
       const userToken = tokenData.access_token;
@@ -162,57 +142,20 @@ export function registerFacebookRoutes(app: Express) {
       if (accountId) {
         const db = await getDb();
         if (!db) throw new Error("DB unavailable");
-
-        const [account] = await db.select()
-          .from(instagramAccounts)
-          .where(eq(instagramAccounts.id, parseInt(accountId)))
-          .limit(1);
-
-        let accountRef = pageRef;
-        if (account?.platform === "instagram" && page) {
-          let igUserId = page.igUserId;
-          if (!igUserId) {
-            try {
-              const igRes = await fetch(
-                `${FB_GRAPH_URL}/${page.pageId}?fields=instagram_business_account&access_token=${page.pageToken}`
-              );
-              if (igRes.ok) {
-                const igData = await igRes.json() as any;
-                igUserId = igData?.instagram_business_account?.id;
-              }
-            } catch (err) {
-              console.warn("[Facebook] Não foi possível obter conta Instagram Business:", err);
-            }
-          }
-          if (!igUserId && ENV.igUserId) {
-            igUserId = ENV.igUserId;
-            console.log(`[Facebook] Instagram ID via IG_USER_ID env: ${igUserId}`);
-          }
-          if (igUserId) {
-            accountRef = `ig:${igUserId}`;
-            console.log(`[Facebook] Instagram Business Account: ${igUserId}`);
-          } else {
-            console.warn("[Facebook] Página sem Instagram Business vinculado — verifique conta Creator/Business no Meta");
-          }
-        }
-
         await db.update(instagramAccounts)
           .set({
-            accessToken: page ? page.pageToken : finalToken,
+            accessToken: finalToken,
             tokenExpiresAt: expiresAt,
-            linkedinUrn: accountRef,
+            linkedinUrn: pageRef,
           })
           .where(eq(instagramAccounts.id, parseInt(accountId)));
-        console.log(`[Facebook] Token salvo para conta ${accountId} (ref: ${accountRef})`);
-      } else {
-        console.warn("[Facebook] OAuth sem accountId — token não associado a nenhuma conta");
-        return finishOAuth(res, { origin, popup, provider: "facebook", success: false, error: "missing_account_id" });
+        console.log(`[Facebook] Token salvo para conta ${accountId} (ref: ${pageRef})`);
       }
 
-      finishOAuth(res, { origin, popup, provider: "facebook", success: true });
+      res.redirect(`${origin}/accounts?facebook_connected=1`);
     } catch (err) {
       console.error("[Facebook] Callback error:", err);
-      finishOAuth(res, { origin, popup, provider: "facebook", success: false, error: "callback_failed" });
+      res.redirect("/?facebook_error=callback_failed");
     }
   });
 }

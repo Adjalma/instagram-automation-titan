@@ -4,9 +4,8 @@ import { getDb } from "../db";
 import { researchTopics, researchRuns, posts, postMedia } from "../../drizzle/schema";
 import { eq, desc, and } from "drizzle-orm";
 import { invokeLLM } from "../_core/llm";
-import { generateImage, buildTriarcImagePrompt } from "../_core/imageGeneration";
+import { generateImage } from "../_core/imageGeneration";
 import { getAllAccounts } from "../db";
-import { TRIARC_LOGO_URL } from "@shared/const";
 
 const NEWS_API_KEY = process.env.NEWS_API_KEY ?? "";
 
@@ -29,7 +28,7 @@ async function generateCaption(topicName: string, articles: { title: string; des
   const headlines = articles.map((a, i) => `${i + 1}. ${a.title}: ${a.description}`).join("\n");
   const response = await invokeLLM({
     messages: [
-      { role: "system", content: `${APP_CONTEXT}\n${TRIARC_TONE}\nVocê é especialista em marketing digital para Instagram.\nREGRAS DE PORTUGUÊS: português brasileiro correto, acentuação perfeita, zero erros de ortografia ou digitação.` },
+      { role: "system", content: `${APP_CONTEXT}\n${TRIARC_TONE}\nVocê é especialista em marketing digital para Instagram.` },
       {
         role: "user" as const,
         content: `Crie uma legenda impactante para o Instagram da @triarcsolutions sobre o tema: "${topicName}".
@@ -51,10 +50,12 @@ Requisitos:
 }
 
 // Gera imagem premium para o post
-async function generateArtForResearch(topicName: string, _headlines: string[]): Promise<string> {
+async function generateArtForResearch(topicName: string, headlines: string[]): Promise<string> {
+  const topHeadline = headlines[0] ?? topicName;
+  const prompt = `Premium Instagram post for Triarc Solutions tech company. Topic: "${topicName}". Headline: "${topHeadline}". Style: ultra-modern tech aesthetic, deep navy blue (#0A1628) background with electric cyan (#00BFFF) and neon purple (#7B2FBE) accents. Futuristic data visualization elements, glowing circuit patterns, holographic overlays. Bold typography with the topic name prominently displayed. Place the Triarc Solutions logo (circular tech emblem with gears and code symbols, navy blue, gray and green) prominently in the bottom-right corner. Professional social media design, 1080x1080 square format, magazine quality.`;
   const { url } = await generateImage({
-    prompt: buildTriarcImagePrompt(topicName),
-    originalImages: [{ url: TRIARC_LOGO_URL, mimeType: "image/jpeg" }],
+    prompt,
+    originalImages: [{ url: "https://tsm.triarcsolutions.com.br/manus-storage/triarc-logo_4d0b8405.jpeg", mimeType: "image/jpeg" }],
   });
   if (!url) throw new Error("Falha ao gerar imagem");
   return url as string;
@@ -78,15 +79,15 @@ export const researchRouter = router({
   })).mutation(async ({ input }) => {
     const db = await getDb();
     if (!db) throw new Error("DB unavailable");
-    const result = await db.insert(researchTopics).values({
+    const [result] = await db.insert(researchTopics).values({
       accountId: input.accountId,
       name: input.name,
       query: input.query,
       language: input.language,
       publishHour: input.publishHour,
       active: 1,
-    }).returning({ id: researchTopics.id });
-    return { id: result[0].id };
+    });
+    return { id: (result as any).insertId };
   }),
 
   // Atualizar tópico (ativar/desativar, editar)
@@ -155,15 +156,15 @@ export const researchRouter = router({
       // 4. Criar post no banco
       const userId = ctx.user.id;
       const postStatus = (topic as any).autoPublish === 1 ? "approved" : "pending";
-      const postResult = await db.insert(posts).values({
+      const [postResult] = await db.insert(posts).values({
         userId,
         accountId: topic.accountId,
         caption,
         theme: `Pesquisa Diária: ${topic.name}`,
         status: postStatus,
         mcpPending: 0,
-      }).returning({ id: posts.id });
-      const postId = postResult[0].id;
+      });
+      const postId = (postResult as any).insertId as number;
 
       // 5. Salvar imagem como mídia do post
       await db.insert(postMedia).values({
@@ -213,15 +214,15 @@ export const researchRouter = router({
         const imageUrl = await generateArtForResearch(topic.name, articles.map(a => a.title));
 
         const runAllStatus = (topic as any).autoPublish === 1 ? "approved" : "pending";
-        const postResult = await db.insert(posts).values({
+        const [postResult] = await db.insert(posts).values({
           userId: ctx.user.id,
           accountId: topic.accountId,
           caption,
           theme: `Pesquisa Diária: ${topic.name}`,
           status: runAllStatus,
           mcpPending: 0,
-        }).returning({ id: posts.id });
-        const postId = postResult[0].id;
+        });
+        const postId = (postResult as any).insertId as number;
 
         await db.insert(postMedia).values({ postId, mediaUrl: imageUrl, mediaType: "image", sortOrder: 0 });
         await db.insert(researchRuns).values({
