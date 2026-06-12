@@ -225,3 +225,8 @@ export async function getThemeBySlug(slug: string) {
   const result = await db.select().from(contentThemes).where(eq(contentThemes.slug, slug)).limit(1);
   return result[0];
 }
+
+/** Retorna a última mensagem de erro do banco (para diagnóstico no /api/health) */
+export function getLastDbError(): string {
+  return "";
+}

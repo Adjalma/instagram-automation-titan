@@ -172,3 +172,8 @@ export function stopScheduler() {
     console.log("[Scheduler] Parado.");
   }
 }
+
+/** Alias para o vercel.ts — executa um ciclo do scheduler manualmente */
+export async function runSchedulerTick(): Promise<void> {
+  await tick();
+}

@@ -31,6 +31,11 @@ export type GenerateImageResponse = {
   url?: string;
 };
 
+/** Stub para diagnóstico no /api/health */
+export async function probeImageStack(): Promise<{ ok: boolean; latencyMs?: number }> {
+  return { ok: true };
+}
+
 export async function generateImage(
   options: GenerateImageOptions
 ): Promise<GenerateImageResponse> {

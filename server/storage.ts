@@ -95,3 +95,8 @@ export async function storageGetSignedUrl(relKey: string): Promise<string> {
   const { url } = (await resp.json()) as { url: string };
   return url;
 }
+
+/** Stub para compatibilidade com vercel.ts — bucket é gerenciado pela plataforma */
+export async function ensureStorageBucket(): Promise<void> {
+  // No-op: bucket gerenciado automaticamente pela plataforma Manus
+}
