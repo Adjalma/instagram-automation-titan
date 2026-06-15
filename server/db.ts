@@ -8,11 +8,14 @@ import { ENV } from './_core/env';
 let _db: ReturnType<typeof drizzle> | null = null;
 
 export async function getDb() {
-  if (!_db && process.env.DATABASE_URL) {
+  // Aceita apenas URLs MySQL — rejeita PostgreSQL/Supabase que pode vir do GitHub
+  const rawUrl = process.env.DATABASE_URL ?? "";
+  const dbUrl = rawUrl.startsWith("mysql") ? rawUrl : (process.env.DB_URL ?? "");
+  if (!_db && dbUrl) {
     try {
       // Use connection pool to handle reconnects automatically (avoids MySQL timeout errors)
       const pool = createPool({
-        uri: process.env.DATABASE_URL,
+        uri: dbUrl,
         waitForConnections: true,
         connectionLimit: 10,
         queueLimit: 0,

@@ -220,10 +220,12 @@ import { eq, desc, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { createPool } from "mysql2";
 async function getDb() {
-  if (!_db && process.env.DATABASE_URL) {
+  const rawUrl = process.env.DATABASE_URL ?? "";
+  const dbUrl = rawUrl.startsWith("mysql") ? rawUrl : process.env.DB_URL ?? "";
+  if (!_db && dbUrl) {
     try {
       const pool = createPool({
-        uri: process.env.DATABASE_URL,
+        uri: dbUrl,
         waitForConnections: true,
         connectionLimit: 10,
         queueLimit: 0,
