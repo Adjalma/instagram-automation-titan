@@ -47,7 +47,9 @@ app.get("/api/health", async (_req, res) => {
     SUPABASE_DB_URL: process.env.SUPABASE_DB_URL ? "set" : "not set",
   };
 
-  const activeUrl = process.env.DATABASE_URL || process.env.DB_URL || process.env.POSTGRES_URL || process.env.POSTGRES_PRISMA_URL || process.env.SUPABASE_DB_URL || "";
+  // Prioridade: URL MySQL (rejeita PostgreSQL/Supabase que pode vir do GitHub)
+  const rawDbUrl = process.env.DATABASE_URL ?? "";
+  const activeUrl = rawDbUrl.startsWith("mysql") ? rawDbUrl : (process.env.DB_URL ?? "");
   const masked = activeUrl ? activeUrl.replace(/:[^:@]+@/, ":***@") : "(none found)";
 
   const relevantKeys = Object.keys(process.env)
