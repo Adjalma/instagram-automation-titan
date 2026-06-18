@@ -10,6 +10,7 @@ import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { startScheduler } from "../scheduler";
 import { registerScheduledRoutes } from "../scheduledRoutes";
+import { registerAuthRoutes } from "../authRoutes";
 import { registerLinkedInRoutes } from "../linkedin";
 import { registerFacebookRoutes } from "../facebook";
 import { seedTriarcContent } from "../seed-triarc";
@@ -41,6 +42,7 @@ async function startServer() {
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   registerStorageProxy(app);
   registerOAuthRoutes(app);
+  registerAuthRoutes(app);
   // Scheduled task routes (called by Manus agent via HTTP)
   registerScheduledRoutes(app);
   // LinkedIn OAuth + publishing routes

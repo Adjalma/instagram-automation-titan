@@ -6,6 +6,7 @@ import { registerStorageProxy } from "./_core/storageProxy";
 import { appRouter } from "./routers";
 import { createContext } from "./_core/context";
 import { registerScheduledRoutes } from "./scheduledRoutes";
+import { registerAuthRoutes } from "./authRoutes";
 import { registerLinkedInRoutes } from "./linkedin";
 import { registerFacebookRoutes } from "./facebook";
 import { registerImageRoutes } from "./imageRoutes";
@@ -83,6 +84,7 @@ app.get("/api/health", async (_req, res) => {
 
 registerStorageProxy(app);
 registerOAuthRoutes(app);
+registerAuthRoutes(app);
 registerScheduledRoutes(app);
 registerLinkedInRoutes(app);
 registerFacebookRoutes(app);

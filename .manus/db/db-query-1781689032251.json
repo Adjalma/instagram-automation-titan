@@ -1,0 +1,45 @@
+{
+  "query": "SELECT id, openId, name, email, role FROM users LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3F5sJN7FajWtXbb.root --database 3LYkMyiPgdB2gzxf44Hk3M --execute SELECT id, openId, name, email, role FROM users LIMIT 5;",
+  "rows": [
+    {
+      "id": "1",
+      "openId": "HtUrSBLxrGNBoLnoRGUnP3",
+      "name": "Adjalma Aguiar",
+      "email": "adjalma71@gmail.com",
+      "role": "admin"
+    },
+    {
+      "id": "270001",
+      "openId": "HtUrSBLxrGNBoLnoRGUnP3",
+      "name": "NULL",
+      "email": "NULL",
+      "role": "admin"
+    },
+    {
+      "id": "270002",
+      "openId": "HtUrSBLxrGNBoLnoRGUnP3",
+      "name": "NULL",
+      "email": "NULL",
+      "role": "admin"
+    },
+    {
+      "id": "270003",
+      "openId": "HtUrSBLxrGNBoLnoRGUnP3",
+      "name": "NULL",
+      "email": "NULL",
+      "role": "admin"
+    },
+    {
+      "id": "270004",
+      "openId": "HtUrSBLxrGNBoLnoRGUnP3",
+      "name": "NULL",
+      "email": "NULL",
+      "role": "admin"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\topenId\tname\temail\trole\n1\tHtUrSBLxrGNBoLnoRGUnP3\tAdjalma Aguiar\tadjalma71@gmail.com\tadmin\n270001\tHtUrSBLxrGNBoLnoRGUnP3\tNULL\tNULL\tadmin\n270002\tHtUrSBLxrGNBoLnoRGUnP3\tNULL\tNULL\tadmin\n270003\tHtUrSBLxrGNBoLnoRGUnP3\tNULL\tNULL\tadmin\n270004\tHtUrSBLxrGNBoLnoRGUnP3\tNULL\tNULL\tadmin\n",
+  "stderr": "",
+  "execution_time_ms": 280
+}
