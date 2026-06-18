@@ -2823,6 +2823,7 @@ Erro: ${error || "Desconhecido"}`
 
 // server/authRoutes.ts
 init_db();
+import crypto2 from "crypto";
 function registerAuthRoutes(app2) {
   app2.post("/api/auth/login", async (req, res) => {
     try {
@@ -2834,24 +2835,25 @@ function registerAuthRoutes(app2) {
       const adminPassword = process.env.ADMIN_PASSWORD;
       if (!adminEmail || !adminPassword) {
         console.error("[Login] ADMIN_EMAIL ou ADMIN_PASSWORD n\xE3o configurados");
-        return res.status(500).json({ error: "Credenciais de admin n\xE3o configuradas no servidor" });
+        return res.status(500).json({ error: "Credenciais de admin n\xE3o configuradas" });
       }
       const emailMatch = email.trim().toLowerCase() === adminEmail.trim().toLowerCase();
       const passMatch = password === adminPassword;
       if (!emailMatch || !passMatch) {
         return res.status(401).json({ error: "Email ou senha incorretos" });
       }
-      const ownerOpenId = process.env.OWNER_OPEN_ID;
-      if (!ownerOpenId) {
-        return res.status(500).json({ error: "OWNER_OPEN_ID n\xE3o configurado" });
+      const ownerOpenId = process.env.OWNER_OPEN_ID || "admin_" + crypto2.createHash("sha256").update(adminEmail).digest("hex").slice(0, 16);
+      try {
+        await upsertUser({
+          openId: ownerOpenId,
+          name: process.env.OWNER_NAME || "Admin",
+          email: adminEmail,
+          loginMethod: "email",
+          lastSignedIn: /* @__PURE__ */ new Date()
+        });
+      } catch (dbErr) {
+        console.warn("[Login] upsertUser falhou (n\xE3o cr\xEDtico):", dbErr.message);
       }
-      await upsertUser({
-        openId: ownerOpenId,
-        name: process.env.OWNER_NAME || "Admin",
-        email: adminEmail,
-        loginMethod: "email",
-        lastSignedIn: /* @__PURE__ */ new Date()
-      });
       const sessionToken = await sdk.createSessionToken(ownerOpenId, {
         name: process.env.OWNER_NAME || "Admin",
         expiresInMs: ONE_YEAR_MS
