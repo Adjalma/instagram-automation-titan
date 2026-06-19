@@ -1,5 +1,11 @@
 var __defProp = Object.defineProperty;
 var __getOwnPropNames = Object.getOwnPropertyNames;
+var __require = /* @__PURE__ */ ((x) => typeof require !== "undefined" ? require : typeof Proxy !== "undefined" ? new Proxy(x, {
+  get: (a, b) => (typeof require !== "undefined" ? require : a)[b]
+}) : x)(function(x) {
+  if (typeof require !== "undefined") return require.apply(this, arguments);
+  throw Error('Dynamic require of "' + x + '" is not supported');
+});
 var __esm = (fn, res) => function __init() {
   return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
 };
@@ -2825,6 +2831,18 @@ Erro: ${error || "Desconhecido"}`
 init_db();
 import crypto2 from "crypto";
 function registerAuthRoutes(app2) {
+  app2.get("/api/auth/debug", (_req, res) => {
+    const adminEmail = process.env.ADMIN_EMAIL || "";
+    const hasPassword = !!process.env.ADMIN_PASSWORD;
+    const hasJwt = !!process.env.JWT_SECRET;
+    res.json({
+      adminEmailLength: adminEmail.length,
+      adminEmailHash: adminEmail ? __require("crypto").createHash("md5").update(adminEmail).digest("hex").slice(0, 8) : "empty",
+      hasPassword,
+      hasJwt,
+      ownerOpenId: process.env.OWNER_OPEN_ID ? "set" : "missing"
+    });
+  });
   app2.post("/api/auth/login", async (req, res) => {
     try {
       const { email, password } = req.body ?? {};

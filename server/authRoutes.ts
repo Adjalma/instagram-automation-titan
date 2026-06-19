@@ -11,6 +11,20 @@ import crypto from "crypto";
  * Não depende de OWNER_OPEN_ID: usa hash do email como openId estável.
  */
 export function registerAuthRoutes(app: Express) {
+  // Diagnóstico temporário — remover após resolver login
+  app.get("/api/auth/debug", (_req: Request, res: Response) => {
+    const adminEmail = process.env.ADMIN_EMAIL || "";
+    const hasPassword = !!process.env.ADMIN_PASSWORD;
+    const hasJwt = !!process.env.JWT_SECRET;
+    res.json({
+      adminEmailLength: adminEmail.length,
+      adminEmailHash: adminEmail ? require("crypto").createHash("md5").update(adminEmail).digest("hex").slice(0,8) : "empty",
+      hasPassword,
+      hasJwt,
+      ownerOpenId: process.env.OWNER_OPEN_ID ? "set" : "missing",
+    });
+  });
+
   app.post("/api/auth/login", async (req: Request, res: Response) => {
     try {
       const { email, password } = req.body ?? {};
