@@ -259,7 +259,6 @@ class SDKServer {
   }
 
   async authenticateRequest(req: Request): Promise<User> {
-    // Regular authentication flow
     const cookies = this.parseCookies(req.headers.cookie);
     const sessionCookie = cookies.get(COOKIE_NAME);
     const session = await this.verifySession(sessionCookie);
@@ -270,9 +269,36 @@ class SDKServer {
 
     const sessionUserId = session.openId;
     const signedInAt = new Date();
+
+    // Admin local: retorna usuário sintético sem consultar banco
+    // Evita dependência do banco MySQL em produção para o login admin
+    if (sessionUserId.startsWith("admin_")) {
+      const syntheticUser: User = {
+        id: 1,
+        openId: sessionUserId,
+        name: session.name || "Admin",
+        email: process.env.ADMIN_EMAIL || null,
+        loginMethod: "email",
+        role: "admin",
+        createdAt: new Date(0),
+        updatedAt: new Date(),
+        lastSignedIn: signedInAt,
+      };
+      // Tenta persistir no banco de forma não-bloqueante
+      db.upsertUser({
+        openId: sessionUserId,
+        name: syntheticUser.name,
+        email: syntheticUser.email ?? undefined,
+        loginMethod: "email",
+        lastSignedIn: signedInAt,
+        role: "admin",
+      }).catch(e => console.warn("[Auth] upsertUser admin (não crítico):", e.message));
+      return syntheticUser;
+    }
+
     let user = await db.getUserByOpenId(sessionUserId);
 
-    // If user not in DB, sync from OAuth server automatically
+    // Se não está no banco, sincroniza via OAuth
     if (!user) {
       try {
         const userInfo = await this.getUserInfoWithJwt(sessionCookie ?? "");

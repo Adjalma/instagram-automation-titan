@@ -669,6 +669,28 @@ var SDKServer = class {
     }
     const sessionUserId = session.openId;
     const signedInAt = /* @__PURE__ */ new Date();
+    if (sessionUserId.startsWith("admin_")) {
+      const syntheticUser = {
+        id: 1,
+        openId: sessionUserId,
+        name: session.name || "Admin",
+        email: process.env.ADMIN_EMAIL || null,
+        loginMethod: "email",
+        role: "admin",
+        createdAt: /* @__PURE__ */ new Date(0),
+        updatedAt: /* @__PURE__ */ new Date(),
+        lastSignedIn: signedInAt
+      };
+      upsertUser({
+        openId: sessionUserId,
+        name: syntheticUser.name,
+        email: syntheticUser.email ?? void 0,
+        loginMethod: "email",
+        lastSignedIn: signedInAt,
+        role: "admin"
+      }).catch((e) => console.warn("[Auth] upsertUser admin (n\xE3o cr\xEDtico):", e.message));
+      return syntheticUser;
+    }
     let user = await getUserByOpenId(sessionUserId);
     if (!user) {
       try {
