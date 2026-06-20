@@ -12,12 +12,9 @@ let _activeDbUrl = "";
 export function getActiveDbUrl() { return _activeDbUrl; }
 
 export async function getDb() {
-  // Prioridade: DB_URL (MySQL) > DATABASE_URL se for MySQL
-  const dbUrlFromDbUrl = process.env.DB_URL ?? "";
-  const dbUrlFromDatabaseUrl = process.env.DATABASE_URL ?? "";
-  const dbUrl = dbUrlFromDbUrl.startsWith("mysql") ? dbUrlFromDbUrl
-    : dbUrlFromDatabaseUrl.startsWith("mysql") ? dbUrlFromDatabaseUrl
-    : dbUrlFromDbUrl;
+  // IMPORTANTE: usar SOMENTE DB_URL — o Vercel sobrescreve DATABASE_URL com Supabase PostgreSQL
+  // automaticamente via integração nativa, o que quebraria a conexão MySQL
+  const dbUrl = process.env.DB_URL ?? "";
   if (!_db && dbUrl) {
     try {
       _activeDbUrl = dbUrl.replace(/:[^:@]+@/, ":***@");
@@ -80,7 +77,7 @@ export async function upsertUser(user: InsertUser): Promise<void> {
     if (!values.lastSignedIn) values.lastSignedIn = new Date();
     if (Object.keys(updateSet).length === 0) updateSet.lastSignedIn = new Date();
     await db.insert(users).values(values).onDuplicateKeyUpdate({ set: updateSet });
-  } catch (error) { console.error("[Database] Failed to upsert user:", error); throw error; }
+  } catch (error) { console.error("[Database] Failed to upsert user:", error); /* não propaga — banco indisponível não deve quebrar autenticação */ }
 }
 
 export async function getUserByOpenId(openId: string) {

@@ -224,9 +224,7 @@ function getActiveDbUrl() {
   return _activeDbUrl;
 }
 async function getDb() {
-  const dbUrlFromDbUrl = process.env.DB_URL ?? "";
-  const dbUrlFromDatabaseUrl = process.env.DATABASE_URL ?? "";
-  const dbUrl = dbUrlFromDbUrl.startsWith("mysql") ? dbUrlFromDbUrl : dbUrlFromDatabaseUrl.startsWith("mysql") ? dbUrlFromDatabaseUrl : dbUrlFromDbUrl;
+  const dbUrl = process.env.DB_URL ?? "";
   if (!_db && dbUrl) {
     try {
       _activeDbUrl = dbUrl.replace(/:[^:@]+@/, ":***@");
@@ -296,7 +294,6 @@ async function upsertUser(user) {
     await db.insert(users).values(values).onDuplicateKeyUpdate({ set: updateSet });
   } catch (error) {
     console.error("[Database] Failed to upsert user:", error);
-    throw error;
   }
 }
 async function getUserByOpenId(openId) {
