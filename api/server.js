@@ -199,6 +199,7 @@ __export(db_exports, {
   deletePostMedia: () => deletePostMedia,
   getAccountById: () => getAccountById,
   getAccountStats: () => getAccountStats,
+  getActiveDbUrl: () => getActiveDbUrl,
   getAllAccounts: () => getAllAccounts,
   getAllPosts: () => getAllPosts,
   getAllThemes: () => getAllThemes,
@@ -219,11 +220,17 @@ __export(db_exports, {
 import { eq, desc, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { createPool } from "mysql2";
+function getActiveDbUrl() {
+  return _activeDbUrl;
+}
 async function getDb() {
-  const rawUrl = process.env.DATABASE_URL ?? "";
-  const dbUrl = rawUrl.startsWith("mysql") ? rawUrl : process.env.DB_URL ?? "";
+  const dbUrlFromDbUrl = process.env.DB_URL ?? "";
+  const dbUrlFromDatabaseUrl = process.env.DATABASE_URL ?? "";
+  const dbUrl = dbUrlFromDbUrl.startsWith("mysql") ? dbUrlFromDbUrl : dbUrlFromDatabaseUrl.startsWith("mysql") ? dbUrlFromDatabaseUrl : dbUrlFromDbUrl;
   if (!_db && dbUrl) {
     try {
+      _activeDbUrl = dbUrl.replace(/:[^:@]+@/, ":***@");
+      console.log("[Database] Connecting to:", _activeDbUrl);
       const pool = createPool({
         uri: dbUrl,
         waitForConnections: true,
@@ -234,6 +241,7 @@ async function getDb() {
       });
       _db = drizzle(pool);
     } catch (error) {
+      _lastDbError = error.message;
       console.warn("[Database] Failed to connect:", error);
       _db = null;
     }
@@ -417,15 +425,17 @@ async function getThemeBySlug(slug) {
   return result[0];
 }
 function getLastDbError() {
-  return "";
+  return _lastDbError;
 }
-var _db, POST_COLS;
+var _db, _lastDbError, _activeDbUrl, POST_COLS;
 var init_db = __esm({
   "server/db.ts"() {
     "use strict";
     init_schema();
     init_env();
     _db = null;
+    _lastDbError = "";
+    _activeDbUrl = "";
     POST_COLS = `p.id, p.userId, p.accountId, p.caption, p.status, p.theme, p.scheduledAt, p.publishedAt,
   p.instagramPostId, p.instagramPermalink, p.likes, p.comments, p.createdAt, p.updatedAt,
   p.mcpPending, p.retryCount, p.nextRetryAt, p.linkedinPublished, p.facebookPublished,
@@ -3130,16 +3140,14 @@ app.get("/api/health", async (_req, res) => {
     POSTGRES_PRISMA_URL: process.env.POSTGRES_PRISMA_URL ? "set" : "not set",
     SUPABASE_DB_URL: process.env.SUPABASE_DB_URL ? "set" : "not set"
   };
-  const rawDbUrl = process.env.DATABASE_URL ?? "";
-  const activeUrl = rawDbUrl.startsWith("mysql") ? rawDbUrl : process.env.DB_URL ?? "";
-  const masked = activeUrl ? activeUrl.replace(/:[^:@]+@/, ":***@") : "(none found)";
+  const activeUrl = getActiveDbUrl() || (process.env.DB_URL ? process.env.DB_URL.replace(/:[^:@]+@/, ":***@") : "(none found)");
   const relevantKeys = Object.keys(process.env).filter((k) => /^(DATABASE|POSTGRES|SUPABASE|DB_)/i.test(k)).map((k) => k);
   res.json({
     ok: dbOk,
     db: dbOk ? "connected" : `error: ${dbError}`,
     env: {
       dbUrlCandidates,
-      activeUrl: masked,
+      activeUrl,
       allDbRelatedKeys: relevantKeys,
       totalEnvKeys: Object.keys(process.env).length,
       JWT_SECRET: !!process.env.JWT_SECRET,

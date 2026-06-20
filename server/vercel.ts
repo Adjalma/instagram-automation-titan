@@ -13,7 +13,7 @@ import { registerImageRoutes } from "./imageRoutes";
 import { runSchedulerTick } from "./scheduler";
 import { sdk } from "./_core/sdk";
 
-import { getDb, getLastDbError } from "./db";
+import { getDb, getLastDbError, getActiveDbUrl } from "./db";
 import { sql } from "drizzle-orm";
 import { ensureStorageBucket } from "./storage";
 import { probeImageStack } from "./_core/imageGeneration";
@@ -48,10 +48,8 @@ app.get("/api/health", async (_req, res) => {
     SUPABASE_DB_URL: process.env.SUPABASE_DB_URL ? "set" : "not set",
   };
 
-  // Prioridade: URL MySQL (rejeita PostgreSQL/Supabase que pode vir do GitHub)
-  const rawDbUrl = process.env.DATABASE_URL ?? "";
-  const activeUrl = rawDbUrl.startsWith("mysql") ? rawDbUrl : (process.env.DB_URL ?? "");
-  const masked = activeUrl ? activeUrl.replace(/:[^:@]+@/, ":***@") : "(none found)";
+  // Usa a URL que getDb() realmente usa (pode ser DB_URL ou DATABASE_URL)
+  const activeUrl = getActiveDbUrl() || (process.env.DB_URL ? process.env.DB_URL.replace(/:[^:@]+@/, ":***@") : "(none found)");
 
   const relevantKeys = Object.keys(process.env)
     .filter(k => /^(DATABASE|POSTGRES|SUPABASE|DB_)/i.test(k))
@@ -62,7 +60,7 @@ app.get("/api/health", async (_req, res) => {
     db: dbOk ? "connected" : `error: ${dbError}`,
     env: {
       dbUrlCandidates,
-      activeUrl: masked,
+      activeUrl: activeUrl,
       allDbRelatedKeys: relevantKeys,
       totalEnvKeys: Object.keys(process.env).length,
       JWT_SECRET: !!process.env.JWT_SECRET,

@@ -6,14 +6,23 @@ import type { InsertPost } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
+let _lastDbError = "";
+let _activeDbUrl = "";
+
+export function getActiveDbUrl() { return _activeDbUrl; }
 
 export async function getDb() {
-  // Aceita apenas URLs MySQL — rejeita PostgreSQL/Supabase que pode vir do GitHub
-  const rawUrl = process.env.DATABASE_URL ?? "";
-  const dbUrl = rawUrl.startsWith("mysql") ? rawUrl : (process.env.DB_URL ?? "");
+  // Prioridade: DB_URL (MySQL) > DATABASE_URL se for MySQL
+  const dbUrlFromDbUrl = process.env.DB_URL ?? "";
+  const dbUrlFromDatabaseUrl = process.env.DATABASE_URL ?? "";
+  // Prefere DB_URL se for MySQL, senao tenta DATABASE_URL se for MySQL
+  const dbUrl = dbUrlFromDbUrl.startsWith("mysql") ? dbUrlFromDbUrl
+    : dbUrlFromDatabaseUrl.startsWith("mysql") ? dbUrlFromDatabaseUrl
+    : dbUrlFromDbUrl; // usa DB_URL mesmo sem prefixo mysql como ultimo recurso
   if (!_db && dbUrl) {
     try {
-      // Use connection pool to handle reconnects automatically (avoids MySQL timeout errors)
+      _activeDbUrl = dbUrl.replace(/:[^:@]+@/, ":***@");
+      console.log("[Database] Connecting to:", _activeDbUrl);
       const pool = createPool({
         uri: dbUrl,
         waitForConnections: true,
@@ -23,7 +32,8 @@ export async function getDb() {
         keepAliveInitialDelay: 10000,
       });
       _db = drizzle(pool);
-    } catch (error) {
+    } catch (error: any) {
+      _lastDbError = error.message;
       console.warn("[Database] Failed to connect:", error);
       _db = null;
     }
@@ -231,5 +241,5 @@ export async function getThemeBySlug(slug: string) {
 
 /** Retorna a última mensagem de erro do banco (para diagnóstico no /api/health) */
 export function getLastDbError(): string {
-  return "";
+  return _lastDbError;
 }
