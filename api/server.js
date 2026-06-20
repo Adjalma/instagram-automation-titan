@@ -449,6 +449,7 @@ var NOT_ADMIN_ERR_MSG = "You do not have required permission (10002)";
 init_db();
 
 // server/_core/cookies.ts
+var LOCAL_HOSTS = /* @__PURE__ */ new Set(["localhost", "127.0.0.1", "::1"]);
 function isSecureRequest(req) {
   if (req.protocol === "https") return true;
   const forwardedProto = req.headers["x-forwarded-proto"];
@@ -457,11 +458,13 @@ function isSecureRequest(req) {
   return protoList.some((proto) => proto.trim().toLowerCase() === "https");
 }
 function getSessionCookieOptions(req) {
+  const isLocal = LOCAL_HOSTS.has(req.hostname);
+  const isSecure = isSecureRequest(req);
   return {
     httpOnly: true,
     path: "/",
-    sameSite: "none",
-    secure: isSecureRequest(req)
+    sameSite: isLocal ? "lax" : "none",
+    secure: isSecure
   };
 }
 

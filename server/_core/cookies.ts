@@ -39,10 +39,14 @@ export function getSessionCookieOptions(
   //       ? hostname
   //       : undefined;
 
+  const isLocal = LOCAL_HOSTS.has(req.hostname);
+  const isSecure = isSecureRequest(req);
+  // Chrome/Edge bloqueiam SameSite=None sem Secure=true.
+  // Em localhost (http) usar Lax para o cookie ser aceito.
   return {
     httpOnly: true,
     path: "/",
-    sameSite: "none",
-    secure: isSecureRequest(req),
+    sameSite: isLocal ? "lax" : "none",
+    secure: isSecure,
   };
 }
