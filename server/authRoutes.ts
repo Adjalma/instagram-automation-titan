@@ -19,14 +19,19 @@ export function registerAuthRoutes(app: Express) {
     const emailHash = adminEmail
       ? crypto.createHash("md5").update(adminEmail).digest("hex").slice(0, 8)
       : "empty";
+    const dbRaw = process.env.DATABASE_URL ?? "";
+    const dbBackup = process.env.DB_URL ?? "";
+    const activeDb = dbRaw.startsWith("mysql") ? dbRaw : dbBackup;
     res.json({
       adminEmailLength: adminEmail.length,
       adminEmailHash: emailHash,
       hasPassword,
       hasJwt,
       ownerOpenId: process.env.OWNER_OPEN_ID ? "set" : "missing",
-      dbUrl: process.env.DATABASE_URL ? process.env.DATABASE_URL.slice(0, 12) + "..." : "missing",
-      dbUrlBackup: process.env.DB_URL ? process.env.DB_URL.slice(0, 12) + "..." : "missing",
+      dbUrl: dbRaw ? dbRaw.slice(0, 12) + "..." : "missing",
+      dbUrlBackup: dbBackup ? dbBackup.slice(0, 12) + "..." : "missing",
+      activeDb: activeDb ? activeDb.slice(0, 12) + "..." : "none",
+      buildTime: "2026-06-20T21:40:00Z",
     });
   });
 

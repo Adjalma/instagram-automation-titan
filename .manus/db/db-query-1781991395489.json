@@ -1,0 +1,9 @@
+{
+  "query": "INSERT INTO users (openId, name, email, loginMethod, role, lastSignedIn, createdAt, updatedAt)\nVALUES ('admin_4cdd75cf1f17cb0a', 'Admin Triarc', 'contato@triarcsolutions.com.br', 'email', 'admin', NOW(), NOW(), NOW())\nON DUPLICATE KEY UPDATE\n  name = 'Admin Triarc',\n  email = 'contato@triarcsolutions.com.br',\n  role = 'admin',\n  updatedAt = NOW();",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3F5sJN7FajWtXbb.root --database 3LYkMyiPgdB2gzxf44Hk3M --execute INSERT INTO users (openId, name, email, loginMethod, role, lastSignedIn, createdAt, updatedAt)\nVALUES ('admin_4cdd75cf1f17cb0a', 'Admin Triarc', 'contato@triarcsolutions.com.br', 'email', 'admin', NOW(), NOW(), NOW())\nON DUPLICATE KEY UPDATE\n  name = 'Admin Triarc',\n  email = 'contato@triarcsolutions.com.br',\n  role = 'admin',\n  updatedAt = NOW();",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1070
+}
