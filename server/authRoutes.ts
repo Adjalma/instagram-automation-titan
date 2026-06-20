@@ -28,10 +28,11 @@ export function registerAuthRoutes(app: Express) {
       hasPassword,
       hasJwt,
       ownerOpenId: process.env.OWNER_OPEN_ID ? "set" : "missing",
-      dbUrl: dbRaw ? dbRaw.slice(0, 12) + "..." : "missing",
-      dbUrlBackup: dbBackup ? dbBackup.slice(0, 12) + "..." : "missing",
-      activeDb: activeDb ? activeDb.slice(0, 12) + "..." : "none",
-      buildTime: "2026-06-20T23:10:00Z",
+      dbUrl: dbRaw ? dbRaw.slice(0, 30) + "..." : "missing",
+      dbUrlBackup: dbBackup ? dbBackup.slice(0, 30) + "..." : "missing",
+      activeDb: activeDb ? activeDb.slice(0, 30) + "..." : "none",
+      allDbKeys: Object.keys(process.env).filter(k => k.toLowerCase().includes('db') || k.toLowerCase().includes('database') || k.toLowerCase().includes('mysql') || k.toLowerCase().includes('postgres')),
+      buildTime: "2026-06-20T23:20:00Z",
     });
   });
 
