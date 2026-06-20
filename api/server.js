@@ -626,13 +626,14 @@ var SDKServer = class {
         algorithms: ["HS256"]
       });
       const { openId, appId, name } = payload;
-      if (!isNonEmptyString(openId) || !isNonEmptyString(appId) || !isNonEmptyString(name)) {
-        console.warn("[Auth] Session payload missing required fields");
+      const isAdminLocal = typeof openId === "string" && openId.startsWith("admin_");
+      if (!isNonEmptyString(openId) || !isAdminLocal && !isNonEmptyString(appId) || !isNonEmptyString(name)) {
+        console.warn("[Auth] Session payload missing required fields", { openId, appId, name });
         return null;
       }
       return {
         openId,
-        appId,
+        appId: appId || "",
         name
       };
     } catch (error) {

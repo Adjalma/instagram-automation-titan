@@ -212,19 +212,21 @@ class SDKServer {
       });
       const { openId, appId, name } = payload as Record<string, unknown>;
 
+      // Admin local: openId começa com "admin_", appId pode ser vazio
+      const isAdminLocal = typeof openId === "string" && openId.startsWith("admin_");
       if (
         !isNonEmptyString(openId) ||
-        !isNonEmptyString(appId) ||
+        (!isAdminLocal && !isNonEmptyString(appId)) ||
         !isNonEmptyString(name)
       ) {
-        console.warn("[Auth] Session payload missing required fields");
+        console.warn("[Auth] Session payload missing required fields", { openId, appId, name });
         return null;
       }
 
       return {
-        openId,
-        appId,
-        name,
+        openId: openId as string,
+        appId: (appId as string) || "",
+        name: name as string,
       };
     } catch (error) {
       console.warn("[Auth] Session verification failed", String(error));
