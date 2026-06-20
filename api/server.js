@@ -2845,7 +2845,7 @@ function registerAuthRoutes(app2) {
       dbUrl: dbRaw ? dbRaw.slice(0, 12) + "..." : "missing",
       dbUrlBackup: dbBackup ? dbBackup.slice(0, 12) + "..." : "missing",
       activeDb: activeDb ? activeDb.slice(0, 12) + "..." : "none",
-      buildTime: "2026-06-20T21:40:00Z"
+      buildTime: "2026-06-20T21:50:00Z"
     });
   });
   app2.post("/api/auth/login", async (req, res) => {
