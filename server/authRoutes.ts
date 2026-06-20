@@ -16,12 +16,17 @@ export function registerAuthRoutes(app: Express) {
     const adminEmail = process.env.ADMIN_EMAIL || "";
     const hasPassword = !!process.env.ADMIN_PASSWORD;
     const hasJwt = !!process.env.JWT_SECRET;
+    const emailHash = adminEmail
+      ? crypto.createHash("md5").update(adminEmail).digest("hex").slice(0, 8)
+      : "empty";
     res.json({
       adminEmailLength: adminEmail.length,
-      adminEmailHash: adminEmail ? require("crypto").createHash("md5").update(adminEmail).digest("hex").slice(0,8) : "empty",
+      adminEmailHash: emailHash,
       hasPassword,
       hasJwt,
       ownerOpenId: process.env.OWNER_OPEN_ID ? "set" : "missing",
+      dbUrl: process.env.DATABASE_URL ? process.env.DATABASE_URL.slice(0, 12) + "..." : "missing",
+      dbUrlBackup: process.env.DB_URL ? process.env.DB_URL.slice(0, 12) + "..." : "missing",
     });
   });
 

@@ -1,11 +1,5 @@
 var __defProp = Object.defineProperty;
 var __getOwnPropNames = Object.getOwnPropertyNames;
-var __require = /* @__PURE__ */ ((x) => typeof require !== "undefined" ? require : typeof Proxy !== "undefined" ? new Proxy(x, {
-  get: (a, b) => (typeof require !== "undefined" ? require : a)[b]
-}) : x)(function(x) {
-  if (typeof require !== "undefined") return require.apply(this, arguments);
-  throw Error('Dynamic require of "' + x + '" is not supported');
-});
 var __esm = (fn, res) => function __init() {
   return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
 };
@@ -2835,12 +2829,15 @@ function registerAuthRoutes(app2) {
     const adminEmail = process.env.ADMIN_EMAIL || "";
     const hasPassword = !!process.env.ADMIN_PASSWORD;
     const hasJwt = !!process.env.JWT_SECRET;
+    const emailHash = adminEmail ? crypto2.createHash("md5").update(adminEmail).digest("hex").slice(0, 8) : "empty";
     res.json({
       adminEmailLength: adminEmail.length,
-      adminEmailHash: adminEmail ? __require("crypto").createHash("md5").update(adminEmail).digest("hex").slice(0, 8) : "empty",
+      adminEmailHash: emailHash,
       hasPassword,
       hasJwt,
-      ownerOpenId: process.env.OWNER_OPEN_ID ? "set" : "missing"
+      ownerOpenId: process.env.OWNER_OPEN_ID ? "set" : "missing",
+      dbUrl: process.env.DATABASE_URL ? process.env.DATABASE_URL.slice(0, 12) + "..." : "missing",
+      dbUrlBackup: process.env.DB_URL ? process.env.DB_URL.slice(0, 12) + "..." : "missing"
     });
   });
   app2.post("/api/auth/login", async (req, res) => {
