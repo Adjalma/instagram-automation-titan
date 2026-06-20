@@ -15,22 +15,37 @@ export async function getDb() {
   // Prioridade: DB_URL (MySQL) > DATABASE_URL se for MySQL
   const dbUrlFromDbUrl = process.env.DB_URL ?? "";
   const dbUrlFromDatabaseUrl = process.env.DATABASE_URL ?? "";
-  // Prefere DB_URL se for MySQL, senao tenta DATABASE_URL se for MySQL
   const dbUrl = dbUrlFromDbUrl.startsWith("mysql") ? dbUrlFromDbUrl
     : dbUrlFromDatabaseUrl.startsWith("mysql") ? dbUrlFromDatabaseUrl
-    : dbUrlFromDbUrl; // usa DB_URL mesmo sem prefixo mysql como ultimo recurso
+    : dbUrlFromDbUrl;
   if (!_db && dbUrl) {
     try {
       _activeDbUrl = dbUrl.replace(/:[^:@]+@/, ":***@");
       console.log("[Database] Connecting to:", _activeDbUrl);
-      const pool = createPool({
-        uri: dbUrl,
+      // Parseia a URL manualmente para evitar problemas com ssl= na query string
+      let poolConfig: Record<string, unknown> = {
         waitForConnections: true,
         connectionLimit: 10,
         queueLimit: 0,
         enableKeepAlive: true,
         keepAliveInitialDelay: 10000,
-      });
+      };
+      try {
+        const parsed = new URL(dbUrl);
+        poolConfig.host = parsed.hostname;
+        poolConfig.port = parseInt(parsed.port || "3306", 10);
+        poolConfig.user = decodeURIComponent(parsed.username);
+        poolConfig.password = decodeURIComponent(parsed.password);
+        poolConfig.database = parsed.pathname.replace(/^\//, "");
+        // TiDB Cloud exige SSL — adiciona via opções explícitas
+        if (parsed.hostname.includes("tidbcloud") || parsed.searchParams.has("ssl")) {
+          poolConfig.ssl = { rejectUnauthorized: true };
+        }
+      } catch {
+        // fallback para URI direta se o parse falhar
+        (poolConfig as any).uri = dbUrl;
+      }
+      const pool = createPool(poolConfig as any);
       _db = drizzle(pool);
     } catch (error: any) {
       _lastDbError = error.message;

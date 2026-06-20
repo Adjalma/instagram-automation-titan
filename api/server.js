@@ -231,14 +231,27 @@ async function getDb() {
     try {
       _activeDbUrl = dbUrl.replace(/:[^:@]+@/, ":***@");
       console.log("[Database] Connecting to:", _activeDbUrl);
-      const pool = createPool({
-        uri: dbUrl,
+      let poolConfig = {
         waitForConnections: true,
         connectionLimit: 10,
         queueLimit: 0,
         enableKeepAlive: true,
         keepAliveInitialDelay: 1e4
-      });
+      };
+      try {
+        const parsed = new URL(dbUrl);
+        poolConfig.host = parsed.hostname;
+        poolConfig.port = parseInt(parsed.port || "3306", 10);
+        poolConfig.user = decodeURIComponent(parsed.username);
+        poolConfig.password = decodeURIComponent(parsed.password);
+        poolConfig.database = parsed.pathname.replace(/^\//, "");
+        if (parsed.hostname.includes("tidbcloud") || parsed.searchParams.has("ssl")) {
+          poolConfig.ssl = { rejectUnauthorized: true };
+        }
+      } catch {
+        poolConfig.uri = dbUrl;
+      }
+      const pool = createPool(poolConfig);
       _db = drizzle(pool);
     } catch (error) {
       _lastDbError = error.message;
