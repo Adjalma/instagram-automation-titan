@@ -284,7 +284,7 @@ export const appRouter = router({
           try {
             const style = "Design moderno e limpo com elementos tech, cores azul ciano (#00BFFF) e cinza escuro, estilo corporativo premium, minimalista e sofisticado";
             const artResult = await generateImage({
-              prompt: `Instagram post for Triarc Solutions tech company. Topic: ${theme.name}. ${style}. Place the Triarc Solutions logo (circular tech emblem with gears and code symbols, navy blue, gray and green) prominently in the bottom-right corner. Professional social media design, 1080x1080 square.`,
+              prompt: `Post visual para Instagram da Triarc Solutions (empresa de tecnologia, Macaé/RJ). Tema: ${theme.name}. ${style}. IMPORTANTE: não incluir nenhum texto, palavra ou letra na imagem — apenas elementos visuais, ícones tech e formas geométricas. Logo da Triarc Solutions no canto inferior direito. Formato quadrado 1080x1080, design profissional para redes sociais.`,
               originalImages: [{ url: "https://tsm.triarcsolutions.com.br/manus-storage/triarc-logo_4d0b8405.jpeg", mimeType: "image/jpeg" }],
             });
             mediaUrl = artResult.url ?? "";
@@ -358,7 +358,7 @@ export const appRouter = router({
         try {
           const style = "Design moderno tech, cores azul ciano (#00BFFF) e cinza escuro, estilo corporativo premium";
           const artResult = await generateImage({
-            prompt: `Instagram post for Triarc Solutions tech company. Topic: ${theme}. ${style}. Place the Triarc Solutions logo (circular tech emblem with gears and code symbols, navy blue, gray and green) prominently in the bottom-right corner. 1080x1080 square.`,
+            prompt: `Post visual para Instagram da Triarc Solutions (empresa de tecnologia, Macaé/RJ). Tema: ${theme}. ${style}. IMPORTANTE: não incluir nenhum texto, palavra ou letra na imagem — apenas elementos visuais, ícones tech e formas geométricas. Logo da Triarc Solutions no canto inferior direito. Formato quadrado 1080x1080.`,
             originalImages: [{ url: "https://tsm.triarcsolutions.com.br/manus-storage/triarc-logo_4d0b8405.jpeg", mimeType: "image/jpeg" }],
           });
           mediaUrl = artResult.url ?? "";
@@ -575,7 +575,7 @@ export const appRouter = router({
       const account = await getAccountById(input.accountId);
       if (!account) throw new Error("Account not found");
       const style = "Design moderno e limpo com elementos tech, cores azul ciano (#00BFFF) e cinza escuro, estilo corporativo premium, minimalista e sofisticado";
-      const prompt = `Instagram post image for Triarc Solutions tech company. Topic: ${input.theme}. ${style}. ${input.description ?? ""}. Place the Triarc Solutions logo (circular tech emblem with gears and code symbols, navy blue, gray and green) prominently in the bottom-right corner. Professional social media design, 1080x1080 square format.`;
+      const prompt = `Post visual para Instagram da Triarc Solutions (empresa de tecnologia, Macaé/RJ). Tema: ${input.theme}. ${style}. ${input.description ? `Contexto: ${input.description}.` : ""} IMPORTANTE: não incluir nenhum texto, palavra ou letra na imagem — apenas elementos visuais, ícones tech e formas geométricas. Logo da Triarc Solutions no canto inferior direito. Formato quadrado 1080x1080, design profissional.`;
       const { url } = await generateImage({
         prompt,
         originalImages: [{ url: "https://tsm.triarcsolutions.com.br/manus-storage/triarc-logo_4d0b8405.jpeg", mimeType: "image/jpeg" }],
