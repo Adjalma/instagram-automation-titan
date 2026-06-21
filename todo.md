@@ -179,3 +179,16 @@
 - [x] Corrigir erro TS: Themes.tsx property 'socialOnly' não existe (erro apenas no watcher, tsc --noEmit OK)
 - [x] Corrigir erro TS: vercel.ts runSchedulerTick e probeImageStack não exportados (erro apenas no watcher, tsc --noEmit OK)
 - [x] Auditar e corrigir todas as páginas do sistema
+
+## Redesign Futurista 2026-06-21
+
+- [x] Tema dark tech: fundo oklch(0.09), neon cyan/purple/pink, glassmorphism, grid cyberpunk no body
+- [x] Fontes: Orbitron (títulos), JetBrains Mono (labels/mono), Inter (texto)
+- [x] DashboardLayout: sidebar dark com neon cyan, active border-left neon, footer com avatar
+- [x] Home/Dashboard: stat cards neon, redes conectadas com ícone neon, alertas neon
+- [x] Login: card glassmorphism com glow, inputs dark, botão gradiente neon
+- [x] Approval: cards dark com borda neon por plataforma, botões neon
+- [x] Analytics: gráficos com cores neon, stat cards com neon por categoria
+- [x] HistoryView: cards dark com borda pink neon, métricas coloridas
+- [x] Build limpo: zero erros TypeScript, pnpm build OK
+- [ ] Diagnosticado: token Facebook inválido — usuário deve reconectar via OAuth com permissão pages_manage_posts

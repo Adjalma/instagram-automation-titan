@@ -30,7 +30,6 @@ import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
 
-// Itens principais na bottom-bar mobile (máx 5)
 const bottomBarItems = [
   { icon: LayoutDashboard, label: "Início", path: "/" },
   { icon: PenSquare, label: "Criar", path: "/create" },
@@ -57,9 +56,9 @@ const menuItems = [
 ];
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";
-const DEFAULT_WIDTH = 260;
+const DEFAULT_WIDTH = 256;
 const MIN_WIDTH = 200;
-const MAX_WIDTH = 400;
+const MAX_WIDTH = 380;
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [sidebarWidth, setSidebarWidth] = useState(() => {
@@ -89,7 +88,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   if (loading && slowLoad) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-4 p-6 text-center">
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 p-6 text-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
         <p className="text-sm text-muted-foreground">Carregando… o servidor pode estar lento.</p>
         <div className="flex gap-2">
@@ -102,7 +101,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   if (!user) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-4 p-6 text-center">
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 p-6 text-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
         <p className="text-sm text-muted-foreground">Redirecionando para login...</p>
         <Button variant="outline" onClick={() => { window.location.href = "/login"; }}>
@@ -143,7 +142,6 @@ function DashboardLayoutContent({
     if (isCollapsed) setIsResizing(false);
   }, [isCollapsed]);
 
-  // Fechar sidebar ao navegar no mobile
   useEffect(() => {
     if (isMobile && state === "expanded") toggleSidebar();
   }, [location]);
@@ -172,35 +170,46 @@ function DashboardLayoutContent({
 
   return (
     <>
-      {/* Sidebar — oculta no mobile por padrão, abre via overlay */}
       <div className="relative" ref={sidebarRef}>
-        <Sidebar collapsible="icon" className="border-r-0" disableTransition={isResizing}>
-          <SidebarHeader className="h-14 justify-center">
+        <Sidebar
+          collapsible="icon"
+          className="border-r-0"
+          disableTransition={isResizing}
+          style={{
+            background: "oklch(0.07 0.02 240)",
+            borderRight: "1px solid oklch(0.82 0.18 195 / 12%)",
+          }}
+        >
+          {/* Header da sidebar */}
+          <SidebarHeader className="h-14 justify-center" style={{ borderBottom: "1px solid oklch(0.82 0.18 195 / 10%)" }}>
             <div className="flex items-center gap-2 px-2 w-full">
               <button
                 onClick={toggleSidebar}
-                className="h-8 w-8 flex items-center justify-center hover:bg-accent rounded-lg transition-colors shrink-0"
+                className="h-8 w-8 flex items-center justify-center rounded-lg transition-all shrink-0"
+                style={{ color: "oklch(0.82 0.18 195 / 60%)" }}
+                onMouseEnter={e => (e.currentTarget.style.background = "oklch(0.82 0.18 195 / 10%)")}
+                onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
                 aria-label="Toggle navigation"
               >
-                <PanelLeft className="h-4 w-4 text-muted-foreground" />
+                <PanelLeft className="h-4 w-4" />
               </button>
               {!isCollapsed && (
                 <div className="flex items-center gap-2 min-w-0">
-                  <img
-                    src="/logo.svg"
-                    alt="Triarc"
-                    className="h-7 w-7 rounded-full object-cover"
-                  />
-                  <span className="font-bold tracking-tight truncate">
-                    Triarc<span className="text-primary">SM</span>
+                  <div className="relative h-7 w-7 shrink-0">
+                    <img src="/logo.svg" alt="Triarc" className="h-7 w-7 rounded-full object-cover" />
+                    <div className="absolute inset-0 rounded-full" style={{ boxShadow: "0 0 10px oklch(0.82 0.18 195 / 40%)" }} />
+                  </div>
+                  <span className="font-bold tracking-tight truncate text-sm" style={{ fontFamily: "'Orbitron', sans-serif", letterSpacing: "0.05em" }}>
+                    Triarc<span style={{ color: "oklch(0.82 0.18 195)", textShadow: "0 0 10px oklch(0.82 0.18 195 / 60%)" }}>SM</span>
                   </span>
                 </div>
               )}
             </div>
           </SidebarHeader>
 
-          <SidebarContent className="gap-0">
-            <SidebarMenu className="px-2 py-1">
+          {/* Menu items */}
+          <SidebarContent className="gap-0 py-2">
+            <SidebarMenu className="px-2">
               {menuItems.map(item => {
                 const isActive = location === item.path;
                 return (
@@ -209,10 +218,19 @@ function DashboardLayoutContent({
                       isActive={isActive}
                       onClick={() => setLocation(item.path)}
                       tooltip={item.label}
-                      className="h-10 font-normal"
+                      className="h-9 font-normal transition-all"
+                      style={isActive ? {
+                        background: "oklch(0.82 0.18 195 / 12%)",
+                        color: "oklch(0.82 0.18 195)",
+                        borderLeft: "2px solid oklch(0.82 0.18 195)",
+                        paddingLeft: "calc(0.5rem - 2px)",
+                      } : {
+                        color: "oklch(0.65 0.01 240)",
+                        borderLeft: "2px solid transparent",
+                      }}
                     >
-                      <item.icon className={`h-4 w-4 ${isActive ? "text-primary" : ""}`} />
-                      <span>{item.label}</span>
+                      <item.icon className="h-4 w-4 shrink-0" style={isActive ? { color: "oklch(0.82 0.18 195)", filter: "drop-shadow(0 0 4px oklch(0.82 0.18 195 / 60%))" } : {}} />
+                      <span className="text-xs font-medium">{item.label}</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 );
@@ -220,19 +238,26 @@ function DashboardLayoutContent({
             </SidebarMenu>
           </SidebarContent>
 
-          <SidebarFooter className="p-3">
+          {/* Footer */}
+          <SidebarFooter className="p-3" style={{ borderTop: "1px solid oklch(0.82 0.18 195 / 10%)" }}>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="flex items-center gap-3 rounded-lg px-1 py-1 hover:bg-accent/50 transition-colors w-full text-left focus:outline-none">
-                  <Avatar className="h-8 w-8 border shrink-0">
-                    <AvatarFallback className="text-xs font-medium">
+                <button className="flex items-center gap-3 rounded-lg px-2 py-2 transition-all w-full text-left focus:outline-none"
+                  style={{ color: "oklch(0.75 0.01 240)" }}
+                  onMouseEnter={e => (e.currentTarget.style.background = "oklch(0.82 0.18 195 / 8%)")}
+                  onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+                >
+                  <Avatar className="h-7 w-7 shrink-0" style={{ border: "1px solid oklch(0.82 0.18 195 / 30%)" }}>
+                    <AvatarFallback className="text-xs font-bold" style={{ background: "oklch(0.82 0.18 195 / 15%)", color: "oklch(0.82 0.18 195)" }}>
                       {user?.name?.charAt(0).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
-                  <div className="flex-1 min-w-0 group-data-[collapsible=icon]:hidden">
-                    <p className="text-sm font-medium truncate leading-none">{user?.name || "-"}</p>
-                    <p className="text-xs text-muted-foreground truncate mt-1">{user?.email || "-"}</p>
-                  </div>
+                  {!isCollapsed && (
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold truncate leading-none" style={{ color: "oklch(0.85 0.01 220)" }}>{user?.name || "-"}</p>
+                      <p className="text-[10px] truncate mt-0.5" style={{ color: "oklch(0.50 0.02 240)" }}>{user?.email || "-"}</p>
+                    </div>
+                  )}
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-44">
@@ -245,28 +270,28 @@ function DashboardLayoutContent({
           </SidebarFooter>
         </Sidebar>
 
-        {/* Resize handle — desktop only */}
+        {/* Resize handle */}
         {!isMobile && (
           <div
-            className={`absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-primary/20 transition-colors ${isCollapsed ? "hidden" : ""}`}
+            className={`absolute top-0 right-0 w-1 h-full cursor-col-resize transition-colors ${isCollapsed ? "hidden" : ""}`}
             onMouseDown={() => { if (!isCollapsed) setIsResizing(true); }}
-            style={{ zIndex: 50 }}
+            style={{ zIndex: 50, background: "oklch(0.82 0.18 195 / 0%)" }}
+            onMouseEnter={e => (e.currentTarget.style.background = "oklch(0.82 0.18 195 / 20%)")}
+            onMouseLeave={e => (e.currentTarget.style.background = "oklch(0.82 0.18 195 / 0%)")}
           />
         )}
       </div>
 
-      <SidebarInset className={isMobile ? "pb-16" : ""}>
+      <SidebarInset className={isMobile ? "pb-16" : ""} style={{ background: "oklch(0.09 0.02 240)" }}>
         {/* Top bar mobile */}
         {isMobile && (
-          <div className="sticky top-0 z-40 flex h-14 items-center gap-3 border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:backdrop-blur-sm">
+          <div className="sticky top-0 z-40 flex h-14 items-center gap-3 px-4 backdrop-blur"
+            style={{ background: "oklch(0.07 0.02 240 / 95%)", borderBottom: "1px solid oklch(0.82 0.18 195 / 12%)" }}
+          >
             <SidebarTrigger className="h-9 w-9 rounded-lg" />
             <div className="flex items-center gap-2">
-              <img
-                src="/logo.svg"
-                alt="Triarc"
-                className="h-7 w-7 rounded-full object-cover"
-              />
-              <span className="font-semibold text-sm">
+              <img src="/logo.svg" alt="Triarc" className="h-7 w-7 rounded-full object-cover" />
+              <span className="font-semibold text-sm" style={{ color: "oklch(0.85 0.01 220)" }}>
                 {activeMenuItem?.label ?? "Triarc SM"}
               </span>
             </div>
@@ -276,9 +301,11 @@ function DashboardLayoutContent({
         {/* Conteúdo principal */}
         <main className="flex-1 p-4 md:p-6">{children}</main>
 
-        {/* Bottom navigation bar — mobile only */}
+        {/* Bottom nav mobile */}
         {isMobile && (
-          <nav className="fixed bottom-0 left-0 right-0 z-50 flex h-16 items-center justify-around border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:backdrop-blur-sm px-1">
+          <nav className="fixed bottom-0 left-0 right-0 z-50 flex h-16 items-center justify-around px-1 backdrop-blur"
+            style={{ background: "oklch(0.07 0.02 240 / 95%)", borderTop: "1px solid oklch(0.82 0.18 195 / 12%)" }}
+          >
             {bottomBarItems.map(item => {
               const isMore = item.path === "__menu__";
               const isActive = !isMore && location === item.path;
@@ -286,16 +313,13 @@ function DashboardLayoutContent({
                 <button
                   key={item.path}
                   onClick={() => {
-                    if (isMore) {
-                      toggleSidebar();
-                    } else {
-                      setLocation(item.path);
-                    }
+                    if (isMore) toggleSidebar();
+                    else setLocation(item.path);
                   }}
-                  className={`flex flex-col items-center justify-center gap-1 flex-1 h-full rounded-lg transition-colors
-                    ${isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}
+                  className="flex flex-col items-center justify-center gap-1 flex-1 h-full rounded-lg transition-all"
+                  style={isActive ? { color: "oklch(0.82 0.18 195)" } : { color: "oklch(0.50 0.02 240)" }}
                 >
-                  <item.icon className={`h-5 w-5 ${isActive ? "text-primary" : ""}`} />
+                  <item.icon className="h-5 w-5" style={isActive ? { filter: "drop-shadow(0 0 4px oklch(0.82 0.18 195 / 60%))" } : {}} />
                   <span className="text-[10px] font-medium leading-none">{item.label}</span>
                 </button>
               );

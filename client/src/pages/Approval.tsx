@@ -1,21 +1,24 @@
 import { trpc } from "@/lib/trpc";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import {
   Loader2, CheckCircle, XCircle, Clock, Instagram,
-  Send, Zap, CalendarCheck, Rocket, RefreshCw,
+  Send, Zap, CalendarCheck, Rocket, RefreshCw, Linkedin, Facebook, Music, Globe,
 } from "lucide-react";
+
+const PLATFORM_ICONS: Record<string, any> = {
+  instagram: Instagram, linkedin: Linkedin, facebook: Facebook, tiktok: Music,
+};
+const PLATFORM_NEON: Record<string, string> = {
+  instagram: "oklch(0.75 0.22 340)", linkedin: "oklch(0.65 0.18 240)",
+  facebook: "oklch(0.65 0.18 255)", tiktok: "oklch(0.82 0.18 195)",
+};
 
 export default function Approval() {
   const utils = trpc.useUtils();
-
-  // Busca PENDING e APPROVED juntos
   const { data: pendingPosts, isLoading: loadingPending } = trpc.posts.list.useQuery({ status: "pending" });
   const { data: approvedPosts, isLoading: loadingApproved } = trpc.posts.list.useQuery({ status: "approved" });
   const { data: accounts } = trpc.accounts.list.useQuery();
-
   const isLoading = loadingPending || loadingApproved;
 
   function invalidateAll() {
@@ -30,7 +33,13 @@ export default function Approval() {
       if (data.status === "scheduled") {
         toast.success("📅 Post agendado!", { description: "Será publicado no horário configurado." });
       } else {
-        toast.success("✅ Post aprovado!", { description: "Clique em 'Publicar Agora' para publicar imediatamente." });
+        const results = (data as any).publishResults as Record<string, string> | undefined;
+        if (results) {
+          const lines = Object.entries(results).map(([k, v]) => `${k}: ${v}`).join(" | ");
+          toast.success("✅ Post publicado!", { description: lines });
+        } else {
+          toast.success("✅ Post aprovado e publicado!");
+        }
       }
     },
     onError: (err) => toast.error("Erro ao aprovar", { description: err.message }),
@@ -42,155 +51,121 @@ export default function Approval() {
   });
 
   const approveAll = trpc.automation.approveAll.useMutation({
-    onSuccess: (data) => {
-      invalidateAll();
-      toast.success(`${data.approved} posts aprovados, ${data.scheduled} agendados.`);
-    },
+    onSuccess: (data) => { invalidateAll(); toast.success(`${data.approved} posts aprovados, ${data.scheduled} agendados.`); },
     onError: (err) => toast.error("Erro", { description: err.message }),
   });
 
   const publishNow = trpc.automation.publishNow.useMutation({
-    onSuccess: (_data, variables) => {
-      invalidateAll();
-      // Publica imediatamente via MCP
-      const post = [...(approvedPosts ?? []), ...(pendingPosts ?? [])].find((p: any) => p.id === variables.postId);
-      if (post) {
-        toast.info("🚀 Publicando no Instagram...", {
-          description: "Aguarde a confirmação no card do Manus.",
-        });
-      }
-    },
+    onSuccess: () => { invalidateAll(); toast.info("🚀 Publicando..."); },
     onError: (err) => toast.error("Erro ao publicar", { description: err.message }),
   });
 
   const getAccount = (accountId: number) => accounts?.find((a: any) => a.id === accountId);
-
   const pendingCount = pendingPosts?.length ?? 0;
   const approvedCount = approvedPosts?.length ?? 0;
   const totalCount = pendingCount + approvedCount;
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
+  if (isLoading) return (
+    <div className="flex items-center justify-center h-64">
+      <Loader2 className="h-8 w-8 animate-spin" style={{ color: "oklch(0.82 0.18 195)" }} />
+    </div>
+  );
 
   function PostCard({ post, isApproved }: { post: any; isApproved: boolean }) {
     const account = getAccount(post.accountId);
+    const platform = account?.platform ?? "instagram";
+    const Icon = PLATFORM_ICONS[platform] ?? Globe;
+    const neon = PLATFORM_NEON[platform] ?? "oklch(0.82 0.18 195)";
     const isFuture = post.scheduledAt && new Date(post.scheduledAt) > new Date();
 
+    const borderNeon = isApproved ? "oklch(0.80 0.18 145)" : neon;
+
     return (
-      <Card className={`border ${isApproved ? "border-green-200 bg-green-50/30" : "border-border"}`}>
-        <CardHeader className="pb-3">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full flex items-center justify-center bg-cyan-100">
-              <Instagram className="h-4 w-4 text-cyan-600" />
-            </div>
-            <div>
-              <CardTitle className="text-sm font-bold">@{account?.handle ?? "?"}</CardTitle>
-              <p className="text-xs text-muted-foreground">{post.theme ?? "Sem tema"}</p>
-            </div>
-            <div className="ml-auto flex items-center gap-2">
-              {isApproved ? (
-                <Badge className="gap-1 text-xs bg-green-100 text-green-700 border-green-300 hover:bg-green-100">
-                  <CheckCircle className="h-3 w-3" />
-                  Aprovado — na fila
-                </Badge>
-              ) : isFuture ? (
-                <Badge variant="outline" className="gap-1 text-xs border-amber-300 text-amber-600">
-                  <Clock className="h-3 w-3" />
-                  {new Date(post.scheduledAt).toLocaleString("pt-BR")}
-                </Badge>
-              ) : (
-                <Badge variant="outline" className="gap-1 text-xs border-cyan-300 text-cyan-600">
-                  <Send className="h-3 w-3" />
-                  Pendente
-                </Badge>
-              )}
-            </div>
+      <div className="rounded-xl p-4 space-y-3 transition-all"
+        style={{ background: "oklch(0.12 0.025 240 / 80%)", border: `1px solid ${borderNeon.replace(")", " / 20%)")}`, backdropFilter: "blur(12px)" }}
+      >
+        {/* Header */}
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
+            style={{ background: `${neon.replace(")", " / 12%)")}`, border: `1px solid ${neon.replace(")", " / 30%)")}` }}
+          >
+            <Icon className="h-4 w-4" style={{ color: neon }} />
           </div>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {/* Thumbnail da imagem gerada */}
-          {post.mediaUrl && (
-            <div className="rounded-lg overflow-hidden bg-muted/20 border border-border">
-              <img
-                src={post.mediaUrl}
-                alt={post.theme ?? "Post"}
-                className="w-full h-48 object-cover"
-                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-              />
-            </div>
-          )}
-          <div className="bg-muted/30 rounded-lg p-3 max-h-36 overflow-y-auto">
-            <p className="text-sm whitespace-pre-wrap leading-relaxed">{post.caption ?? "Sem legenda"}</p>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold truncate" style={{ color: "oklch(0.92 0.01 220)" }}>@{account?.handle ?? "?"}</p>
+            <p className="text-xs truncate" style={{ color: "oklch(0.55 0.02 240)" }}>{post.theme ?? "Sem tema"}</p>
           </div>
-          <div className="flex gap-2 justify-end">
-            {/* Rejeitar sempre disponível */}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => reject.mutate({ id: post.id })}
-              disabled={reject.isPending || approve.isPending || publishNow.isPending}
-              className="gap-1.5 text-destructive hover:text-destructive"
+          <div className="shrink-0">
+            {isApproved ? (
+              <span className="text-xs px-2 py-0.5 rounded-full font-mono" style={{ background: "oklch(0.80 0.18 145 / 12%)", color: "oklch(0.80 0.18 145)", border: "1px solid oklch(0.80 0.18 145 / 30%)" }}>
+                ✓ Na fila
+              </span>
+            ) : isFuture ? (
+              <span className="text-xs px-2 py-0.5 rounded-full font-mono flex items-center gap-1" style={{ background: "oklch(0.82 0.18 80 / 12%)", color: "oklch(0.82 0.18 80)", border: "1px solid oklch(0.82 0.18 80 / 30%)" }}>
+                <Clock className="h-3 w-3" />
+                {new Date(post.scheduledAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+              </span>
+            ) : (
+              <span className="text-xs px-2 py-0.5 rounded-full font-mono flex items-center gap-1" style={{ background: `${neon.replace(")", " / 10%)")}`, color: neon, border: `1px solid ${neon.replace(")", " / 25%)")}` }}>
+                <Send className="h-3 w-3" />
+                Pendente
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Imagem */}
+        {post.mediaUrl && (
+          <div className="rounded-lg overflow-hidden" style={{ border: "1px solid oklch(0.22 0.04 240)" }}>
+            <img src={post.mediaUrl} alt={post.theme ?? "Post"} className="w-full h-48 object-cover"
+              onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
+          </div>
+        )}
+
+        {/* Legenda */}
+        <div className="rounded-lg p-3 max-h-32 overflow-y-auto" style={{ background: "oklch(0.09 0.02 240)", border: "1px solid oklch(0.22 0.04 240)" }}>
+          <p className="text-xs leading-relaxed whitespace-pre-wrap" style={{ color: "oklch(0.75 0.01 220)" }}>{post.caption ?? "Sem legenda"}</p>
+        </div>
+
+        {/* Ações */}
+        <div className="flex gap-2 justify-end">
+          <button
+            onClick={() => reject.mutate({ id: post.id })}
+            disabled={reject.isPending || approve.isPending || publishNow.isPending}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+            style={{ background: "oklch(0.65 0.25 25 / 10%)", color: "oklch(0.75 0.22 25)", border: "1px solid oklch(0.65 0.25 25 / 30%)" }}
+          >
+            <XCircle className="h-3.5 w-3.5" /> Rejeitar
+          </button>
+
+          {!isFuture && (
+            <button
+              onClick={() => {
+                if (isApproved) publishNow.mutate({ postId: post.id });
+                else approve.mutate({ id: post.id }, { onSuccess: () => publishNow.mutate({ postId: post.id }) });
+              }}
+              disabled={publishNow.isPending || approve.isPending || reject.isPending}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
+              style={{ background: "linear-gradient(135deg, oklch(0.72 0.22 290), oklch(0.75 0.22 340))", color: "oklch(0.98 0 0)", boxShadow: "0 0 15px oklch(0.72 0.22 290 / 25%)" }}
             >
-              <XCircle className="h-3.5 w-3.5" />
-              Rejeitar
-            </Button>
+              {publishNow.isPending || approve.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Rocket className="h-3.5 w-3.5" />}
+              Publicar Agora
+            </button>
+          )}
 
-            {/* Publicar Agora — disponível para approved e pending sem data futura */}
-            {!isFuture && (
-              <Button
-                size="sm"
-                onClick={() => {
-                  if (isApproved) {
-                    // Já aprovado: publica direto
-                    publishNow.mutate({ postId: post.id });
-                  } else {
-                    // Pendente: aprova e depois publica
-                    approve.mutate({ id: post.id }, {
-                      onSuccess: () => {
-                        publishNow.mutate({ postId: post.id });
-                      }
-                    });
-                  }
-                }}
-                disabled={publishNow.isPending || approve.isPending || reject.isPending}
-                className="gap-1.5 bg-violet-600 hover:bg-violet-700 text-white"
-              >
-                {publishNow.isPending || approve.isPending ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <Rocket className="h-3.5 w-3.5" />
-                )}
-                Publicar Agora
-              </Button>
-            )}
-
-            {/* Aprovar (sem publicar) — só para pending */}
-            {!isApproved && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => approve.mutate({ id: post.id })}
-                disabled={approve.isPending || reject.isPending || publishNow.isPending}
-                className="gap-1.5"
-              >
-                {approve.isPending ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : isFuture ? (
-                  <CalendarCheck className="h-3.5 w-3.5" />
-                ) : (
-                  <CheckCircle className="h-3.5 w-3.5" />
-                )}
-                {isFuture ? "Aprovar e Agendar" : "Só Aprovar"}
-              </Button>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+          {!isApproved && (
+            <button
+              onClick={() => approve.mutate({ id: post.id })}
+              disabled={approve.isPending || reject.isPending || publishNow.isPending}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+              style={{ background: "oklch(0.82 0.18 195 / 12%)", color: "oklch(0.82 0.18 195)", border: "1px solid oklch(0.82 0.18 195 / 30%)" }}
+            >
+              {approve.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : isFuture ? <CalendarCheck className="h-3.5 w-3.5" /> : <CheckCircle className="h-3.5 w-3.5" />}
+              {isFuture ? "Agendar" : "Só Aprovar"}
+            </button>
+          )}
+        </div>
+      </div>
     );
   }
 
@@ -199,66 +174,56 @@ export default function Approval() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Aprovação</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {pendingCount} pendente(s) · {approvedCount} aprovado(s) aguardando publicação
+          <h1 className="text-2xl font-bold tracking-tight" style={{ fontFamily: "'Orbitron', sans-serif", background: "linear-gradient(135deg, oklch(0.92 0.01 220), oklch(0.82 0.18 195))", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+            Aprovação
+          </h1>
+          <p className="text-xs mt-1 font-mono uppercase tracking-widest" style={{ color: "oklch(0.82 0.18 195 / 60%)" }}>
+            {pendingCount} pendente(s) · {approvedCount} aprovado(s) na fila
           </p>
         </div>
         <div className="flex gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => invalidateAll()}
-            className="gap-1.5"
+          <button onClick={() => invalidateAll()}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+            style={{ background: "oklch(0.12 0.025 240)", color: "oklch(0.65 0.02 240)", border: "1px solid oklch(0.22 0.04 240)" }}
           >
-            <RefreshCw className="h-3.5 w-3.5" />
-            Atualizar
-          </Button>
+            <RefreshCw className="h-3.5 w-3.5" /> Atualizar
+          </button>
           {pendingCount > 0 && (
-            <Button
-              size="sm"
-              onClick={() => approveAll.mutate()}
-              disabled={approveAll.isPending}
-              className="gap-1.5"
+            <button onClick={() => approveAll.mutate()} disabled={approveAll.isPending}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
+              style={{ background: "linear-gradient(135deg, oklch(0.82 0.18 195), oklch(0.72 0.22 290))", color: "oklch(0.08 0.02 220)", boxShadow: "0 0 15px oklch(0.82 0.18 195 / 25%)" }}
             >
               {approveAll.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
               Aprovar Todos ({pendingCount})
-            </Button>
+            </button>
           )}
         </div>
       </div>
 
       {totalCount === 0 ? (
-        <Card>
-          <CardContent className="py-12 text-center">
-            <CheckCircle className="h-12 w-12 mx-auto mb-3 text-emerald-400 opacity-50" />
-            <p className="text-lg font-semibold text-muted-foreground">Nenhum post pendente</p>
-            <p className="text-sm text-muted-foreground mt-1">Todos os posts foram revisados</p>
-          </CardContent>
-        </Card>
+        <div className="rounded-xl py-16 text-center" style={{ background: "oklch(0.12 0.025 240 / 80%)", border: "1px solid oklch(0.22 0.04 240)" }}>
+          <CheckCircle className="h-12 w-12 mx-auto mb-3 opacity-30" style={{ color: "oklch(0.80 0.18 145)" }} />
+          <p className="font-semibold" style={{ color: "oklch(0.65 0.02 240)" }}>Nenhum post pendente</p>
+          <p className="text-xs mt-1" style={{ color: "oklch(0.45 0.02 240)" }}>Todos os posts foram revisados</p>
+        </div>
       ) : (
         <div className="space-y-4">
-          {/* Posts pendentes primeiro */}
           {pendingPosts && pendingPosts.length > 0 && (
             <>
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                Aguardando aprovação ({pendingCount})
-              </p>
-              {pendingPosts.map((post: any) => (
-                <PostCard key={post.id} post={post} isApproved={false} />
-              ))}
+              <div className="flex items-center gap-2">
+                <p className="label-mono">Aguardando aprovação ({pendingCount})</p>
+                <div className="flex-1 h-px" style={{ background: "linear-gradient(90deg, oklch(0.82 0.18 195 / 20%), transparent)" }} />
+              </div>
+              {pendingPosts.map((post: any) => <PostCard key={post.id} post={post} isApproved={false} />)}
             </>
           )}
-
-          {/* Posts aprovados aguardando publicação */}
           {approvedPosts && approvedPosts.length > 0 && (
             <>
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mt-4">
-                Aprovados — aguardando publicação ({approvedCount})
-              </p>
-              {approvedPosts.map((post: any) => (
-                <PostCard key={post.id} post={post} isApproved={true} />
-              ))}
+              <div className="flex items-center gap-2 mt-4">
+                <p className="label-mono" style={{ color: "oklch(0.80 0.18 145 / 70%)" }}>Aprovados — aguardando publicação ({approvedCount})</p>
+                <div className="flex-1 h-px" style={{ background: "linear-gradient(90deg, oklch(0.80 0.18 145 / 20%), transparent)" }} />
+              </div>
+              {approvedPosts.map((post: any) => <PostCard key={post.id} post={post} isApproved={true} />)}
             </>
           )}
         </div>
