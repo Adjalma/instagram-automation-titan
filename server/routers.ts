@@ -218,6 +218,31 @@ export const appRouter = router({
       await deletePost(input.id);
       return { success: true };
     }),
+    republishToFacebook: protectedProcedure.input(z.object({ id: z.number() })).mutation(async ({ input }) => {
+      const post = await getPostById(input.id);
+      if (!post) throw new Error("Post não encontrado");
+      // Buscar imagem
+      const media = await getPostMedia(input.id) as any[];
+      let imageUrl: string | undefined;
+      if (media?.[0]?.mediaUrl) {
+        const u = media[0].mediaUrl;
+        imageUrl = u.startsWith("/manus-storage/")
+          ? await storageGetSignedUrl(u.replace("/manus-storage/", ""))
+          : u;
+      }
+      const caption: string = (post as any).caption || "";
+      // Buscar conta Facebook
+      const allAccs = await getAllAccounts() as any[];
+      const fbAccs = allAccs.filter((a: any) => a.platform === "facebook" && a.accessToken && (a.linkedinUrn?.startsWith("fb:page:") || a.linkedinUrn === "fb:personal"));
+      if (fbAccs.length === 0) throw new Error("Nenhuma conta Facebook conectada. Reconecte em Contas.");
+      for (const fbAcc of fbAccs) {
+        const pageId = fbAcc.linkedinUrn.startsWith("fb:page:") ? fbAcc.linkedinUrn.replace("fb:page:", "") : "me";
+        await publishToFacebook({ pageToken: fbAcc.accessToken, pageId, caption, imageUrl });
+        await updatePost(input.id, { facebookPublished: 1 });
+        notifyOwner({ title: "✅ Facebook (Republicado)", content: `Post #${input.id} republicado no Facebook!` }).catch(() => {});
+      }
+      return { success: true };
+    }),
     addMedia: protectedProcedure.input(z.object({
       postId: z.number(),
       mediaUrl: z.string(),

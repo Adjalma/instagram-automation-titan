@@ -192,3 +192,9 @@
 - [x] HistoryView: cards dark com borda pink neon, métricas coloridas
 - [x] Build limpo: zero erros TypeScript, pnpm build OK
 - [x] Diagnosticado: token Facebook inválido — usuário deve reconectar via OAuth com permissão pages_manage_posts
+
+## Feature v1.28 — Republicar no Facebook
+
+- [x] tRPC procedure posts.republishToFacebook (recebe postId, publica via publishToFacebook, atualiza facebookPublished=1)
+- [x] Botão "Republicar no Facebook" no card de cada post no HistoryView
+- [x] Estado de loading/sucesso/erro inline no botão
