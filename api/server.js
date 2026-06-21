@@ -2412,7 +2412,13 @@ import { eq as eq5 } from "drizzle-orm";
 var FB_AUTH_URL = "https://www.facebook.com/v19.0/dialog/oauth";
 var FB_TOKEN_URL = "https://graph.facebook.com/v19.0/oauth/access_token";
 var FB_GRAPH_URL = "https://graph.facebook.com/v19.0";
-var FB_SCOPES = ["pages_show_list", "pages_read_engagement", "pages_manage_posts"].join(",");
+var FB_SCOPES = [
+  "pages_show_list",
+  "pages_read_engagement",
+  "instagram_basic",
+  "instagram_content_publish",
+  "business_management"
+].join(",");
 var FB_PAGE_VANITY = "Triarcsolutions";
 var FACEBOOK_REDIRECT_URI = "https://tsm.triarcsolutions.com.br/auth/facebook/callback";
 function getRedirectUri2(_origin) {

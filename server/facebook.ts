@@ -7,7 +7,7 @@
  *   3. publishToFacebook() → publica post na Page via Graph API
  *
  * Permissões necessárias no app Meta:
- *   pages_show_list, pages_read_engagement, pages_manage_posts, publish_to_groups (opcional)
+ *   pages_show_list, pages_read_engagement, instagram_basic, instagram_content_publish
  */
 import { Express, Request, Response } from "express";
 import { ENV } from "./_core/env";
@@ -20,7 +20,13 @@ const FB_TOKEN_URL = "https://graph.facebook.com/v19.0/oauth/access_token";
 const FB_GRAPH_URL = "https://graph.facebook.com/v19.0";
 
 // Permissões mínimas para publicar em Pages
-const FB_SCOPES = ["pages_show_list", "pages_read_engagement", "pages_manage_posts"].join(",");
+const FB_SCOPES = [
+  "pages_show_list",
+  "pages_read_engagement",
+  "instagram_basic",
+  "instagram_content_publish",
+  "business_management",
+].join(",");
 
 // Vanity name da página da Triarc Solutions no Facebook
 const FB_PAGE_VANITY = "Triarcsolutions";
