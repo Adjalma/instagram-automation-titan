@@ -282,9 +282,9 @@ export const appRouter = router({
           // Generate art with AI
           let mediaUrl = "";
           try {
-            const style = "Design moderno e limpo com elementos tech, cores azul ciano (#00BFFF) e cinza escuro, estilo corporativo premium, minimalista e sofisticado";
+            const style = `Estilo visual ultra-impactante e vibrante: gradiente explosivo de azul elétrico (#0066FF) para ciano neon (#00FFFF) e roxo profundo (#6600CC), detalhes em dourado (#FFD700) e branco brilhante. Elementos 3D flutuantes em múltiplas camadas: circuitos eletrônicos brilhantes, partículas de luz e energia, hexágonos, esferas e cubos metálicos, linhas de dados em movimento, ondas de energia digital, reflexos e lens flare cinematográfico, bokeh, profundidade de campo. Alta densidade visual com composição dinâmica e assimétrica. Texturas metálicas, holográficas e futuristas. Qualidade fotorrealista 8K ultra-detalhada, iluminação dramática, contraste alto, cores saturadas e vibrantes`;
             const artResult = await generateImage({
-              prompt: `Post visual para Instagram da Triarc Solutions (empresa de tecnologia, Macaé/RJ). Tema: ${theme.name}. ${style}. IMPORTANTE: não incluir nenhum texto, palavra ou letra na imagem — apenas elementos visuais, ícones tech e formas geométricas. Logo da Triarc Solutions no canto inferior direito. Formato quadrado 1080x1080, design profissional para redes sociais.`,
+              prompt: `Imagem ultra-impactante para post Instagram da Triarc Solutions, empresa de tecnologia de Macaé/RJ. Tema central: ${theme.name}. ${style}. Composição visual rica e densa com múltiplos elementos tech sobrepostos em camadas: chips de processador, circuitos eletrônicos luminosos, código binário em partículas de luz, redes neurais, gráficos 3D, ícones de tecnologia flutuando. Fundo escuro com gradiente profundo e atmosférico. Absolutamente NENHUM texto, letra, número ou palavra na imagem — apenas elementos visuais puros e impactantes. Formato quadrado 1:1 1080x1080.`,
               originalImages: [{ url: "https://tsm.triarcsolutions.com.br/manus-storage/triarc-logo_4d0b8405.jpeg", mimeType: "image/jpeg" }],
             });
             mediaUrl = artResult.url ?? "";
@@ -356,9 +356,9 @@ export const appRouter = router({
 
         let mediaUrl = "";
         try {
-          const style = "Design moderno tech, cores azul ciano (#00BFFF) e cinza escuro, estilo corporativo premium";
+          const style = `Estilo visual ultra-impactante: gradiente explosivo azul elétrico (#0066FF) para ciano neon (#00FFFF) e roxo profundo (#6600CC), detalhes dourados (#FFD700). Elementos 3D flutuantes: circuitos brilhantes, partículas de luz, hexágonos, esferas metálicas, linhas de dados, ondas digitais. Iluminação cinematográfica com lens flare, bokeh. Alta densidade visual, composição dinâmica, texturas metálicas e holográficas. Qualidade 8K ultra-detalhada, cores saturadas e vibrantes, contraste alto`;
           const artResult = await generateImage({
-            prompt: `Post visual para Instagram da Triarc Solutions (empresa de tecnologia, Macaé/RJ). Tema: ${theme}. ${style}. IMPORTANTE: não incluir nenhum texto, palavra ou letra na imagem — apenas elementos visuais, ícones tech e formas geométricas. Logo da Triarc Solutions no canto inferior direito. Formato quadrado 1080x1080.`,
+            prompt: `Imagem impactante para post Instagram da Triarc Solutions, empresa de tecnologia de Macaé/RJ. Tema: ${theme}. ${style}. Múltiplos elementos tech sobrepostos: chips, circuitos, código binário em partículas luminosas, redes neurais, gráficos 3D, ícones tech flutuando em camadas. Fundo escuro com gradiente profundo. NENHUM texto, letra ou número na imagem. Formato quadrado 1:1 1080x1080.`,
             originalImages: [{ url: "https://tsm.triarcsolutions.com.br/manus-storage/triarc-logo_4d0b8405.jpeg", mimeType: "image/jpeg" }],
           });
           mediaUrl = artResult.url ?? "";
@@ -574,8 +574,8 @@ export const appRouter = router({
     })).mutation(async ({ input }) => {
       const account = await getAccountById(input.accountId);
       if (!account) throw new Error("Account not found");
-      const style = "Design moderno e limpo com elementos tech, cores azul ciano (#00BFFF) e cinza escuro, estilo corporativo premium, minimalista e sofisticado";
-      const prompt = `Post visual para Instagram da Triarc Solutions (empresa de tecnologia, Macaé/RJ). Tema: ${input.theme}. ${style}. ${input.description ? `Contexto: ${input.description}.` : ""} IMPORTANTE: não incluir nenhum texto, palavra ou letra na imagem — apenas elementos visuais, ícones tech e formas geométricas. Logo da Triarc Solutions no canto inferior direito. Formato quadrado 1080x1080, design profissional.`;
+      const style = `Estilo visual ultra-impactante para Instagram: gradiente explosivo azul elétrico (#0066FF) para ciano neon (#00FFFF) e roxo profundo (#6600CC), detalhes dourados (#FFD700) e branco puro. Elementos 3D flutuantes em múltiplas camadas: circuitos eletrônicos brilhantes, partículas de luz e energia, hexágonos, esferas e cubos metálicos, linhas de dados em movimento, ondas de energia digital, reflexos e lens flare cinematográfico, bokeh, profundidade de campo. Alta densidade visual com composição dinâmica e assimétrica. Texturas metálicas, holográficas e futuristas. Qualidade fotorrealista 8K ultra-detalhada, iluminação dramática, contraste alto, cores saturadas e vibrantes`;
+      const prompt = `Imagem ultra-impactante para post Instagram da Triarc Solutions, empresa de tecnologia de Macaé/RJ. Tema: ${input.theme}. ${input.description ? `Contexto adicional: ${input.description}.` : ""} ${style}. Composição visual rica e densa com múltiplos elementos tech sobrepostos: chips de processador, circuitos eletrônicos luminosos, código binário em partículas de luz, redes neurais, gráficos 3D, ícones de tecnologia flutuando em camadas. Fundo escuro com gradiente profundo e atmosférico. Absolutamente NENHUM texto, letra, número ou palavra na imagem — apenas elementos visuais puros e impactantes. Formato quadrado 1:1 1080x1080.`;
       const { url } = await generateImage({
         prompt,
         originalImages: [{ url: "https://tsm.triarcsolutions.com.br/manus-storage/triarc-logo_4d0b8405.jpeg", mimeType: "image/jpeg" }],

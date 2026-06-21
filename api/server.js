@@ -1773,9 +1773,9 @@ Responda APENAS com a legenda pronta.`
           }
           let mediaUrl = "";
           try {
-            const style = "Design moderno e limpo com elementos tech, cores azul ciano (#00BFFF) e cinza escuro, estilo corporativo premium, minimalista e sofisticado";
+            const style = `Estilo visual ultra-impactante e vibrante: gradiente explosivo de azul el\xE9trico (#0066FF) para ciano neon (#00FFFF) e roxo profundo (#6600CC), detalhes em dourado (#FFD700) e branco brilhante. Elementos 3D flutuantes em m\xFAltiplas camadas: circuitos eletr\xF4nicos brilhantes, part\xEDculas de luz e energia, hex\xE1gonos, esferas e cubos met\xE1licos, linhas de dados em movimento, ondas de energia digital, reflexos e lens flare cinematogr\xE1fico, bokeh, profundidade de campo. Alta densidade visual com composi\xE7\xE3o din\xE2mica e assim\xE9trica. Texturas met\xE1licas, hologr\xE1ficas e futuristas. Qualidade fotorrealista 8K ultra-detalhada, ilumina\xE7\xE3o dram\xE1tica, contraste alto, cores saturadas e vibrantes`;
             const artResult = await generateImage({
-              prompt: `Post visual para Instagram da Triarc Solutions (empresa de tecnologia, Maca\xE9/RJ). Tema: ${theme.name}. ${style}. IMPORTANTE: n\xE3o incluir nenhum texto, palavra ou letra na imagem \u2014 apenas elementos visuais, \xEDcones tech e formas geom\xE9tricas. Logo da Triarc Solutions no canto inferior direito. Formato quadrado 1080x1080, design profissional para redes sociais.`,
+              prompt: `Imagem ultra-impactante para post Instagram da Triarc Solutions, empresa de tecnologia de Maca\xE9/RJ. Tema central: ${theme.name}. ${style}. Composi\xE7\xE3o visual rica e densa com m\xFAltiplos elementos tech sobrepostos em camadas: chips de processador, circuitos eletr\xF4nicos luminosos, c\xF3digo bin\xE1rio em part\xEDculas de luz, redes neurais, gr\xE1ficos 3D, \xEDcones de tecnologia flutuando. Fundo escuro com gradiente profundo e atmosf\xE9rico. Absolutamente NENHUM texto, letra, n\xFAmero ou palavra na imagem \u2014 apenas elementos visuais puros e impactantes. Formato quadrado 1:1 1080x1080.`,
               originalImages: [{ url: "https://tsm.triarcsolutions.com.br/manus-storage/triarc-logo_4d0b8405.jpeg", mimeType: "image/jpeg" }]
             });
             mediaUrl = artResult.url ?? "";
@@ -1838,9 +1838,9 @@ Inclua hashtags estrat\xE9gicas do nicho tech/inova\xE7\xE3o, CTA claro para tri
         }
         let mediaUrl = "";
         try {
-          const style = "Design moderno tech, cores azul ciano (#00BFFF) e cinza escuro, estilo corporativo premium";
+          const style = `Estilo visual ultra-impactante: gradiente explosivo azul el\xE9trico (#0066FF) para ciano neon (#00FFFF) e roxo profundo (#6600CC), detalhes dourados (#FFD700). Elementos 3D flutuantes: circuitos brilhantes, part\xEDculas de luz, hex\xE1gonos, esferas met\xE1licas, linhas de dados, ondas digitais. Ilumina\xE7\xE3o cinematogr\xE1fica com lens flare, bokeh. Alta densidade visual, composi\xE7\xE3o din\xE2mica, texturas met\xE1licas e hologr\xE1ficas. Qualidade 8K ultra-detalhada, cores saturadas e vibrantes, contraste alto`;
           const artResult = await generateImage({
-            prompt: `Post visual para Instagram da Triarc Solutions (empresa de tecnologia, Maca\xE9/RJ). Tema: ${theme}. ${style}. IMPORTANTE: n\xE3o incluir nenhum texto, palavra ou letra na imagem \u2014 apenas elementos visuais, \xEDcones tech e formas geom\xE9tricas. Logo da Triarc Solutions no canto inferior direito. Formato quadrado 1080x1080.`,
+            prompt: `Imagem impactante para post Instagram da Triarc Solutions, empresa de tecnologia de Maca\xE9/RJ. Tema: ${theme}. ${style}. M\xFAltiplos elementos tech sobrepostos: chips, circuitos, c\xF3digo bin\xE1rio em part\xEDculas luminosas, redes neurais, gr\xE1ficos 3D, \xEDcones tech flutuando em camadas. Fundo escuro com gradiente profundo. NENHUM texto, letra ou n\xFAmero na imagem. Formato quadrado 1:1 1080x1080.`,
             originalImages: [{ url: "https://tsm.triarcsolutions.com.br/manus-storage/triarc-logo_4d0b8405.jpeg", mimeType: "image/jpeg" }]
           });
           mediaUrl = artResult.url ?? "";
@@ -2046,8 +2046,8 @@ Destaque o impacto, tecnologias usadas e valor para o cliente.`
     })).mutation(async ({ input }) => {
       const account = await getAccountById(input.accountId);
       if (!account) throw new Error("Account not found");
-      const style = "Design moderno e limpo com elementos tech, cores azul ciano (#00BFFF) e cinza escuro, estilo corporativo premium, minimalista e sofisticado";
-      const prompt = `Post visual para Instagram da Triarc Solutions (empresa de tecnologia, Maca\xE9/RJ). Tema: ${input.theme}. ${style}. ${input.description ? `Contexto: ${input.description}.` : ""} IMPORTANTE: n\xE3o incluir nenhum texto, palavra ou letra na imagem \u2014 apenas elementos visuais, \xEDcones tech e formas geom\xE9tricas. Logo da Triarc Solutions no canto inferior direito. Formato quadrado 1080x1080, design profissional.`;
+      const style = `Estilo visual ultra-impactante para Instagram: gradiente explosivo azul el\xE9trico (#0066FF) para ciano neon (#00FFFF) e roxo profundo (#6600CC), detalhes dourados (#FFD700) e branco puro. Elementos 3D flutuantes em m\xFAltiplas camadas: circuitos eletr\xF4nicos brilhantes, part\xEDculas de luz e energia, hex\xE1gonos, esferas e cubos met\xE1licos, linhas de dados em movimento, ondas de energia digital, reflexos e lens flare cinematogr\xE1fico, bokeh, profundidade de campo. Alta densidade visual com composi\xE7\xE3o din\xE2mica e assim\xE9trica. Texturas met\xE1licas, hologr\xE1ficas e futuristas. Qualidade fotorrealista 8K ultra-detalhada, ilumina\xE7\xE3o dram\xE1tica, contraste alto, cores saturadas e vibrantes`;
+      const prompt = `Imagem ultra-impactante para post Instagram da Triarc Solutions, empresa de tecnologia de Maca\xE9/RJ. Tema: ${input.theme}. ${input.description ? `Contexto adicional: ${input.description}.` : ""} ${style}. Composi\xE7\xE3o visual rica e densa com m\xFAltiplos elementos tech sobrepostos: chips de processador, circuitos eletr\xF4nicos luminosos, c\xF3digo bin\xE1rio em part\xEDculas de luz, redes neurais, gr\xE1ficos 3D, \xEDcones de tecnologia flutuando em camadas. Fundo escuro com gradiente profundo e atmosf\xE9rico. Absolutamente NENHUM texto, letra, n\xFAmero ou palavra na imagem \u2014 apenas elementos visuais puros e impactantes. Formato quadrado 1:1 1080x1080.`;
       const { url } = await generateImage({
         prompt,
         originalImages: [{ url: "https://tsm.triarcsolutions.com.br/manus-storage/triarc-logo_4d0b8405.jpeg", mimeType: "image/jpeg" }]
