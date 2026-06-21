@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Loader2, Zap } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -52,11 +52,10 @@ export default function Login() {
       >
         {/* Logo / título */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl mb-4"
-            style={{ background: "oklch(0.82 0.18 195 / 12%)", border: "1px solid oklch(0.82 0.18 195 / 30%)", boxShadow: "0 0 20px oklch(0.82 0.18 195 / 20%)" }}
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-4"
+            style={{ background: "oklch(0.82 0.18 195 / 8%)", border: "1px solid oklch(0.82 0.18 195 / 25%)", boxShadow: "0 0 30px oklch(0.82 0.18 195 / 25%), inset 0 1px 0 oklch(1 0 0 / 5%)" }}
           >
-            <img src="/logo.svg" alt="Triarc" className="h-8 w-8 rounded-full object-cover" onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
-            <Zap className="h-7 w-7 hidden" style={{ color: "oklch(0.82 0.18 195)" }} />
+            <img src="/manus-storage/logo_4b566ae8.png" alt="Triarc Social Manager" className="h-12 w-12 rounded-xl object-cover" style={{ boxShadow: "0 0 12px oklch(0.82 0.18 195 / 30%)" }} />
           </div>
           <h1 className="text-xl font-bold" style={{ fontFamily: "'Orbitron', sans-serif", background: "linear-gradient(135deg, oklch(0.92 0.01 220), oklch(0.82 0.18 195))", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
             Triarc<span>SM</span>

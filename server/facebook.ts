@@ -25,11 +25,13 @@ const FB_GRAPH_URL = "https://graph.facebook.com/v19.0";
 // próprio desenvolvedor — o Page Access Token obtido via /me/accounts já
 // inclui as permissões necessárias sem precisar solicitar pages_manage_posts
 // explicitamente no scope do Login Dialog.
+// Escopos válidos para Facebook Login sem App Review.
+// instagram_basic e instagram_content_publish também requerem App Review
+// quando usados no Facebook Login Dialog. Para conectar a página do Facebook
+// e obter o Page Access Token, apenas estes são necessários:
 const FB_SCOPES = [
   "pages_show_list",
   "pages_read_engagement",
-  "instagram_basic",
-  "instagram_content_publish",
   "business_management",
 ].join(",");
 

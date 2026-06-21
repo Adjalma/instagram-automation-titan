@@ -1,0 +1,15 @@
+{
+  "query": "\nSELECT \n  COUNT(*) as total_published,\n  SUM(CASE WHEN facebookPublished = 0 THEN 1 ELSE 0 END) as nao_no_facebook,\n  SUM(CASE WHEN facebookPublished = 1 THEN 1 ELSE 0 END) as ja_no_facebook\nFROM posts \nWHERE status = 'published';\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3F5sJN7FajWtXbb.root --database 3LYkMyiPgdB2gzxf44Hk3M --execute \nSELECT \n  COUNT(*) as total_published,\n  SUM(CASE WHEN facebookPublished = 0 THEN 1 ELSE 0 END) as nao_no_facebook,\n  SUM(CASE WHEN facebookPublished = 1 THEN 1 ELSE 0 END) as ja_no_facebook\nFROM posts \nWHERE status = 'published';\n",
+  "rows": [
+    {
+      "total_published": "32",
+      "nao_no_facebook": "32",
+      "ja_no_facebook": "0"
+    }
+  ],
+  "messages": [],
+  "stdout": "total_published\tnao_no_facebook\tja_no_facebook\n32\t32\t0\n",
+  "stderr": "",
+  "execution_time_ms": 264
+}

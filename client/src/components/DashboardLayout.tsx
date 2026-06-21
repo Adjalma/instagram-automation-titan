@@ -196,7 +196,7 @@ function DashboardLayoutContent({
               {!isCollapsed && (
                 <div className="flex items-center gap-2 min-w-0">
                   <div className="relative h-7 w-7 shrink-0">
-                    <img src="/logo.svg" alt="Triarc" className="h-7 w-7 rounded-full object-cover" />
+                    <img src="/manus-storage/logo_4b566ae8.png" alt="Triarc Social Manager" className="h-7 w-7 rounded-full object-cover" />
                     <div className="absolute inset-0 rounded-full" style={{ boxShadow: "0 0 10px oklch(0.82 0.18 195 / 40%)" }} />
                   </div>
                   <span className="font-bold tracking-tight truncate text-sm" style={{ fontFamily: "'Orbitron', sans-serif", letterSpacing: "0.05em" }}>
@@ -290,7 +290,7 @@ function DashboardLayoutContent({
           >
             <SidebarTrigger className="h-9 w-9 rounded-lg" />
             <div className="flex items-center gap-2">
-              <img src="/logo.svg" alt="Triarc" className="h-7 w-7 rounded-full object-cover" />
+              <img src="/manus-storage/logo_4b566ae8.png" alt="Triarc Social Manager" className="h-7 w-7 rounded-full object-cover" />
               <span className="font-semibold text-sm" style={{ color: "oklch(0.85 0.01 220)" }}>
                 {activeMenuItem?.label ?? "Triarc SM"}
               </span>
