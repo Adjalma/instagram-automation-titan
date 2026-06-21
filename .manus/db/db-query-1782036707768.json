@@ -1,0 +1,9 @@
+{
+  "query": "\n-- Primeiro deletar as mídias dos posts aprovados (exceto o já publicado 360054)\nDELETE FROM post_media WHERE postId IN (\n  SELECT id FROM posts WHERE status = 'approved' AND id != 360054\n);\n\n-- Depois deletar os posts aprovados\nDELETE FROM posts WHERE status = 'approved' AND id != 360054;\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3F5sJN7FajWtXbb.root --database 3LYkMyiPgdB2gzxf44Hk3M --execute \n-- Primeiro deletar as mídias dos posts aprovados (exceto o já publicado 360054)\nDELETE FROM post_media WHERE postId IN (\n  SELECT id FROM posts WHERE status = 'approved' AND id != 360054\n);\n\n-- Depois deletar os posts aprovados\nDELETE FROM posts WHERE status = 'approved' AND id != 360054;\n",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1248
+}
