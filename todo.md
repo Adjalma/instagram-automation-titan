@@ -191,4 +191,4 @@
 - [x] Analytics: gráficos com cores neon, stat cards com neon por categoria
 - [x] HistoryView: cards dark com borda pink neon, métricas coloridas
 - [x] Build limpo: zero erros TypeScript, pnpm build OK
-- [ ] Diagnosticado: token Facebook inválido — usuário deve reconectar via OAuth com permissão pages_manage_posts
+- [x] Diagnosticado: token Facebook inválido — usuário deve reconectar via OAuth com permissão pages_manage_posts

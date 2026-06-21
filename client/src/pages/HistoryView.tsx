@@ -49,10 +49,10 @@ export default function HistoryView() {
       </div>
 
       {filteredPosts.length === 0 ? (
-        <div className="rounded-xl py-16 text-center" style={{ background: "oklch(0.12 0.025 240 / 80%)", border: "1px solid oklch(0.22 0.04 240)" }}>
+        <div className="rounded-xl py-16 text-center" style={{ background: "oklch(0.17 0.03 240 / 90%)", border: "1px solid oklch(0.28 0.04 240)" }}>
           <History className="h-12 w-12 mx-auto mb-3 opacity-20" style={{ color: "oklch(0.82 0.18 195)" }} />
-          <p className="font-semibold" style={{ color: "oklch(0.65 0.02 240)" }}>Nenhum post publicado</p>
-          <p className="text-xs mt-1 font-mono" style={{ color: "oklch(0.45 0.02 240)" }}>Os posts publicados aparecerão aqui</p>
+          <p className="font-semibold" style={{ color: "oklch(0.75 0.02 240)" }}>Nenhum post publicado</p>
+          <p className="text-xs mt-1 font-mono" style={{ color: "oklch(0.58 0.02 240)" }}>Os posts publicados aparecerão aqui</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -60,7 +60,7 @@ export default function HistoryView() {
             const account = getAccount(post.accountId);
             return (
               <div key={post.id} className="rounded-xl p-4 transition-all"
-                style={{ background: "oklch(0.12 0.025 240 / 80%)", border: "1px solid oklch(0.75 0.22 340 / 15%)", backdropFilter: "blur(12px)" }}
+                style={{ background: "oklch(0.17 0.03 240 / 90%)", border: "1px solid oklch(0.75 0.22 340 / 22%)", backdropFilter: "blur(12px)" }}
                 onMouseEnter={e => (e.currentTarget as HTMLElement).style.borderColor = "oklch(0.75 0.22 340 / 35%)"}
                 onMouseLeave={e => (e.currentTarget as HTMLElement).style.borderColor = "oklch(0.75 0.22 340 / 15%)"}
               >
@@ -79,12 +79,12 @@ export default function HistoryView() {
                         </span>
                       )}
                       {post.publishedAt && (
-                        <span className="ml-auto text-[10px] font-mono" style={{ color: "oklch(0.45 0.02 240)" }}>
+                        <span className="ml-auto text-[10px] font-mono" style={{ color: "oklch(0.58 0.02 240)" }}>
                           {new Date(post.publishedAt).toLocaleDateString("pt-BR")}
                         </span>
                       )}
                     </div>
-                    <p className="text-xs line-clamp-2" style={{ color: "oklch(0.65 0.01 220)" }}>{post.caption ?? "Sem legenda"}</p>
+                    <p className="text-xs line-clamp-2" style={{ color: "oklch(0.78 0.01 220)" }}>{post.caption ?? "Sem legenda"}</p>
                     <div className="flex items-center gap-4 mt-2">
                       <div className="flex items-center gap-1">
                         <Heart className="h-3.5 w-3.5" style={{ color: "oklch(0.75 0.22 340)" }} />

@@ -75,7 +75,7 @@ export default function Home() {
             key={key}
             onClick={() => setLocation(path)}
             className="text-left p-4 rounded-xl transition-all group"
-            style={{ background: "oklch(0.12 0.025 240 / 80%)", border: `1px solid ${neon.replace(")", " / 20%)")}`, backdropFilter: "blur(12px)" }}
+            style={{ background: "oklch(0.17 0.03 240 / 90%)", border: `1px solid ${neon.replace(")", " / 25%)")}`, backdropFilter: "blur(12px)" }}
             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = neon.replace(")", " / 45%)"); (e.currentTarget as HTMLElement).style.boxShadow = `0 0 20px ${neon.replace(")", " / 10%)")}`; }}
             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = neon.replace(")", " / 20%)"); (e.currentTarget as HTMLElement).style.boxShadow = "none"; }}
           >
@@ -105,7 +105,7 @@ export default function Home() {
                 <div
                   key={account.id}
                   className="rounded-xl p-4 transition-all"
-                  style={{ background: "oklch(0.12 0.025 240 / 80%)", border: `1px solid ${cfg.neon.replace(")", " / 15%)")}`, backdropFilter: "blur(12px)" }}
+                  style={{ background: "oklch(0.17 0.03 240 / 90%)", border: `1px solid ${cfg.neon.replace(")", " / 25%)")}`, backdropFilter: "blur(12px)" }}
                 >
                   <div className="flex items-center gap-3 mb-3">
                     <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0" style={{ background: cfg.bg, boxShadow: `0 0 12px ${cfg.neon.replace(")", " / 20%)")}` }}>
@@ -168,7 +168,7 @@ export default function Home() {
 
       {/* Alerta: posts aprovados */}
       {approvedCount > 0 && (
-        <div className="rounded-xl p-4" style={{ background: "oklch(0.80 0.18 145 / 8%)", border: "1px solid oklch(0.80 0.18 145 / 25%)" }}>
+        <div className="rounded-xl p-4" style={{ background: "oklch(0.80 0.18 145 / 12%)", border: "1px solid oklch(0.80 0.18 145 / 35%)" }}>
           <div className="flex items-center gap-2 mb-3">
             <Rocket className="h-5 w-5" style={{ color: "oklch(0.80 0.18 145)" }} />
             <p className="font-bold text-sm" style={{ color: "oklch(0.80 0.18 145)" }}>
@@ -191,7 +191,7 @@ export default function Home() {
 
       {/* Alerta: posts pendentes */}
       {pendingCount > 0 && (
-        <div className="rounded-xl p-4" style={{ background: "oklch(0.82 0.18 80 / 8%)", border: "1px solid oklch(0.82 0.18 80 / 25%)" }}>
+        <div className="rounded-xl p-4" style={{ background: "oklch(0.82 0.18 80 / 12%)", border: "1px solid oklch(0.82 0.18 80 / 35%)" }}>
           <div className="flex items-center gap-2 mb-3">
             <AlertCircle className="h-5 w-5" style={{ color: "oklch(0.82 0.18 80)" }} />
             <p className="font-bold text-sm" style={{ color: "oklch(0.82 0.18 80)" }}>
@@ -223,7 +223,7 @@ export default function Home() {
         <button
           onClick={() => setLocation("/create")}
           className="flex items-center gap-3 p-4 rounded-xl text-left transition-all group"
-          style={{ background: "oklch(0.12 0.025 240 / 80%)", border: "1px solid oklch(0.82 0.18 195 / 15%)" }}
+          style={{ background: "oklch(0.17 0.03 240 / 90%)", border: "1px solid oklch(0.82 0.18 195 / 22%)" }}
           onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = "oklch(0.82 0.18 195 / 40%)"; (e.currentTarget as HTMLElement).style.boxShadow = "0 0 20px oklch(0.82 0.18 195 / 8%)"; }}
           onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = "oklch(0.82 0.18 195 / 15%)"; (e.currentTarget as HTMLElement).style.boxShadow = "none"; }}
         >
@@ -236,7 +236,7 @@ export default function Home() {
         <button
           onClick={() => setLocation("/analytics")}
           className="flex items-center gap-3 p-4 rounded-xl text-left transition-all"
-          style={{ background: "oklch(0.12 0.025 240 / 80%)", border: "1px solid oklch(0.72 0.22 290 / 15%)" }}
+          style={{ background: "oklch(0.17 0.03 240 / 90%)", border: "1px solid oklch(0.72 0.22 290 / 22%)" }}
           onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = "oklch(0.72 0.22 290 / 40%)"; (e.currentTarget as HTMLElement).style.boxShadow = "0 0 20px oklch(0.72 0.22 290 / 8%)"; }}
           onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = "oklch(0.72 0.22 290 / 15%)"; (e.currentTarget as HTMLElement).style.boxShadow = "none"; }}
         >

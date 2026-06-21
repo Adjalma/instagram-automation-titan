@@ -82,7 +82,7 @@ export default function Approval() {
 
     return (
       <div className="rounded-xl p-4 space-y-3 transition-all"
-        style={{ background: "oklch(0.12 0.025 240 / 80%)", border: `1px solid ${borderNeon.replace(")", " / 20%)")}`, backdropFilter: "blur(12px)" }}
+        style={{ background: "oklch(0.17 0.03 240 / 90%)", border: `1px solid ${borderNeon.replace(")", " / 28%)")}`, backdropFilter: "blur(12px)" }}
       >
         {/* Header */}
         <div className="flex items-center gap-3">
@@ -123,7 +123,7 @@ export default function Approval() {
         )}
 
         {/* Legenda */}
-        <div className="rounded-lg p-3 max-h-32 overflow-y-auto" style={{ background: "oklch(0.09 0.02 240)", border: "1px solid oklch(0.22 0.04 240)" }}>
+        <div className="rounded-lg p-3 max-h-32 overflow-y-auto" style={{ background: "oklch(0.13 0.025 240)", border: "1px solid oklch(0.28 0.04 240)" }}>
           <p className="text-xs leading-relaxed whitespace-pre-wrap" style={{ color: "oklch(0.75 0.01 220)" }}>{post.caption ?? "Sem legenda"}</p>
         </div>
 
@@ -201,7 +201,7 @@ export default function Approval() {
       </div>
 
       {totalCount === 0 ? (
-        <div className="rounded-xl py-16 text-center" style={{ background: "oklch(0.12 0.025 240 / 80%)", border: "1px solid oklch(0.22 0.04 240)" }}>
+        <div className="rounded-xl py-16 text-center" style={{ background: "oklch(0.17 0.03 240 / 90%)", border: "1px solid oklch(0.28 0.04 240)" }}>
           <CheckCircle className="h-12 w-12 mx-auto mb-3 opacity-30" style={{ color: "oklch(0.80 0.18 145)" }} />
           <p className="font-semibold" style={{ color: "oklch(0.65 0.02 240)" }}>Nenhum post pendente</p>
           <p className="text-xs mt-1" style={{ color: "oklch(0.45 0.02 240)" }}>Todos os posts foram revisados</p>

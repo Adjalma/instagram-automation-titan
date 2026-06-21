@@ -25,7 +25,7 @@ function StatCard({ icon: Icon, label, value, sub, neon = NEON.cyan }: {
 }) {
   return (
     <div className="rounded-xl p-4 transition-all"
-      style={{ background: "oklch(0.12 0.025 240 / 80%)", border: `1px solid ${neon.replace(")", " / 18%)")}`, backdropFilter: "blur(12px)" }}
+      style={{ background: "oklch(0.17 0.03 240 / 90%)", border: `1px solid ${neon.replace(")", " / 25%)")}`, backdropFilter: "blur(12px)" }}
     >
       <div className="flex items-start gap-3">
         <div className="mt-0.5" style={{ color: neon }}><Icon size={18} /></div>
@@ -132,7 +132,7 @@ export default function Analytics() {
           { icon: Facebook, neon: "oklch(0.65 0.18 255)", label: "Facebook", count: facebookCount },
         ].map(({ icon: Icon, neon, label, count }) => (
           <div key={label} className="text-center py-4 rounded-xl transition-all"
-            style={{ background: "oklch(0.12 0.025 240 / 80%)", border: `1px solid ${neon.replace(")", " / 18%)")}` }}
+            style={{ background: "oklch(0.17 0.03 240 / 90%)", border: `1px solid ${neon.replace(")", " / 25%)")}` }}
           >
             <Icon className="w-5 h-5 mx-auto mb-1.5" style={{ color: neon }} />
             <p className="text-xl font-bold tabular-nums" style={{ fontFamily: "'Orbitron', sans-serif", color: neon }}>{count}</p>
@@ -174,7 +174,7 @@ export default function Analytics() {
 
       {/* Gráfico linha */}
       {lineData.length > 1 && (
-        <div className="rounded-xl p-5" style={{ background: "oklch(0.12 0.025 240 / 80%)", border: "1px solid oklch(0.82 0.18 195 / 15%)" }}>
+        <div className="rounded-xl p-5" style={{ background: "oklch(0.17 0.03 240 / 90%)", border: "1px solid oklch(0.82 0.18 195 / 22%)" }}>
           <div className="flex items-center gap-2 mb-4">
             <Activity className="h-4 w-4" style={{ color: NEON.cyan }} />
             <p className="label-mono" style={{ color: `${NEON.cyan.replace(")", " / 80%)")}` }}>Evolução do Engajamento</p>
@@ -193,7 +193,7 @@ export default function Analytics() {
 
       {/* Gráfico barras */}
       {barData.length > 0 && (
-        <div className="rounded-xl p-5" style={{ background: "oklch(0.12 0.025 240 / 80%)", border: "1px solid oklch(0.72 0.22 290 / 15%)" }}>
+        <div className="rounded-xl p-5" style={{ background: "oklch(0.17 0.03 240 / 90%)", border: "1px solid oklch(0.72 0.22 290 / 22%)" }}>
           <div className="flex items-center gap-2 mb-4">
             <TrendingUp className="h-4 w-4" style={{ color: NEON.purple }} />
             <p className="label-mono" style={{ color: `${NEON.purple.replace(")", " / 80%)")}` }}>Engajamento por Post (últimos 9)</p>
@@ -212,7 +212,7 @@ export default function Analytics() {
       )}
 
       {/* Lista de posts */}
-      <div className="rounded-xl overflow-hidden" style={{ background: "oklch(0.12 0.025 240 / 80%)", border: "1px solid oklch(0.22 0.04 240)" }}>
+      <div className="rounded-xl overflow-hidden" style={{ background: "oklch(0.17 0.03 240 / 90%)", border: "1px solid oklch(0.28 0.04 240)" }}>
         <div className="px-4 py-3 flex items-center gap-2" style={{ borderBottom: "1px solid oklch(0.22 0.04 240)" }}>
           <FileText className="h-4 w-4" style={{ color: NEON.cyan }} />
           <p className="label-mono" style={{ color: `${NEON.cyan.replace(")", " / 80%)")}` }}>Posts Publicados</p>
