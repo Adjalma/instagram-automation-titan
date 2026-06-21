@@ -2889,7 +2889,10 @@ function registerAuthRoutes(app2) {
       dbUrlBackup: dbBackup ? dbBackup.slice(0, 30) + "..." : "missing",
       activeDb: activeDb ? activeDb.slice(0, 30) + "..." : "none",
       allDbKeys: Object.keys(process.env).filter((k) => k.toLowerCase().includes("db") || k.toLowerCase().includes("database") || k.toLowerCase().includes("mysql") || k.toLowerCase().includes("postgres")),
-      buildTime_v2: "2026-06-21T00:10:00Z"
+      buildTime_v2: "2026-06-21T00:15:00Z",
+      llmKeyBuiltIn: process.env.BUILT_IN_FORGE_API_KEY ? `set(${process.env.BUILT_IN_FORGE_API_KEY.length}chars)` : "missing",
+      llmKeyCustom: process.env.LLM_API_KEY ? `set(${process.env.LLM_API_KEY.length}chars)` : "missing",
+      llmUrl: process.env.BUILT_IN_FORGE_API_URL || process.env.LLM_API_URL || "missing"
     });
   });
   app2.post("/api/auth/login", async (req, res) => {
