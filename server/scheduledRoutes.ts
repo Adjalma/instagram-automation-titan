@@ -21,6 +21,7 @@ import { storageGetSignedUrl } from "./storage";
 import { notifyOwner } from "./_core/notification";
 import { publishToLinkedIn } from "./linkedin";
 import { publishToFacebook } from "./facebook";
+import { publishToInstagram, extractIgUserId } from "./instagram";
 
 /** Autentica requisição de heartbeat via header x-manus-cron-task-uid ou sessão normal */
 async function authenticateHeartbeat(req: Request): Promise<boolean> {
@@ -387,10 +388,33 @@ export function registerScheduledRoutes(app: Express) {
           }
         }
 
-        // Instagram: marcar mcpPending=1 para o AGENT cron processar via MCP
+        // Instagram: publicar diretamente via API Graph
         if (!post.instagramPostId) {
-          await updatePost(post.id, { mcpPending: 1 });
-          igQueued++;
+          const igAccounts = allAccounts.filter(
+            (a: any) => a.platform === "instagram" && a.accessToken && a.linkedinUrn?.startsWith("ig:")
+          );
+          for (const igAcc of igAccounts) {
+            const igUserId = extractIgUserId(igAcc.linkedinUrn);
+            if (!igUserId || !imageUrl) {
+              console.warn(`[Heartbeat] Instagram post ${post.id}: sem igUserId ou imageUrl, pulando.`);
+              continue;
+            }
+            try {
+              const r = await publishToInstagram({ igUserId, accessToken: igAcc.accessToken, caption, imageUrl });
+              await updatePost(post.id, {
+                instagramPostId: r.postId,
+                instagramPermalink: r.permalink,
+                status: "published",
+                publishedAt: new Date(),
+                mcpPending: 0,
+              });
+              igQueued++;
+              console.log(`[Heartbeat] Post ${post.id} → Instagram: ${r.postId}`);
+              notifyOwner({ title: "✅ Instagram (heartbeat)", content: `Post #${post.id} publicado no Instagram!\nLink: ${r.permalink}` }).catch(() => {});
+            } catch (e: any) {
+              console.error(`[Heartbeat] Instagram post ${post.id}:`, e.message);
+            }
+          }
         }
       }
 

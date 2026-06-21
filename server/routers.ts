@@ -17,7 +17,10 @@ import { invokeLLM } from "./_core/llm";
 import { generateImage } from "./_core/imageGeneration";
 import { notifyOwner } from "./_core/notification";
 import { storagePut } from "./storage";
-import { processScheduledPosts, fetchPostInsights } from "./instagram";
+import { processScheduledPosts, fetchPostInsights, publishToInstagram, extractIgUserId } from "./instagram";
+import { publishToLinkedIn } from "./linkedin";
+import { publishToFacebook } from "./facebook";
+import { storageGetSignedUrl } from "./storage";
 import { researchRouter } from "./routers/research";
 import { seedTriarcContent, TRIARC_SERVICES, TRIARC_PROJECTS } from "./seed-triarc";
 import { triacContent, TriacContent } from "../drizzle/schema";
@@ -142,14 +145,60 @@ export const appRouter = router({
       const post = await getPostById(input.id);
       if (!post) throw new Error("Post not found");
 
-       // Se não tem agendamento ou o agendamento já passou → fila imediata (approved)
+      // Se não tem agendamento ou o agendamento já passou → publicar imediatamente (síncrono)
       if (!post.scheduledAt || new Date(post.scheduledAt as any) <= new Date()) {
         await updatePost(input.id, { status: "approved", mcpPending: 0 });
-        return { success: true, status: "approved" };
+        // Publicar inline (await garante execução em Vercel serverless)
+        const media = await getPostMedia(input.id) as any[];
+        let imageUrl: string | undefined;
+        if (media?.[0]?.mediaUrl) {
+          const u = media[0].mediaUrl;
+          imageUrl = u.startsWith("/manus-storage/")
+            ? await storageGetSignedUrl(u.replace("/manus-storage/", ""))
+            : u;
+        }
+        const caption: string = (post as any).caption || "";
+        const allAccs = await getAllAccounts() as any[];
+        const publishResults: Record<string, string> = {};
+        // Instagram
+        const igAccs = allAccs.filter((a: any) => a.platform === "instagram" && a.accessToken && a.linkedinUrn?.startsWith("ig:"));
+        for (const igAcc of igAccs) {
+          const igUserId = extractIgUserId(igAcc.linkedinUrn);
+          if (!igUserId || !imageUrl) { publishResults.instagram = "sem_imagem"; continue; }
+          try {
+            const r = await publishToInstagram({ igUserId, accessToken: igAcc.accessToken, caption, imageUrl });
+            await updatePost(input.id, { instagramPostId: r.postId, instagramPermalink: r.permalink, status: "published", publishedAt: new Date(), mcpPending: 0 });
+            publishResults.instagram = r.postId;
+            notifyOwner({ title: "✅ Instagram", content: `Post #${input.id} publicado!\n${r.permalink}` }).catch(() => {});
+          } catch (e: any) { publishResults.instagram = `erro: ${e.message}`; console.error(`[Approve] Instagram post ${input.id}:`, e.message); }
+        }
+        // LinkedIn
+        const liAccs = allAccs.filter((a: any) => a.platform === "linkedin" && a.accessToken && a.linkedinUrn);
+        for (const liAcc of liAccs) {
+          try {
+            await publishToLinkedIn({ accessToken: liAcc.accessToken, linkedinUrn: liAcc.linkedinUrn, caption, imageUrl });
+            await updatePost(input.id, { linkedinPublished: 1 });
+            publishResults.linkedin = "ok";
+            notifyOwner({ title: "✅ LinkedIn", content: `Post #${input.id} publicado no LinkedIn!` }).catch(() => {});
+          } catch (e: any) { publishResults.linkedin = `erro: ${e.message}`; console.error(`[Approve] LinkedIn post ${input.id}:`, e.message); }
+        }
+        // Facebook
+        const fbAccs = allAccs.filter((a: any) => a.platform === "facebook" && a.accessToken && (a.linkedinUrn?.startsWith("fb:page:") || a.linkedinUrn === "fb:personal"));
+        for (const fbAcc of fbAccs) {
+          const pageId = fbAcc.linkedinUrn.startsWith("fb:page:") ? fbAcc.linkedinUrn.replace("fb:page:", "") : "me";
+          try {
+            await publishToFacebook({ pageToken: fbAcc.accessToken, pageId, caption, imageUrl });
+            await updatePost(input.id, { facebookPublished: 1 });
+            publishResults.facebook = "ok";
+            notifyOwner({ title: "✅ Facebook", content: `Post #${input.id} publicado no Facebook!` }).catch(() => {});
+          } catch (e: any) { publishResults.facebook = `erro: ${e.message}`; console.error(`[Approve] Facebook post ${input.id}:`, e.message); }
+        }
+        console.log(`[Approve] Post ${input.id} resultados:`, publishResults);
+        return { success: true, status: "approved", publishResults };
       }
       // Post com agendamento futuro → scheduled
       await updatePost(input.id, { status: "scheduled" });
-      return { success: true, status: "scheduled" };;
+      return { success: true, status: "scheduled" };
     }),
     reject: protectedProcedure.input(z.object({ id: z.number() })).mutation(async ({ input }) => {
       await updatePost(input.id, { status: "rejected" });
@@ -439,7 +488,12 @@ export const appRouter = router({
     syncInsights: protectedProcedure.input(z.object({ postId: z.number() })).mutation(async ({ input }) => {
       const post = await getPostById(input.postId);
       if (!post || !(post as any).instagramPostId) throw new Error("Post not published or no Instagram ID");
-      const insights = await fetchPostInsights((post as any).instagramPostId);
+      const allAccounts = await getAllAccounts() as any[];
+      const igAcc = allAccounts.find((a: any) => a.platform === "instagram" && a.accessToken);
+      if (!igAcc) throw new Error("Conta Instagram não encontrada");
+      const { extractIgUserId } = await import("./instagram");
+      const igUserId = extractIgUserId(igAcc.linkedinUrn ?? "") ?? igAcc.linkedinUrn;
+      const insights = await fetchPostInsights(igUserId, igAcc.accessToken, (post as any).instagramPostId);
       await updatePost(input.postId, {
         likes: insights.likes ?? 0,
         comments: insights.comments ?? 0,

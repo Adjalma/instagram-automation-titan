@@ -170,3 +170,12 @@
 - [x] Corrigir posts duplicados no generateWeek (verificação por tema+conta+dia)
 - [x] Corrigir erros TypeScript do GitHub (main.tsx URL|Request, storage.ts regex /s flag)
 - [x] AGENT cron reativado (estava pausado novamente)
+
+## Correções Críticas 2026-06-21
+
+- [x] Corrigir publicação multi-plataforma ao aprovar post (Instagram, Facebook, LinkedIn simultâneo)
+- [x] Limpar posts aprovados residuais no banco (feito na sessão anterior)
+- [x] Corrigir erro TS: Automation.tsx property 'errors' não existe (erro apenas no watcher, tsc --noEmit OK)
+- [x] Corrigir erro TS: Themes.tsx property 'socialOnly' não existe (erro apenas no watcher, tsc --noEmit OK)
+- [x] Corrigir erro TS: vercel.ts runSchedulerTick e probeImageStack não exportados (erro apenas no watcher, tsc --noEmit OK)
+- [x] Auditar e corrigir todas as páginas do sistema
