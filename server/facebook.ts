@@ -20,10 +20,14 @@ const FB_TOKEN_URL = "https://graph.facebook.com/v19.0/oauth/access_token";
 const FB_GRAPH_URL = "https://graph.facebook.com/v19.0";
 
 // Permissões mínimas para publicar em Pages
+// NOTA: pages_manage_posts requer App Review aprovado para aparecer no OAuth.
+// Em modo de desenvolvimento, o app Meta já tem acesso total às páginas do
+// próprio desenvolvedor — o Page Access Token obtido via /me/accounts já
+// inclui as permissões necessárias sem precisar solicitar pages_manage_posts
+// explicitamente no scope do Login Dialog.
 const FB_SCOPES = [
   "pages_show_list",
   "pages_read_engagement",
-  "pages_manage_posts",
   "instagram_basic",
   "instagram_content_publish",
   "business_management",
