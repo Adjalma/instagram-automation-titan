@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Loader2, Sparkles, Send, Calendar, X, Plus, Images } from "lucide-react";
+import { Loader2, Sparkles, Send, Calendar, X, Plus, Images, Lightbulb, RefreshCw } from "lucide-react";
 import { useLocation } from "wouter";
 
 // Componente para adicionar URL manualmente
@@ -47,6 +47,24 @@ export default function CreatePost() {
   const [selectedTriacId, setSelectedTriacId] = useState<string>("");
   const [caption, setCaption] = useState("");
   const [extraContext, setExtraContext] = useState("");
+  const [customSubject, setCustomSubject] = useState("");
+  const [isGeneratingSubjects, setIsGeneratingSubjects] = useState(false);
+  const [subjectSuggestions, setSubjectSuggestions] = useState<string[]>([]);
+
+  const DEFAULT_SUBJECTS = [
+    "Inteligência Artificial no desenvolvimento de software",
+    "Automação de processos com IA",
+    "Segurança da informação para empresas",
+    "Desenvolvimento web moderno com React",
+    "Cases de sucesso da Triarc Solutions",
+    "Tendências de tecnologia em 2026",
+    "DevOps e CI/CD na prática",
+    "Transformação digital para pequenas empresas",
+    "APIs e integrações: como conectar sistemas",
+    "Cloud computing: AWS, Azure e GCP",
+    "Mobile first: apps iOS e Android",
+    "UX/UI: design que converte",
+  ];
   const [mediaUrls, setMediaUrls] = useState<string[]>([]);
   const [scheduledAt, setScheduledAt] = useState("");
   const [isGeneratingCaption, setIsGeneratingCaption] = useState(false);
@@ -67,11 +85,36 @@ export default function CreatePost() {
     return theme;
   }, [contentSource, selectedTriacItem, theme]);
 
+  const handleGenerateSuggestions = async () => {
+    setIsGeneratingSubjects(true);
+    try {
+      const result = await generateCaption.mutateAsync({
+        accountId: Number(accountId) || 1,
+        theme: "Gere 8 sugestões criativas de assuntos para posts de marketing digital e tecnologia para a empresa Triarc Solutions. Retorne apenas uma lista JSON de strings, sem explicações.",
+        extraContext: "Retorne SOMENTE um array JSON de 8 strings com os assuntos. Ex: [\"Assunto 1\", \"Assunto 2\", ...]",
+      });
+      try {
+        const text = typeof result.caption === "string" ? result.caption : "";
+        const match = text.match(/\[[\s\S]*\]/);
+        if (match) {
+          const parsed = JSON.parse(match[0]);
+          if (Array.isArray(parsed)) { setSubjectSuggestions(parsed.slice(0, 8)); return; }
+        }
+      } catch {}
+      setSubjectSuggestions(DEFAULT_SUBJECTS.slice(0, 8));
+    } catch {
+      setSubjectSuggestions(DEFAULT_SUBJECTS.slice(0, 8));
+    } finally {
+      setIsGeneratingSubjects(false);
+    }
+  };
+
   const handleGenerateCaption = async () => {
-    if (!accountId || !effectiveTheme) { toast.error("Selecione a conta e o projeto/tema primeiro"); return; }
+    const effectiveSubject = customSubject.trim() || effectiveTheme;
+    if (!accountId || !effectiveSubject) { toast.error("Selecione a conta e defina um assunto primeiro"); return; }
     setIsGeneratingCaption(true);
     try {
-      const result = await generateCaption.mutateAsync({ accountId: Number(accountId), theme: effectiveTheme, extraContext: extraContext || undefined });
+      const result = await generateCaption.mutateAsync({ accountId: Number(accountId), theme: customSubject.trim() || effectiveTheme, extraContext: extraContext || undefined });
       setCaption(typeof result.caption === "string" ? result.caption : "");
       toast.success("Legenda gerada!");
     } catch { toast.error("Erro ao gerar legenda"); }
@@ -79,11 +122,12 @@ export default function CreatePost() {
   };
 
   const handleGenerateArt = async () => {
-    if (!accountId || !effectiveTheme) { toast.error("Selecione a conta e o projeto/tema primeiro"); return; }
+    const effectiveSubject = customSubject.trim() || effectiveTheme;
+    if (!accountId || !effectiveSubject) { toast.error("Selecione a conta e defina um assunto primeiro"); return; }
     if (mediaUrls.length >= 10) { toast.error("Máximo de 10 imagens por carrossel"); return; }
     setIsGeneratingArt(true);
     try {
-      const result = await generateArt.mutateAsync({ accountId: Number(accountId), theme: effectiveTheme, description: extraContext || undefined });
+      const result = await generateArt.mutateAsync({ accountId: Number(accountId), theme: customSubject.trim() || effectiveTheme, description: extraContext || undefined });
       if (result.url) {
         setMediaUrls(prev => [...prev, result.url as string]);
         toast.success(mediaUrls.length === 0 ? "Arte gerada!" : `Slide ${mediaUrls.length + 1} adicionado ao carrossel!`);
@@ -188,6 +232,55 @@ export default function CreatePost() {
                 <Badge variant="outline" className={selectedAccount.tone === "personal" ? "border-pink-300 text-pink-600" : "border-cyan-300 text-cyan-700"}>
                   Tom: {selectedAccount.tone === "personal" ? "Pessoal" : "Corporativo"}
                 </Badge>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Assunto do Post */}
+          <Card className="card-blueprint">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base font-bold flex items-center gap-2">
+                  <Lightbulb className="h-4 w-4 text-yellow-400" /> Assunto do Post
+                </CardTitle>
+                <Button variant="outline" size="sm" onClick={handleGenerateSuggestions} disabled={isGeneratingSubjects} className="gap-1.5 text-xs">
+                  {isGeneratingSubjects ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                  Sugerir com IA
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <Input
+                placeholder="Digite o assunto do post (ex: Segurança da informação para PMEs)..."
+                value={customSubject}
+                onChange={e => setCustomSubject(e.target.value)}
+                className="text-sm"
+              />
+              {(subjectSuggestions.length > 0 || DEFAULT_SUBJECTS.length > 0) && (
+                <div className="space-y-2">
+                  <p className="label-mono text-xs">Sugestões — clique para usar:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {(subjectSuggestions.length > 0 ? subjectSuggestions : DEFAULT_SUBJECTS).map((s, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => setCustomSubject(s)}
+                        className={`text-xs px-2.5 py-1 rounded-full border transition-all cursor-pointer ${
+                          customSubject === s
+                            ? "border-cyan-400 bg-cyan-400/20 text-cyan-300"
+                            : "border-border/50 text-muted-foreground hover:border-cyan-400/50 hover:text-cyan-300"
+                        }`}
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {customSubject && (
+                <p className="text-xs text-muted-foreground">
+                  A IA vai gerar a legenda e a arte com base neste assunto, ignorando o tema/projeto selecionado acima.
+                </p>
               )}
             </CardContent>
           </Card>

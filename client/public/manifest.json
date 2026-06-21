@@ -1,39 +1,39 @@
 {
   "name": "Triarc Social Manager",
   "short_name": "TriarcSM",
-  "description": "Gerenciamento de conteúdo Instagram da Triarc Solutions",
+  "description": "Gerenciamento de redes sociais da Triarc Solutions",
   "start_url": "/",
-  "display": "browser",
-  "background_color": "#0b0f1a",
-  "theme_color": "#0b0f1a",
+  "display": "standalone",
+  "background_color": "#050a14",
+  "theme_color": "#050a14",
   "orientation": "portrait-primary",
+  "scope": "/",
   "lang": "pt-BR",
+  "categories": ["business", "productivity", "social"],
   "icons": [
-    {
-      "src": "/manus-storage/icon-192_18af037c.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/manus-storage/icon-512_74652708.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
-    }
+    { "src": "/manus-storage/icon-72_d3b46297.png", "sizes": "72x72", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/manus-storage/icon-96_b4761719.png", "sizes": "96x96", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/manus-storage/icon-128_d399506b.png", "sizes": "128x128", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/manus-storage/icon-144_e282059b.png", "sizes": "144x144", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/manus-storage/icon-152_92865e59.png", "sizes": "152x152", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/manus-storage/icon-192_659e715c.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/manus-storage/icon-384_bf5b90fa.png", "sizes": "384x384", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/manus-storage/icon-512_431a1323.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
   ],
   "shortcuts": [
     {
       "name": "Criar Post",
       "short_name": "Criar",
+      "description": "Criar novo post",
       "url": "/create",
-      "icons": [{ "src": "/manus-storage/icon-192_18af037c.png", "sizes": "192x192" }]
+      "icons": [{ "src": "/manus-storage/icon-96_b4761719.png", "sizes": "96x96" }]
     },
     {
       "name": "Aprovação",
       "short_name": "Aprovar",
+      "description": "Posts aguardando aprovação",
       "url": "/approval",
-      "icons": [{ "src": "/manus-storage/icon-192_18af037c.png", "sizes": "192x192" }]
+      "icons": [{ "src": "/manus-storage/icon-96_b4761719.png", "sizes": "96x96" }]
     }
   ]
 }

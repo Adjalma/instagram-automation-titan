@@ -198,3 +198,13 @@
 - [x] tRPC procedure posts.republishToFacebook (recebe postId, publica via publishToFacebook, atualiza facebookPublished=1)
 - [x] Botão "Republicar no Facebook" no card de cada post no HistoryView
 - [x] Estado de loading/sucesso/erro inline no botão
+
+## Feature v1.29 — PWA + Escolha de Assunto + Capacitor
+
+- [x] PWA: manifest.json completo com ícones, theme_color, display standalone
+- [x] PWA: service worker com cache offline básico
+- [x] PWA: meta tags iOS (apple-mobile-web-app) no index.html
+- [x] Escolha de assunto no Criar Post (campo + sugestões IA)
+- [ ] Escolha de assunto na Pesquisa Diária (configuração de temas)
+- [x] Projeto Capacitor configurado (capacitor.config.ts, iOS + Android)
+- [x] ZIP do projeto Capacitor para entrega

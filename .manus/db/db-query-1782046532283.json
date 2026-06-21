@@ -1,0 +1,17 @@
+{
+  "query": "SELECT id, handle, platform, linkedinUrn, LEFT(accessToken, 30) as token_preview FROM instagram_accounts WHERE platform = 'facebook';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3F5sJN7FajWtXbb.root --database 3LYkMyiPgdB2gzxf44Hk3M --execute SELECT id, handle, platform, linkedinUrn, LEFT(accessToken, 30) as token_preview FROM instagram_accounts WHERE platform = 'facebook';",
+  "rows": [
+    {
+      "id": "30001",
+      "handle": "Triarcsolutions",
+      "platform": "facebook",
+      "linkedinUrn": "fb:page:955553160977534",
+      "token_preview": "EAAZA7LABkgdEBRyYU1jZA7uWsEJEX"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\thandle\tplatform\tlinkedinUrn\ttoken_preview\n30001\tTriarcsolutions\tfacebook\tfb:page:955553160977534\tEAAZA7LABkgdEBRyYU1jZA7uWsEJEX\n",
+  "stderr": "",
+  "execution_time_ms": 915
+}

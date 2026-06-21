@@ -1512,9 +1512,6 @@ var FB_GRAPH_URL = "https://graph.facebook.com/v19.0";
 var FB_SCOPES = [
   "pages_show_list",
   "pages_read_engagement",
-  "pages_manage_posts",
-  "instagram_basic",
-  "instagram_content_publish",
   "business_management"
 ].join(",");
 var FB_PAGE_VANITY = "Triarcsolutions";
@@ -2194,6 +2191,28 @@ ${r.permalink}` }).catch(() => {
     }),
     delete: protectedProcedure.input(z3.object({ id: z3.number() })).mutation(async ({ input }) => {
       await deletePost(input.id);
+      return { success: true };
+    }),
+    republishToFacebook: protectedProcedure.input(z3.object({ id: z3.number() })).mutation(async ({ input }) => {
+      const post = await getPostById(input.id);
+      if (!post) throw new Error("Post n\xE3o encontrado");
+      const media = await getPostMedia(input.id);
+      let imageUrl;
+      if (media?.[0]?.mediaUrl) {
+        const u = media[0].mediaUrl;
+        imageUrl = u.startsWith("/manus-storage/") ? await storageGetSignedUrl(u.replace("/manus-storage/", "")) : u;
+      }
+      const caption = post.caption || "";
+      const allAccs = await getAllAccounts();
+      const fbAccs = allAccs.filter((a) => a.platform === "facebook" && a.accessToken && (a.linkedinUrn?.startsWith("fb:page:") || a.linkedinUrn === "fb:personal"));
+      if (fbAccs.length === 0) throw new Error("Nenhuma conta Facebook conectada. Reconecte em Contas.");
+      for (const fbAcc of fbAccs) {
+        const pageId = fbAcc.linkedinUrn.startsWith("fb:page:") ? fbAcc.linkedinUrn.replace("fb:page:", "") : "me";
+        await publishToFacebook({ pageToken: fbAcc.accessToken, pageId, caption, imageUrl });
+        await updatePost(input.id, { facebookPublished: 1 });
+        notifyOwner({ title: "\u2705 Facebook (Republicado)", content: `Post #${input.id} republicado no Facebook!` }).catch(() => {
+        });
+      }
       return { success: true };
     }),
     addMedia: protectedProcedure.input(z3.object({

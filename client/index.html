@@ -4,21 +4,45 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#ffffff" />
+
+    <!-- PWA / Theme -->
+    <meta name="theme-color" content="#050a14" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="TriarcSM" />
-    <link rel="apple-touch-icon" href="/manus-storage/icon-192_18af037c.png" />
+    <meta name="application-name" content="TriarcSM" />
+    <meta name="msapplication-TileColor" content="#050a14" />
+    <meta name="msapplication-TileImage" content="/manus-storage/icon-144_e282059b.png" />
+
+    <!-- Apple Touch Icons (iOS) -->
+    <link rel="apple-touch-icon" href="/manus-storage/icon-152_92865e59.png" />
+    <link rel="apple-touch-icon" sizes="72x72" href="/manus-storage/icon-72_d3b46297.png" />
+    <link rel="apple-touch-icon" sizes="96x96" href="/manus-storage/icon-96_b4761719.png" />
+    <link rel="apple-touch-icon" sizes="128x128" href="/manus-storage/icon-128_d399506b.png" />
+    <link rel="apple-touch-icon" sizes="144x144" href="/manus-storage/icon-144_e282059b.png" />
+    <link rel="apple-touch-icon" sizes="152x152" href="/manus-storage/icon-152_92865e59.png" />
+    <link rel="apple-touch-icon" sizes="192x192" href="/manus-storage/icon-192_659e715c.png" />
+    <link rel="apple-touch-icon" sizes="512x512" href="/manus-storage/icon-512_431a1323.png" />
+
+    <!-- Apple Splash Screens (iPhone) -->
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+    <!-- Manifest -->
     <link rel="manifest" href="/manifest.json" />
-    <title>Triarc Social Manager — Automação Instagram</title>
-    <meta name="description" content="Plataforma de automação de conteúdo para Instagram da Triarc Solutions. Crie, agende e publique posts com inteligência artificial." />
+    <link rel="icon" type="image/png" href="/manus-storage/icon-192_659e715c.png" />
+
+    <!-- SEO -->
+    <title>Triarc Social Manager</title>
+    <meta name="description" content="Plataforma de automação de conteúdo para redes sociais da Triarc Solutions. Crie, agende e publique posts com inteligência artificial." />
     <meta name="keywords" content="automação instagram, gestão redes sociais, marketing digital, inteligência artificial, agendamento posts, Triarc Solutions" />
-    <meta property="og:title" content="Triarc Social Manager — Automação Instagram" />
-    <meta property="og:description" content="Plataforma de automação de conteúdo para Instagram da Triarc Solutions. Crie, agende e publique posts com inteligência artificial." />
+    <meta property="og:title" content="Triarc Social Manager" />
+    <meta property="og:description" content="Plataforma de automação de conteúdo para redes sociais da Triarc Solutions." />
     <meta property="og:type" content="website" />
-    <meta name="robots" content="index, follow" />
-    <link rel="icon" type="image/png" href="/manus-storage/logo_4b566ae8.png" />
+    <meta property="og:image" content="/manus-storage/icon-512_431a1323.png" />
+    <meta name="robots" content="noindex, nofollow" />
+
+    <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&family=Orbitron:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
@@ -27,6 +51,16 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <!-- Registro do Service Worker PWA -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js')
+            .then(reg => console.log('[PWA] Service Worker registrado:', reg.scope))
+            .catch(err => console.warn('[PWA] Service Worker falhou:', err));
+        });
+      }
+    </script>
   </body>
 
 </html>
