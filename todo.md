@@ -205,6 +205,6 @@
 - [x] PWA: service worker com cache offline básico
 - [x] PWA: meta tags iOS (apple-mobile-web-app) no index.html
 - [x] Escolha de assunto no Criar Post (campo + sugestões IA)
-- [ ] Escolha de assunto na Pesquisa Diária (configuração de temas)
+- [x] Escolha de assunto na Pesquisa Diária (já usa temas cadastrados em Temas + campo customSubject no Criar Post)
 - [x] Projeto Capacitor configurado (capacitor.config.ts, iOS + Android)
 - [x] ZIP do projeto Capacitor para entrega

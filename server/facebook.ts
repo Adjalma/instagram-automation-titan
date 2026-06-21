@@ -184,51 +184,32 @@ export async function publishToFacebook(params: {
 }): Promise<{ postId: string; permalink: string }> {
   const { pageToken, pageId, caption, imageUrl } = params;
 
-  let postId: string;
-
+  // Usa /feed para texto e imagem — funciona com pages_manage_posts sem App Review extra.
+  // O endpoint /photos requer permissão adicional (error_subcode 99) e não é necessário
+  // para publicar conteúdo visual na timeline da página.
+  const feedParams: Record<string, string> = {
+    message: caption,
+    access_token: pageToken,
+  };
   if (imageUrl) {
-    // Publica com foto via /photos endpoint
-    const formData = new URLSearchParams({
-      caption,
-      url: imageUrl,
-      access_token: pageToken,
-      published: "true",
-    });
-
-    const res = await fetch(`${FB_GRAPH_URL}/${pageId}/photos`, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: formData.toString(),
-    });
-
-    if (!res.ok) {
-      const err = await res.text();
-      throw new Error(`Facebook photo post failed: ${res.status} ${err}`);
-    }
-
-    const data = await res.json() as any;
-    postId = data.post_id ?? data.id ?? "";
-  } else {
-    // Publica só texto via /feed endpoint
-    const formData = new URLSearchParams({
-      message: caption,
-      access_token: pageToken,
-    });
-
-    const res = await fetch(`${FB_GRAPH_URL}/${pageId}/feed`, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: formData.toString(),
-    });
-
-    if (!res.ok) {
-      const err = await res.text();
-      throw new Error(`Facebook feed post failed: ${res.status} ${err}`);
-    }
-
-    const data = await res.json() as any;
-    postId = data.id ?? "";
+    // Inclui a imagem como link no post do feed
+    feedParams.link = imageUrl;
   }
+
+  const formData = new URLSearchParams(feedParams);
+  const res = await fetch(`${FB_GRAPH_URL}/${pageId}/feed`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: formData.toString(),
+  });
+
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Facebook post failed: ${res.status} ${err}`);
+  }
+
+  const data = await res.json() as any;
+  const postId = data.id ?? "";
 
   const permalink = postId
     ? `https://www.facebook.com/${pageId}/posts/${postId.split("_")[1] ?? postId}`
