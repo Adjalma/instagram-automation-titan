@@ -32,7 +32,7 @@ export function registerAuthRoutes(app: Express) {
       dbUrlBackup: dbBackup ? dbBackup.slice(0, 30) + "..." : "missing",
       activeDb: activeDb ? activeDb.slice(0, 30) + "..." : "none",
       allDbKeys: Object.keys(process.env).filter(k => k.toLowerCase().includes('db') || k.toLowerCase().includes('database') || k.toLowerCase().includes('mysql') || k.toLowerCase().includes('postgres')),
-      buildTime: "2026-06-20T23:30:00Z",
+      buildTime_v2: "2026-06-21T00:10:00Z",
     });
   });
 
