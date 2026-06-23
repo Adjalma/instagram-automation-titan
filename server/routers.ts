@@ -193,8 +193,10 @@ export const appRouter = router({
             notifyOwner({ title: "✅ Facebook", content: `Post #${input.id} publicado no Facebook!` }).catch(() => {});
           } catch (e: any) { publishResults.facebook = `erro: ${e.message}`; console.error(`[Approve] Facebook post ${input.id}:`, e.message); }
         }
+        // Garante que o post sai da fila de aprovação independente do resultado por plataforma
+        await updatePost(input.id, { status: "published", publishedAt: new Date() });
         console.log(`[Approve] Post ${input.id} resultados:`, publishResults);
-        return { success: true, status: "approved", publishResults };
+        return { success: true, status: "published", publishResults };
       }
       // Post com agendamento futuro → scheduled
       await updatePost(input.id, { status: "scheduled" });
