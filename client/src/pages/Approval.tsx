@@ -140,15 +140,12 @@ export default function Approval() {
 
           {!isFuture && (
             <button
-              onClick={() => {
-                if (isApproved) publishNow.mutate({ postId: post.id });
-                else approve.mutate({ id: post.id }, { onSuccess: () => publishNow.mutate({ postId: post.id }) });
-              }}
-              disabled={publishNow.isPending || approve.isPending || reject.isPending}
+              onClick={() => approve.mutate({ id: post.id })}
+              disabled={approve.isPending || reject.isPending}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
               style={{ background: "linear-gradient(135deg, oklch(0.72 0.22 290), oklch(0.75 0.22 340))", color: "oklch(0.98 0 0)", boxShadow: "0 0 15px oklch(0.72 0.22 290 / 25%)" }}
             >
-              {publishNow.isPending || approve.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Rocket className="h-3.5 w-3.5" />}
+              {approve.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Rocket className="h-3.5 w-3.5" />}
               Publicar Agora
             </button>
           )}
