@@ -630,15 +630,27 @@ export const appRouter = router({
       const account = await getAccountById(input.accountId);
       if (!account) throw new Error("Account not found");
       const toneInstruction = TRIARC_TONE;
+      // Ângulo rotativo para variedade
+      const POST_ANGLES_MAIN = [
+        { name: "Educativo", instruction: "Explique o conceito de forma didática com analogias simples. Ensine algo concreto." },
+        { name: "Tendência", instruction: "Apresente como tendência emergente que vai transformar o mercado." },
+        { name: "Dica Prática", instruction: "Dê 3-5 dicas práticas e acionáveis. Formato de lista numerada." },
+        { name: "Case/Impacto", instruction: "Mostre como gera resultados reais: ROI, produtividade, competitividade." },
+        { name: "Provocação", instruction: "Faça uma pergunta provocadora que gere reflexão e comentários." },
+        { name: "Comparativo", instruction: "Compare antes e depois ou duas abordagens. Mostre por que a solução moderna é superior." },
+        { name: "Bastidores", instruction: "Mostre como a Triarc aplica isso para clientes. Tom de bastidores." },
+        { name: "Futuro", instruction: "Projete como será daqui a 2-3 anos. Tom visionário e inspirador." },
+      ];
+      const angleMain = POST_ANGLES_MAIN[Date.now() % POST_ANGLES_MAIN.length];
       const response = await invokeLLM({
         messages: [
           {
             role: "system",
-            content: `Você é um especialista em marketing de conteúdo para Instagram. ${APP_CONTEXT}\n\n${toneInstruction}\n\nA legenda deve incluir:\n- Texto envolvente e relevante ao tema/projeto/serviço\n- Hashtags estratégicas (8-15 hashtags do nicho tech, inovação, negócios)\n- CTA claro para triarcsolutions.com.br\n- Emojis moderados e profissionais\n\nResponda APENAS com a legenda pronta, sem explicações adicionais.`,
+            content: `Você é um especialista em marketing de conteúdo para Instagram. ${APP_CONTEXT}\n\n${toneInstruction}\n\nREGRAS CRÍTICAS:\n1. NUNCA invente nomes de softwares, ferramentas ou produtos. Use APENAS nomes reais e conhecidos (ex: ChatGPT, Python, AWS, Docker, React, etc.). Se não tiver certeza, descreva a categoria sem nomear.\n2. NUNCA cite estatísticas sem fonte verificável.\n3. Responda APENAS com a legenda pronta, sem explicações.`,
           },
           {
             role: "user",
-            content: `Crie uma legenda para @triarcsolutions no Instagram.\nTema/Projeto/Serviço: ${input.theme}\n${input.extraContext ? `Contexto adicional: ${input.extraContext}` : ""}\nDestaque o impacto, tecnologias usadas e valor para o cliente.`,
+            content: `Crie uma legenda para @triarcsolutions no Instagram.\nTema/Projeto/Serviço: ${input.theme}\n${input.extraContext ? `Contexto adicional: ${input.extraContext}` : ""}\nÂNGULO: ${angleMain.name} — ${angleMain.instruction}\nInclua 8-15 hashtags estratégicas do nicho tech/inovação e CTA para triarcsolutions.com.br.`,
           },
         ],
       });

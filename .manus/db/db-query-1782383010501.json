@@ -1,0 +1,18 @@
+{
+  "query": "SELECT id, name, query, language, active, publishHour FROM research_topics ORDER BY id;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3F5sJN7FajWtXbb.root --database 3LYkMyiPgdB2gzxf44Hk3M --execute SELECT id, name, query, language, active, publishHour FROM research_topics ORDER BY id;",
+  "rows": [
+    {
+      "id": "30001",
+      "name": "Inteligência Artificial",
+      "query": "artificial intelligence machine learning",
+      "language": "en",
+      "active": "0",
+      "publishHour": "8"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\tquery\tlanguage\tactive\tpublishHour\n30001\tInteligência Artificial\tartificial intelligence machine learning\ten\t0\t8\n",
+  "stderr": "",
+  "execution_time_ms": 267
+}
