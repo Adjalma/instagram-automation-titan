@@ -1,0 +1,118 @@
+{
+  "query": "SELECT id, name, type, description FROM triac_content WHERE id > 14 ORDER BY type, name;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3F5sJN7FajWtXbb.root --database 3LYkMyiPgdB2gzxf44Hk3M --execute SELECT id, name, type, description FROM triac_content WHERE id > 14 ORDER BY type, name;",
+  "rows": [
+    {
+      "id": "22",
+      "name": "Axis",
+      "type": "projeto",
+      "description": "Plataforma para montar dashboards totalmente interativos e sob medida. Arraste widgets, ligue fontes de dados, defina filtros e compartilhe visões claras com a equipe."
+    },
+    {
+      "id": "29",
+      "name": "Era das Alianças",
+      "type": "projeto",
+      "description": "Jogo digital onde jogadores negociam alianças, expandem influência e disputam objetivos em cenários por eras. Combina decisões estratégicas, diplomacia entre facções e progressão contínua."
+    },
+    {
+      "id": "19",
+      "name": "Farol das Escrituras",
+      "type": "projeto",
+      "description": "Plataforma para aprofundamento bíblico, leitura guiada e recursos que apoiam o estudo das Escrituras de forma clara e acessível. Anotações, favoritos e busca de referências."
+    },
+    {
+      "id": "27",
+      "name": "Jarvis",
+      "type": "projeto",
+      "description": "Assistente inteligente conversacional em evolução contínua, com foco em automação de tarefas, respostas contextuais e extensibilidade via plugins."
+    },
+    {
+      "id": "30",
+      "name": "KidShield",
+      "type": "projeto",
+      "description": "Suite voltada à proteção digital familiar: controles parentais, alertas e ferramentas para acompanhar o uso seguro de dispositivos e conteúdos. Privacidade e LGPD em foco."
+    },
+    {
+      "id": "28",
+      "name": "KryptoStudio",
+      "type": "projeto",
+      "description": "Plataforma estilo Notebook LM: adicione documentos e PDFs como fonte única de verdade e a IA gera apresentações, infográficos e vídeos. Ideal para estudar, ensinar ou comunicar."
+    },
+    {
+      "id": "15",
+      "name": "Legendários Macaé",
+      "type": "projeto",
+      "description": "Plataforma web oficial para o movimento Legendários Macaé. Integrações automáticas com portais Legendários Global e Rio, sincronização em tempo real e timeline interativa. 1000+ visitantes, 50+ eventos."
+    },
+    {
+      "id": "18",
+      "name": "Logos",
+      "type": "projeto",
+      "description": "Plataforma para gravar reuniões, gerar transcrição automática e produzir resumos acionáveis. Centraliza o histórico de encontros e facilita a busca no que foi dito."
+    },
+    {
+      "id": "20",
+      "name": "Mir Macaé",
+      "type": "projeto",
+      "description": "Plataforma da congregação Mir Macaé para reunir, validar e visualizar dados operacionais e pastorais. Automatiza coleta de dados, reduz trabalho manual e oferece painéis claros."
+    },
+    {
+      "id": "24",
+      "name": "NutriSystem",
+      "type": "projeto",
+      "description": "Plataforma completa para gestão nutricional e acompanhamento de pacientes. Planos alimentares, cálculo automático de macronutrientes, acompanhamento de evolução e relatórios."
+    },
+    {
+      "id": "32",
+      "name": "Pratiko",
+      "type": "projeto",
+      "description": "Sistema para simplificar rotinas operacionais e tarefas recorrentes, com foco em produtividade e clareza de processos. Checklists, lembretes e relatórios simples."
+    },
+    {
+      "id": "31",
+      "name": "Rede Sião",
+      "type": "projeto",
+      "description": "Rede social pensada para o público evangélico: feed, perfis, grupos e conversas em um ambiente alinhado à fé, família e comunidade cristã. Compartilhe vida, eventos, louvor e mensagem."
+    },
+    {
+      "id": "26",
+      "name": "SS Finanças",
+      "type": "projeto",
+      "description": "Plataforma completa para gestão financeira pessoal com controle de receitas, despesas, investimentos e metas. Categorização automática por IA e dashboard visual interativo."
+    },
+    {
+      "id": "16",
+      "name": "Sentinela",
+      "type": "projeto",
+      "description": "Plataforma de comunicação e conexão para o movimento Legendários. Conecta membros, facilita comunicação, compartilha eventos e fortalece a comunidade com interface moderna."
+    },
+    {
+      "id": "23",
+      "name": "Sintaxe",
+      "type": "projeto",
+      "description": "Plataforma de aprendizagem de programação para o público jovem. Linguagem clara, passos curtos e desafios gamificados que ensinam lógica, sintaxe e resolução de problemas."
+    },
+    {
+      "id": "25",
+      "name": "TRIARC CRM",
+      "type": "projeto",
+      "description": "CRM completo com IA integrada, pipeline de vendas drag-and-drop, geração de faturas, relatórios inteligentes e integração com TopFlow AI. Dashboard analítico completo."
+    },
+    {
+      "id": "17",
+      "name": "TransCarga",
+      "type": "projeto",
+      "description": "Plataforma completa de logística que conecta empresas e caminhoneiros. Rastreamento GPS em tempo real, geofencing, negociações inteligentes, verificação de documentos e assistente IA."
+    },
+    {
+      "id": "21",
+      "name": "Triarc Key Generator",
+      "type": "projeto",
+      "description": "Ferramenta para geração, validação e gestão de chaves criptográficas e secrets no ecossistema TRIARC, com boas práticas de segurança."
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\ttype\tdescription\n22\tAxis\tprojeto\tPlataforma para montar dashboards totalmente interativos e sob medida. Arraste widgets, ligue fontes de dados, defina filtros e compartilhe visões claras com a equipe.\n29\tEra das Alianças\tprojeto\tJogo digital onde jogadores negociam alianças, expandem influência e disputam objetivos em cenários por eras. Combina decisões estratégicas, diplomacia entre facções e progressão contínua.\n19\tFarol das Escrituras\tprojeto\tPlataforma para aprofundamento bíblico, leitura guiada e recursos que apoiam o estudo das Escrituras de forma clara e acessível. Anotações, favoritos e busca de referências.\n27\tJarvis\tprojeto\tAssistente inteligente conversacional em evolução contínua, com foco em automação de tarefas, respostas contextuais e extensibilidade via plugins.\n30\tKidShield\tprojeto\tSuite voltada à proteção digital familiar: controles parentais, alertas e ferramentas para acompanhar o uso seguro de dispositivos e conteúdos. Privacidade e LGPD em foco.\n28\tKryptoStudio\tprojeto\tPlataforma estilo Notebook LM: adicione documentos e PDFs como fonte única de verdade e a IA gera apresentações, infográficos e vídeos. Ideal para estudar, ensinar ou comunicar.\n15\tLegendários Macaé\tprojeto\tPlataforma web oficial para o movimento Legendários Macaé. Integrações automáticas com portais Legendários Global e Rio, sincronização em tempo real e timeline interativa. 1000+ visitantes, 50+ eventos.\n18\tLogos\tprojeto\tPlataforma para gravar reuniões, gerar transcrição automática e produzir resumos acionáveis. Centraliza o histórico de encontros e facilita a busca no que foi dito.\n20\tMir Macaé\tprojeto\tPlataforma da congregação Mir Macaé para reunir, validar e visualizar dados operacionais e pastorais. Automatiza coleta de dados, reduz trabalho manual e oferece painéis claros.\n24\tNutriSystem\tprojeto\tPlataforma completa para gestão nutricional e acompanhamento de pacientes. Planos alimentares, cálculo automático de macronutrientes, acompanhamento de evolução e relatórios.\n32\tPratiko\tprojeto\tSistema para simplificar rotinas operacionais e tarefas recorrentes, com foco em produtividade e clareza de processos. Checklists, lembretes e relatórios simples.\n31\tRede Sião\tprojeto\tRede social pensada para o público evangélico: feed, perfis, grupos e conversas em um ambiente alinhado à fé, família e comunidade cristã. Compartilhe vida, eventos, louvor e mensagem.\n26\tSS Finanças\tprojeto\tPlataforma completa para gestão financeira pessoal com controle de receitas, despesas, investimentos e metas. Categorização automática por IA e dashboard visual interativo.\n16\tSentinela\tprojeto\tPlataforma de comunicação e conexão para o movimento Legendários. Conecta membros, facilita comunicação, compartilha eventos e fortalece a comunidade com interface moderna.\n23\tSintaxe\tprojeto\tPlataforma de aprendizagem de programação para o público jovem. Linguagem clara, passos curtos e desafios gamificados que ensinam lógica, sintaxe e resolução de problemas.\n25\tTRIARC CRM\tprojeto\tCRM completo com IA integrada, pipeline de vendas drag-and-drop, geração de faturas, relatórios inteligentes e integração com TopFlow AI. Dashboard analítico completo.\n17\tTransCarga\tprojeto\tPlataforma completa de logística que conecta empresas e caminhoneiros. Rastreamento GPS em tempo real, geofencing, negociações inteligentes, verificação de documentos e assistente IA.\n21\tTriarc Key Generator\tprojeto\tFerramenta para geração, validação e gestão de chaves criptográficas e secrets no ecossistema TRIARC, com boas práticas de segurança.\n",
+  "stderr": "",
+  "execution_time_ms": 260
+}

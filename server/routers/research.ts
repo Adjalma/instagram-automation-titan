@@ -6,10 +6,24 @@ import { eq, desc, and } from "drizzle-orm";
 import { invokeLLM } from "../_core/llm";
 import { generateImage } from "../_core/imageGeneration";
 import { getAllAccounts } from "../db";
+import { triacContent } from "../../drizzle/schema";
 
 const NEWS_API_KEY = process.env.NEWS_API_KEY ?? "";
 
-const APP_CONTEXT = `A Triarc Solutions é uma empresa de tecnologia e inovação com sede em Macaé/RJ. Pilares: Gestão, Treinamento e Tecnologia. Serviços: IA e automação, desenvolvimento de software, data science. Site: triarcsolutions.com.br.`;
+const APP_CONTEXT_BASE = `A Triarc Solutions é uma empresa de tecnologia e inovação com sede em Macaé/RJ. Pilares: Gestão, Treinamento e Tecnologia. Site: triarcsolutions.com.br.`;
+
+async function buildTriarcContext(): Promise<string> {
+  try {
+    const db = await getDb();
+    if (!db) return APP_CONTEXT_BASE;
+    const items = await db.select({ name: triacContent.name, type: triacContent.type, description: triacContent.description }).from(triacContent).orderBy(triacContent.type, triacContent.name);
+    const services = items.filter((i: { type: string; name: string; description: string | null }) => i.type === "servico").map((i: { name: string; description: string | null }) => `- ${i.name}: ${i.description ?? ""}`).join("\n");
+    const projects = items.filter((i: { type: string; name: string; description: string | null }) => i.type === "projeto").map((i: { name: string; description: string | null }) => `- ${i.name}: ${i.description ?? ""}`).join("\n");
+    return `${APP_CONTEXT_BASE}\n\nSERVIÇOS OFICIAIS DA TRIARC (use os nomes EXATAMENTE como listados):\n${services}\n\nPROJETOS/SOFTWARES DA TRIARC (use os nomes EXATAMENTE como listados, NUNCA altere ou invente variações):\n${projects}`;
+  } catch {
+    return APP_CONTEXT_BASE;
+  }
+}
 const TRIARC_TONE = `Tom corporativo profissional, moderno e acessível. Posicione a Triarc Solutions como referência em tecnologia. Inclua CTA para triarcsolutions.com.br e hashtags do nicho tech/IA.`;
 
 // Ângulos de post para rotação — garante variedade de abordagem
@@ -62,11 +76,12 @@ async function generateCaption(topicName: string, articles: { title: string; des
   const subtopicKey = getSubtopicKey(topicName);
   const subtopic = pickVaried(SUBTOPICS[subtopicKey] ?? SUBTOPICS.default, Math.floor(s / 7));
   const headlines = articles.map((a, i) => `${i + 1}. ${a.title}: ${a.description}`).join("\n");
+  const dynamicContext = await buildTriarcContext();
   const response = await invokeLLM({
     messages: [
       {
         role: "system",
-        content: `${APP_CONTEXT}\n${TRIARC_TONE}\nVocê é especialista em marketing digital para Instagram.\n\nREGRAS CRÍTICAS:\n1. NUNCA invente nomes de softwares, ferramentas ou produtos. Use APENAS nomes reais e conhecidos (ex: ChatGPT, Python, TensorFlow, AWS, Azure, Docker, etc.). Se não tiver certeza do nome exato, descreva a categoria sem nomear.\n2. NUNCA cite estatísticas ou dados sem fonte verificável nas notícias fornecidas.\n3. Use linguagem clara e direta — evite jargões excessivos.`,
+        content: `${dynamicContext}\n${TRIARC_TONE}\nVocê é especialista em marketing digital para Instagram.\n\nREGRAS CRÍTICAS:\n1. Use os nomes dos projetos e serviços da Triarc EXATAMENTE como listados acima. NUNCA altere, abrevie ou invente variações.\n2. NUNCA invente nomes de softwares externos. Use APENAS nomes reais e conhecidos (ChatGPT, Python, TensorFlow, AWS, Azure, Docker, etc.).\n3. NUNCA cite estatísticas sem fonte verificável.\n4. Use linguagem clara e direta.`,
       },
       {
         role: "user" as const,

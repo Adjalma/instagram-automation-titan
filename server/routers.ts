@@ -26,7 +26,24 @@ import { seedTriarcContent, TRIARC_SERVICES, TRIARC_PROJECTS } from "./seed-tria
 import { triacContent, TriacContent } from "../drizzle/schema";
 import { getDb } from "./db";
 
-const APP_CONTEXT = `A Triarc Solutions é uma empresa de tecnologia e inovação com sede em Macaé/RJ. Site oficial: triarcsolutions.com.br. Pilares: Gestão, Treinamento e Tecnologia. Serviços: desenvolvimento de software sob encomenda, IA e automação, gestão empresarial, suporte técnico em TI, automação industrial, treinamento profissional, licenciamento de software e data science. Projetos em destaque: TopFlow.ai (SEO com IA), COPE (plataforma de conexão de profissionais), SS-Milhas (gestão de milhas), TransCarga (logística inteligente), TRIARC CRM, NutriSystem, Grupo Conecta e mais de 36 projetos entregues. O Triarc Social Manager é a plataforma interna de automação de conteúdo para Instagram da Triarc Solutions.`;
+const APP_CONTEXT_BASE = `A Triarc Solutions é uma empresa de tecnologia e inovação com sede em Macaé/RJ. Site oficial: triarcsolutions.com.br. Pilares: Gestão, Treinamento e Tecnologia.`;
+
+// Busca projetos e serviços reais do banco para injetar no prompt — evita distorção de nomes
+async function buildTriarcContext(): Promise<string> {
+  try {
+    const db = await getDb();
+    if (!db) return APP_CONTEXT_BASE;
+    const items = await db.select({ name: triacContent.name, type: triacContent.type, description: triacContent.description }).from(triacContent).orderBy(triacContent.type, triacContent.name);
+    const services = items.filter((i: { type: string; name: string; description: string | null }) => i.type === "servico").map((i: { name: string; description: string | null }) => `- ${i.name}: ${i.description ?? ""}`).join("\n");
+    const projects = items.filter((i: { type: string; name: string; description: string | null }) => i.type === "projeto").map((i: { name: string; description: string | null }) => `- ${i.name}: ${i.description ?? ""}`).join("\n");
+    return `${APP_CONTEXT_BASE}\n\nSERVIÇOS OFICIAIS DA TRIARC (use os nomes EXATAMENTE como listados):\n${services}\n\nPROJETOS/SOFTWARES DA TRIARC (use os nomes EXATAMENTE como listados, NUNCA altere, abrevie ou invente variações):\n${projects}`;
+  } catch {
+    return APP_CONTEXT_BASE;
+  }
+}
+
+// Compat: mantém APP_CONTEXT como string estática para uso em contextos síncronos
+const APP_CONTEXT = APP_CONTEXT_BASE;
 
 const TRIARC_TONE = `Use um tom corporativo profissional, moderno e acessível. Posicione a Triarc Solutions como referência em tecnologia e inovação. Destaque expertise técnica, resultados concretos e valor para o cliente. Sempre inclua CTA direcionando para triarcsolutions.com.br. Use hashtags do nicho tech/inovação/negócios.`;
 
@@ -630,6 +647,7 @@ export const appRouter = router({
       const account = await getAccountById(input.accountId);
       if (!account) throw new Error("Account not found");
       const toneInstruction = TRIARC_TONE;
+      const dynamicContext = await buildTriarcContext();
       // Ângulo rotativo para variedade
       const POST_ANGLES_MAIN = [
         { name: "Educativo", instruction: "Explique o conceito de forma didática com analogias simples. Ensine algo concreto." },
@@ -646,7 +664,7 @@ export const appRouter = router({
         messages: [
           {
             role: "system",
-            content: `Você é um especialista em marketing de conteúdo para Instagram. ${APP_CONTEXT}\n\n${toneInstruction}\n\nREGRAS CRÍTICAS:\n1. NUNCA invente nomes de softwares, ferramentas ou produtos. Use APENAS nomes reais e conhecidos (ex: ChatGPT, Python, AWS, Docker, React, etc.). Se não tiver certeza, descreva a categoria sem nomear.\n2. NUNCA cite estatísticas sem fonte verificável.\n3. Responda APENAS com a legenda pronta, sem explicações.`,
+            content: `Você é um especialista em marketing de conteúdo para Instagram. ${dynamicContext}\n\n${toneInstruction}\n\nREGRAS CRÍTICAS:\n1. Use os nomes dos projetos e serviços da Triarc EXATAMENTE como listados acima. NUNCA altere, abrevie, traduza ou invente variações dos nomes.\n2. NUNCA invente nomes de softwares externos. Use APENAS nomes reais e conhecidos (ChatGPT, Python, AWS, Docker, React, etc.).\n3. NUNCA cite estatísticas sem fonte verificável.\n4. Responda APENAS com a legenda pronta, sem explicações.`,
           },
           {
             role: "user",
