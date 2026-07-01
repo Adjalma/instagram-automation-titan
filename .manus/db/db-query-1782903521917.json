@@ -1,0 +1,9 @@
+{
+  "query": "UPDATE instagram_accounts SET accessToken = 'EAAL7XKEeXwcBR4OPC0KE41Pc5mdhpAg0uFObSPP7enE4OMB7gyWQghHo3ZCQxsQJjg9Ennryrj3gXIbH8cC05yYJk5XZAiKZAH2TKAvhOAzOdY0tUbWY6EC0qBXi3E9ZCKmd1Uh8sHCxu4ZA96ZCSsfOsdsLtMXScMvH78owBepVuQWYtAZBykwLXjNxMQOFv2ETxQMbQIMwWsXpS3EDJNMD49OSCj4QxM9FEpsO1WkgH9m4h8gLZC9kGZCCP', tokenExpiresAt = DATE_ADD(NOW(), INTERVAL 60 DAY) WHERE platform = 'facebook';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3F5sJN7FajWtXbb.root --database 3LYkMyiPgdB2gzxf44Hk3M --execute UPDATE instagram_accounts SET accessToken = 'EAAL7XKEeXwcBR4OPC0KE41Pc5mdhpAg0uFObSPP7enE4OMB7gyWQghHo3ZCQxsQJjg9Ennryrj3gXIbH8cC05yYJk5XZAiKZAH2TKAvhOAzOdY0tUbWY6EC0qBXi3E9ZCKmd1Uh8sHCxu4ZA96ZCSsfOsdsLtMXScMvH78owBepVuQWYtAZBykwLXjNxMQOFv2ETxQMbQIMwWsXpS3EDJNMD49OSCj4QxM9FEpsO1WkgH9m4h8gLZC9kGZCCP', tokenExpiresAt = DATE_ADD(NOW(), INTERVAL 60 DAY) WHERE platform = 'facebook';",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 278
+}

@@ -97,6 +97,21 @@ export const appRouter = router({
       await db.delete(instagramAccounts).where(eq(instagramAccounts.id, input.id));
       return { success: true };
     }),
+    expiringTokens: protectedProcedure.query(async () => {
+      const accounts = await getAllAccounts() as any[];
+      const now = Date.now();
+      return accounts
+        .filter((a: any) => a.tokenExpiresAt && a.platform !== 'instagram')
+        .map((a: any) => ({
+          id: a.id,
+          platform: a.platform as string,
+          handle: a.handle as string,
+          displayName: a.displayName as string,
+          daysLeft: Math.ceil((new Date(a.tokenExpiresAt).getTime() - now) / 86400000),
+          expiresAt: new Date(a.tokenExpiresAt).toISOString(),
+        }))
+        .filter((a: any) => a.daysLeft <= 14);
+    }),
   }),
 
   posts: router({

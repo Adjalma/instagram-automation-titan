@@ -1,0 +1,8 @@
+{
+  "query": "UPDATE social_accounts SET access_token = 'EAAL7XKEeXwcBR4OPC0KE41Pc5mdhpAg0uFObSPP7enE4OMB7gyWQghHo3ZCQxsQJjg9Ennryrj3gXIbH8cC05yYJk5XZAiKZAH2TKAvhOAzOdY0tUbWY6EC0qBXi3E9ZCKmd1Uh8sHCxu4ZA96ZCSsfOsdsLtMXScMvH78owBepVuQWYtAZBykwLXjNxMQOFv2ETxQMbQIMwWsXpS3EDJNMD49OSCj4QxM9FEpsO1WkgH9m4h8gLZC9kGZCCP', updated_at = NOW() WHERE platform = 'facebook' AND username LIKE '%triarc%';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3F5sJN7FajWtXbb.root --database 3LYkMyiPgdB2gzxf44Hk3M --execute UPDATE social_accounts SET access_token = 'EAAL7XKEeXwcBR4OPC0KE41Pc5mdhpAg0uFObSPP7enE4OMB7gyWQghHo3ZCQxsQJjg9Ennryrj3gXIbH8cC05yYJk5XZAiKZAH2TKAvhOAzOdY0tUbWY6EC0qBXi3E9ZCKmd1Uh8sHCxu4ZA96ZCSsfOsdsLtMXScMvH78owBepVuQWYtAZBykwLXjNxMQOFv2ETxQMbQIMwWsXpS3EDJNMD49OSCj4QxM9FEpsO1WkgH9m4h8gLZC9kGZCCP', updated_at = NOW() WHERE platform = 'facebook' AND username LIKE '%triarc%';",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1146 (42S02) at line 1: Table '3lykmyipgdb2gzxf44hk3m.social_accounts' doesn't exist"
+  ]
+}

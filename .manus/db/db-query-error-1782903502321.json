@@ -1,0 +1,20 @@
+{
+  "query": "SHOW TABLES; SELECT id, platform, username, SUBSTRING(access_token,1,30) as token_preview FROM instagram_accounts WHERE platform = 'facebook' LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3F5sJN7FajWtXbb.root --database 3LYkMyiPgdB2gzxf44Hk3M --execute SHOW TABLES; SELECT id, platform, username, SUBSTRING(access_token,1,30) as token_preview FROM instagram_accounts WHERE platform = 'facebook' LIMIT 5;",
+  "returncode": 1,
+  "logs": [
+    "Tables_in_3LYkMyiPgdB2gzxf44Hk3M",
+    "__drizzle_migrations",
+    "assets",
+    "content_themes",
+    "instagram_accounts",
+    "post_media",
+    "posts",
+    "publication_logs",
+    "research_runs",
+    "research_topics",
+    "triac_content",
+    "users",
+    "ERROR 1054 (42S22) at line 1: Unknown column 'username' in 'field list'"
+  ]
+}

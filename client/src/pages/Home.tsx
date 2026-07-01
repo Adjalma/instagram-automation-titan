@@ -40,10 +40,14 @@ export default function Home() {
   const { data: stats, isLoading: loadingStats, isError: statsError, error: statsErr, refetch: refetchStats } = trpc.accounts.stats.useQuery({ accountId: triacId }, { enabled: !!triacId });
   const { data: pendingPosts } = trpc.posts.list.useQuery({ status: "pending" });
   const { data: approvedPosts } = trpc.posts.list.useQuery({ status: "approved" });
+  const { data: expiringTokens } = trpc.accounts.expiringTokens.useQuery();
   const isLoading = loadingAccounts || (!!triacId && loadingStats);
 
   if (accountsError) return <QueryError message={accountsErr?.message} onRetry={() => refetchAccounts()} />;
   if (statsError && triacId) return <QueryError message={statsErr?.message} onRetry={() => refetchStats()} />;
+
+  const criticalTokens = expiringTokens?.filter((t: any) => t.daysLeft <= 3) ?? [];
+  const warningTokens = expiringTokens?.filter((t: any) => t.daysLeft > 3 && t.daysLeft <= 14) ?? [];
   if (isLoading) return (
     <div className="flex items-center justify-center h-64">
       <Loader2 className="h-8 w-8 animate-spin" style={{ color: "oklch(0.82 0.18 195)" }} />
@@ -67,6 +71,34 @@ export default function Home() {
         </div>
         <div className="badge-online">Online</div>
       </div>
+
+      {/* Alertas de token expirando */}
+      {criticalTokens.length > 0 && (
+        <div className="rounded-lg border p-4 flex items-start gap-3" style={{ background: "oklch(0.18 0.04 25 / 80%)", borderColor: "oklch(0.65 0.25 25 / 60%)", boxShadow: "0 0 16px oklch(0.65 0.25 25 / 20%)" }}>
+          <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" style={{ color: "oklch(0.75 0.25 25)" }} />
+          <div className="flex-1">
+            <p className="text-sm font-semibold" style={{ color: "oklch(0.88 0.12 25)" }}>⚠️ Token expirando em breve!</p>
+            {criticalTokens.map((t: any) => (
+              <p key={t.id} className="text-xs mt-1" style={{ color: "oklch(0.75 0.08 25)" }}>
+                <span className="font-mono font-bold" style={{ color: "oklch(0.88 0.12 25)" }}>{t.displayName}</span> ({t.platform}) — expira em <span className="font-bold" style={{ color: "oklch(0.75 0.25 25)" }}>{t.daysLeft <= 0 ? 'EXPIRADO' : `${t.daysLeft} dia(s)`}</span>. Gere um novo token no <a href="https://developers.facebook.com/tools/explorer" target="_blank" rel="noopener" className="underline" style={{ color: "oklch(0.82 0.18 195)" }}>Graph Explorer</a> e envie ao Manus.
+              </p>
+            ))}
+          </div>
+        </div>
+      )}
+      {warningTokens.length > 0 && criticalTokens.length === 0 && (
+        <div className="rounded-lg border p-4 flex items-start gap-3" style={{ background: "oklch(0.18 0.04 80 / 60%)", borderColor: "oklch(0.82 0.18 80 / 40%)", boxShadow: "0 0 12px oklch(0.82 0.18 80 / 10%)" }}>
+          <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" style={{ color: "oklch(0.82 0.18 80)" }} />
+          <div className="flex-1">
+            <p className="text-sm font-semibold" style={{ color: "oklch(0.88 0.12 80)" }}>Token expirando em breve</p>
+            {warningTokens.map((t: any) => (
+              <p key={t.id} className="text-xs mt-1" style={{ color: "oklch(0.72 0.06 80)" }}>
+                <span className="font-mono font-bold" style={{ color: "oklch(0.88 0.12 80)" }}>{t.displayName}</span> ({t.platform}) — expira em <span className="font-bold">{t.daysLeft} dia(s)</span>. Renove no <a href="https://developers.facebook.com/tools/explorer" target="_blank" rel="noopener" className="underline" style={{ color: "oklch(0.82 0.18 195)" }}>Graph Explorer</a>.
+              </p>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Stats rápidos */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
