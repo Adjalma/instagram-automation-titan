@@ -3,8 +3,8 @@ import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { z } from "zod";
-import { eq } from "drizzle-orm";
-import { instagramAccounts } from "../drizzle/schema";
+import { eq, sql } from "drizzle-orm";
+import { instagramAccounts, posts } from "../drizzle/schema";
 import {
   getAllAccounts, getAccountById, getAccountStats,
   createPost, getPostById, getPostsByAccount, getPostsByStatus, getAllPosts, updatePost, deletePost,
@@ -61,13 +61,37 @@ export const appRouter = router({
 
   accounts: router({
     list: protectedProcedure.query(async () => {
-      return getAllAccounts();
+      const accounts = await getAllAccounts() as any[];
+      const db = await getDb();
+      if (!db) return accounts;
+      // Adicionar publishedCount por conta
+      const pubCounts = await db.select({
+        accountId: posts.accountId,
+        count: sql<number>`COUNT(*)`,
+      }).from(posts).where(eq(posts.status, 'published')).groupBy(posts.accountId);
+      const countMap: Record<number, number> = {};
+      for (const row of pubCounts) { countMap[row.accountId] = Number(row.count); }
+      return accounts.map((a: any) => ({ ...a, publishedCount: countMap[a.id] ?? 0 }));
     }),
     getById: protectedProcedure.input(z.object({ id: z.number() })).query(async ({ input }) => {
       return getAccountById(input.id);
     }),
-    stats: protectedProcedure.input(z.object({ accountId: z.number() })).query(async ({ input }) => {
-      return getAccountStats(input.accountId);
+    stats: protectedProcedure.input(z.object({ accountId: z.number().optional() })).query(async ({ input }) => {
+      // Se accountId for fornecido, retorna stats daquela conta
+      // Se não, retorna stats consolidadas de todas as contas
+      if (input.accountId) {
+        return getAccountStats(input.accountId);
+      }
+      const db = await getDb();
+      if (!db) return { draft: 0, pending: 0, approved: 0, scheduled: 0, published: 0, rejected: 0, total: 0 };
+      const result = await db.select({
+        status: posts.status,
+        count: sql<number>`COUNT(*)`,
+      }).from(posts).groupBy(posts.status);
+      const stats: Record<string, number> = { draft: 0, pending: 0, approved: 0, scheduled: 0, published: 0, rejected: 0 };
+      for (const row of result) { stats[row.status] = Number(row.count); }
+      stats.total = Object.values(stats).reduce((a, b) => a + b, 0);
+      return stats;
     }),
     create: protectedProcedure.input(z.object({
       handle: z.string().min(1).max(128),

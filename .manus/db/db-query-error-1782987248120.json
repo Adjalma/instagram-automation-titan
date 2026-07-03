@@ -1,0 +1,8 @@
+{
+  "query": "SELECT status, COUNT(*) as total FROM instagram_posts GROUP BY status ORDER BY total DESC;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3F5sJN7FajWtXbb.root --database 3LYkMyiPgdB2gzxf44Hk3M --execute SELECT status, COUNT(*) as total FROM instagram_posts GROUP BY status ORDER BY total DESC;",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1146 (42S02) at line 1: Table '3lykmyipgdb2gzxf44hk3m.instagram_posts' doesn't exist"
+  ]
+}

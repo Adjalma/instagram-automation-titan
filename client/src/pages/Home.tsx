@@ -37,11 +37,12 @@ export default function Home() {
   const { data: accounts, isLoading: loadingAccounts, isError: accountsError, error: accountsErr, refetch: refetchAccounts } = trpc.accounts.list.useQuery();
   const triarc = accounts?.find((a: any) => a.platform === "instagram" || !a.platform) ?? accounts?.[0];
   const triacId = triarc?.id ?? 0;
-  const { data: stats, isLoading: loadingStats, isError: statsError, error: statsErr, refetch: refetchStats } = trpc.accounts.stats.useQuery({ accountId: triacId }, { enabled: !!triacId });
+  // Stats consolidadas de todas as plataformas (sem filtro por accountId)
+  const { data: stats, isLoading: loadingStats, isError: statsError, error: statsErr, refetch: refetchStats } = trpc.accounts.stats.useQuery({});
   const { data: pendingPosts } = trpc.posts.list.useQuery({ status: "pending" });
   const { data: approvedPosts } = trpc.posts.list.useQuery({ status: "approved" });
   const { data: expiringTokens } = trpc.accounts.expiringTokens.useQuery();
-  const isLoading = loadingAccounts || (!!triacId && loadingStats);
+  const isLoading = loadingAccounts || loadingStats;
 
   if (accountsError) return <QueryError message={accountsErr?.message} onRetry={() => refetchAccounts()} />;
   if (statsError && triacId) return <QueryError message={statsErr?.message} onRetry={() => refetchStats()} />;
@@ -133,6 +134,12 @@ export default function Home() {
               const cfg = PLATFORM_CONFIG[platform] ?? { label: platform, icon: Globe, neon: "oklch(0.65 0.01 240)", bg: "oklch(0.65 0.01 240 / 10%)" };
               const Icon = cfg.icon;
               const isInstagram = platform === "instagram";
+              // Stats por conta individual
+              const acStats = {
+                pending: (pendingPosts ?? []).filter((p: any) => p.accountId === account.id).length,
+                approved: (approvedPosts ?? []).filter((p: any) => p.accountId === account.id).length,
+                published: account.publishedCount ?? 0,
+              };
               return (
                 <div
                   key={account.id}
@@ -163,13 +170,12 @@ export default function Home() {
                       )}
                     </div>
                   </div>
-                  {isInstagram && (
-                    <div className="grid grid-cols-4 gap-2">
+                  {(acStats.pending > 0 || acStats.approved > 0 || acStats.published > 0) && (
+                    <div className="grid grid-cols-3 gap-2">
                       {[
-                        { label: "Pendentes", value: stats?.pending ?? 0, neon: "oklch(0.82 0.18 80)", path: "/approval" },
-                        { label: "Aprovados", value: stats?.approved ?? 0, neon: "oklch(0.80 0.18 145)", path: "/approval" },
-                        { label: "Agendados", value: stats?.scheduled ?? 0, neon: "oklch(0.82 0.18 195)", path: "/calendar" },
-                        { label: "Publicados", value: stats?.published ?? 0, neon: "oklch(0.72 0.22 290)", path: "/history" },
+                        { label: "Pendentes", value: acStats.pending, neon: "oklch(0.82 0.18 80)", path: "/approval" },
+                        { label: "Aprovados", value: acStats.approved, neon: "oklch(0.80 0.18 145)", path: "/approval" },
+                        { label: "Publicados", value: acStats.published, neon: "oklch(0.72 0.22 290)", path: "/history" },
                       ].map(s => (
                         <button
                           key={s.label}

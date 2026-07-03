@@ -1,0 +1,26 @@
+{
+  "query": "SELECT accountId, COUNT(*) as total FROM posts GROUP BY accountId ORDER BY total DESC LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3F5sJN7FajWtXbb.root --database 3LYkMyiPgdB2gzxf44Hk3M --execute SELECT accountId, COUNT(*) as total FROM posts GROUP BY accountId ORDER BY total DESC LIMIT 10;",
+  "rows": [
+    {
+      "accountId": "2",
+      "total": "70"
+    },
+    {
+      "accountId": "30001",
+      "total": "21"
+    },
+    {
+      "accountId": "30002",
+      "total": "18"
+    },
+    {
+      "accountId": "60001",
+      "total": "16"
+    }
+  ],
+  "messages": [],
+  "stdout": "accountId\ttotal\n2\t70\n30001\t21\n30002\t18\n60001\t16\n",
+  "stderr": "",
+  "execution_time_ms": 455
+}

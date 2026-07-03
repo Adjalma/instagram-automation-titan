@@ -1,0 +1,28 @@
+{
+  "query": "SELECT status, COUNT(*) as total FROM posts GROUP BY status ORDER BY total DESC;\nSELECT id, handle, platform, accountType FROM instagram_accounts LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3F5sJN7FajWtXbb.root --database 3LYkMyiPgdB2gzxf44Hk3M --execute SELECT status, COUNT(*) as total FROM posts GROUP BY status ORDER BY total DESC;\nSELECT id, handle, platform, accountType FROM instagram_accounts LIMIT 10;",
+  "rows": [
+    {
+      "status": "published",
+      "total": "106"
+    },
+    {
+      "status": "rejected",
+      "total": "15"
+    },
+    {
+      "status": "approved",
+      "total": "4"
+    }
+  ],
+  "messages": [
+    "id\thandle\tplatform\taccountType",
+    "2\ttriarcsolutions\tinstagram\tbusiness",
+    "30001\tTriarcsolutions\tfacebook\tbusiness",
+    "30002\ttriarcsolutions\tlinkedin\tbusiness",
+    "60001\ttriacsolutions\ttiktok\tbusiness"
+  ],
+  "stdout": "status\ttotal\npublished\t106\nrejected\t15\napproved\t4\nid\thandle\tplatform\taccountType\n2\ttriarcsolutions\tinstagram\tbusiness\n30001\tTriarcsolutions\tfacebook\tbusiness\n30002\ttriarcsolutions\tlinkedin\tbusiness\n60001\ttriacsolutions\ttiktok\tbusiness\n",
+  "stderr": "",
+  "execution_time_ms": 282
+}
