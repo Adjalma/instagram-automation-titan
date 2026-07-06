@@ -124,7 +124,9 @@ export async function processScheduledPosts(): Promise<{
 }
 
 /**
- * Busca insights de um post publicado no Instagram via API Graph.
+ * Busca métricas de um post publicado no Instagram via API Graph.
+ * Usa campos diretos do media object (like_count, comments_count) que
+ * estão disponíveis sem permissões especiais de insights.
  */
 export async function fetchPostInsights(
   igUserId: string,
@@ -132,21 +134,28 @@ export async function fetchPostInsights(
   instagramPostId: string
 ): Promise<{ likes?: number; comments?: number; reach?: number; impressions?: number }> {
   try {
+    // Campos diretos do media object — disponíveis com token básico
     const res = await fetch(
-      `${GRAPH_BASE}/${instagramPostId}/insights?metric=impressions,reach,likes,comments_count&access_token=${accessToken}`
+      `${GRAPH_BASE}/${instagramPostId}?fields=like_count,comments_count&access_token=${accessToken}`
     );
     const data = await res.json() as any;
-    if (data.error) return {};
-    const metrics: Record<string, number> = {};
-    for (const item of data.data ?? []) {
-      metrics[item.name] = item.values?.[0]?.value ?? 0;
+    if (!data.error) {
+      return {
+        likes: data.like_count ?? 0,
+        comments: data.comments_count ?? 0,
+      };
     }
-    return {
-      impressions: metrics.impressions,
-      reach: metrics.reach,
-      likes: metrics.likes,
-      comments: metrics.comments_count,
-    };
+    // Fallback: /insights para contas Business com permissão
+    const res2 = await fetch(
+      `${GRAPH_BASE}/${instagramPostId}/insights?metric=impressions,reach&access_token=${accessToken}`
+    );
+    const data2 = await res2.json() as any;
+    if (data2.error) return {};
+    const metrics: Record<string, number> = {};
+    for (const item of data2.data ?? []) {
+      metrics[item.name] = item.values?.[0]?.value ?? item.value ?? 0;
+    }
+    return { impressions: metrics.impressions, reach: metrics.reach };
   } catch {
     return {};
   }
