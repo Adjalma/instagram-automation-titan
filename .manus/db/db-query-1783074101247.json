@@ -1,0 +1,18 @@
+{
+  "query": "SELECT \n  COUNT(*) as total_published,\n  SUM(CASE WHEN instagramPostId IS NOT NULL THEN 1 ELSE 0 END) as has_ig_id,\n  SUM(CASE WHEN linkedinPublished = 1 THEN 1 ELSE 0 END) as linkedin_ok,\n  SUM(CASE WHEN facebookPublished = 1 THEN 1 ELSE 0 END) as facebook_ok,\n  SUM(COALESCE(likes, 0)) as total_likes,\n  SUM(COALESCE(comments, 0)) as total_comments\nFROM posts WHERE status = 'published';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3F5sJN7FajWtXbb.root --database 3LYkMyiPgdB2gzxf44Hk3M --execute SELECT \n  COUNT(*) as total_published,\n  SUM(CASE WHEN instagramPostId IS NOT NULL THEN 1 ELSE 0 END) as has_ig_id,\n  SUM(CASE WHEN linkedinPublished = 1 THEN 1 ELSE 0 END) as linkedin_ok,\n  SUM(CASE WHEN facebookPublished = 1 THEN 1 ELSE 0 END) as facebook_ok,\n  SUM(COALESCE(likes, 0)) as total_likes,\n  SUM(COALESCE(comments, 0)) as total_comments\nFROM posts WHERE status = 'published';",
+  "rows": [
+    {
+      "total_published": "106",
+      "has_ig_id": "100",
+      "linkedin_ok": "84",
+      "facebook_ok": "70",
+      "total_likes": "0",
+      "total_comments": "0"
+    }
+  ],
+  "messages": [],
+  "stdout": "total_published\thas_ig_id\tlinkedin_ok\tfacebook_ok\ttotal_likes\ttotal_comments\n106\t100\t84\t70\t0\t0\n",
+  "stderr": "",
+  "execution_time_ms": 283
+}

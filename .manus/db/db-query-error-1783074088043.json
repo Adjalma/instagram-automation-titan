@@ -1,0 +1,8 @@
+{
+  "query": "SELECT \n  COUNT(*) as total_published,\n  SUM(CASE WHEN instagram_post_id IS NOT NULL THEN 1 ELSE 0 END) as has_ig_id,\n  SUM(CASE WHEN linkedin_published = 1 THEN 1 ELSE 0 END) as linkedin_ok,\n  SUM(CASE WHEN facebook_published = 1 THEN 1 ELSE 0 END) as facebook_ok,\n  SUM(COALESCE(likes, 0)) as total_likes,\n  SUM(COALESCE(comments, 0)) as total_comments\nFROM posts WHERE status = 'published';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3F5sJN7FajWtXbb.root --database 3LYkMyiPgdB2gzxf44Hk3M --execute SELECT \n  COUNT(*) as total_published,\n  SUM(CASE WHEN instagram_post_id IS NOT NULL THEN 1 ELSE 0 END) as has_ig_id,\n  SUM(CASE WHEN linkedin_published = 1 THEN 1 ELSE 0 END) as linkedin_ok,\n  SUM(CASE WHEN facebook_published = 1 THEN 1 ELSE 0 END) as facebook_ok,\n  SUM(COALESCE(likes, 0)) as total_likes,\n  SUM(COALESCE(comments, 0)) as total_comments\nFROM posts WHERE status = 'published';",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1054 (42S22) at line 1: Unknown column 'instagram_post_id' in 'where clause'"
+  ]
+}

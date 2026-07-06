@@ -630,22 +630,25 @@ export const appRouter = router({
     }),
 
     syncAllInsights: protectedProcedure.mutation(async () => {
+      const { fetchPostInsights } = await import('./instagram');
       const published = await getPostsByStatus('published');
       const postsWithId = (published as any[]).filter((p: any) => p.instagramPostId);
+      // Buscar token e igUserId da conta Instagram
+      const accounts = await getAllAccounts() as any[];
+      const igAccount = accounts.find((a: any) => a.platform === 'instagram' || !a.platform);
+      if (!igAccount?.accessToken) return { updated: 0, total: postsWithId.length, errors: ['Conta Instagram sem token'] };
+      const igUserId = igAccount.linkedinUrn?.replace('ig:', '') ?? igAccount.id.toString();
       let updated = 0;
       const errors: string[] = [];
       for (const post of postsWithId) {
         try {
-          const port = process.env.PORT || 3000;
-          const res = await fetch(`http://localhost:${port}/api/scheduled/insights/${post.instagramPostId}`, {
-            headers: { 'x-internal-key': process.env.JWT_SECRET || 'internal' }
-          });
-          if (res.ok) {
-            const data = await res.json() as { likes?: number; comments?: number };
-            if (data.likes !== undefined || data.comments !== undefined) {
-              await updatePost(post.id, { likes: data.likes ?? (post as any).likes ?? 0, comments: data.comments ?? (post as any).comments ?? 0 });
-              updated++;
-            }
+          const insights = await fetchPostInsights(igUserId, igAccount.accessToken, post.instagramPostId);
+          if (insights.likes !== undefined || insights.comments !== undefined) {
+            await updatePost(post.id, {
+              likes: insights.likes ?? (post as any).likes ?? 0,
+              comments: insights.comments ?? (post as any).comments ?? 0,
+            });
+            updated++;
           }
         } catch (e: any) {
           errors.push(`Post ${post.id}: ${e.message}`);
