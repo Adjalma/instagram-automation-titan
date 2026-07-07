@@ -1,0 +1,35 @@
+{
+  "query": "SELECT id, instagramPostId, publishedAt FROM posts WHERE status='published' AND instagramPostId IS NOT NULL ORDER BY publishedAt DESC LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3F5sJN7FajWtXbb.root --database 3LYkMyiPgdB2gzxf44Hk3M --execute SELECT id, instagramPostId, publishedAt FROM posts WHERE status='published' AND instagramPostId IS NOT NULL ORDER BY publishedAt DESC LIMIT 5;",
+  "rows": [
+    {
+      "id": "1440009",
+      "instagramPostId": "18080580398665429",
+      "publishedAt": "2026-07-06 12:34:03"
+    },
+    {
+      "id": "1440011",
+      "instagramPostId": "17993297384796557",
+      "publishedAt": "2026-07-06 12:33:51"
+    },
+    {
+      "id": "1440010",
+      "instagramPostId": "18087026333422297",
+      "publishedAt": "2026-07-06 08:04:51"
+    },
+    {
+      "id": "1470001",
+      "instagramPostId": "17997748091973625",
+      "publishedAt": "2026-07-06 08:04:39"
+    },
+    {
+      "id": "1440006",
+      "instagramPostId": "18094347671197303",
+      "publishedAt": "2026-07-05 20:05:24"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tinstagramPostId\tpublishedAt\n1440009\t18080580398665429\t2026-07-06 12:34:03\n1440011\t17993297384796557\t2026-07-06 12:33:51\n1440010\t18087026333422297\t2026-07-06 08:04:51\n1470001\t17997748091973625\t2026-07-06 08:04:39\n1440006\t18094347671197303\t2026-07-05 20:05:24\n",
+  "stderr": "",
+  "execution_time_ms": 264
+}

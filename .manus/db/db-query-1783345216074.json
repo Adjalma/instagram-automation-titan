@@ -1,0 +1,39 @@
+{
+  "query": "SELECT id, platform, linkedinUrn, LEFT(accessToken, 30) as token_preview FROM instagram_accounts; SELECT id, instagramPostId FROM posts WHERE status='published' AND instagramPostId IS NOT NULL LIMIT 3;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3F5sJN7FajWtXbb.root --database 3LYkMyiPgdB2gzxf44Hk3M --execute SELECT id, platform, linkedinUrn, LEFT(accessToken, 30) as token_preview FROM instagram_accounts; SELECT id, instagramPostId FROM posts WHERE status='published' AND instagramPostId IS NOT NULL LIMIT 3;",
+  "rows": [
+    {
+      "id": "2",
+      "platform": "instagram",
+      "linkedinUrn": "ig:17841477720751822",
+      "token_preview": "EAAZA7LABkgdEBR7JIKToPRRfTMz4G"
+    },
+    {
+      "id": "30001",
+      "platform": "facebook",
+      "linkedinUrn": "fb:page:955553160977534",
+      "token_preview": "EAAL7XKEeXwcBR4OPC0KE41Pc5mdhp"
+    },
+    {
+      "id": "30002",
+      "platform": "linkedin",
+      "linkedinUrn": "urn:li:person:1XiBr9fBHQ",
+      "token_preview": "AQXo7fcnpyWS5fx0aH1g5c8ctlI0OD"
+    },
+    {
+      "id": "60001",
+      "platform": "tiktok",
+      "linkedinUrn": "NULL",
+      "token_preview": "NULL"
+    }
+  ],
+  "messages": [
+    "id\tinstagramPostId",
+    "150006\tehNr9OsQEAcz3Ayzvrh8Zj",
+    "360001\t5gxzI5xJtS9rIhJJFBE1e7",
+    "360012\tebURC9VoUcnHmbz4Qf5NWH"
+  ],
+  "stdout": "id\tplatform\tlinkedinUrn\ttoken_preview\n2\tinstagram\tig:17841477720751822\tEAAZA7LABkgdEBR7JIKToPRRfTMz4G\n30001\tfacebook\tfb:page:955553160977534\tEAAL7XKEeXwcBR4OPC0KE41Pc5mdhp\n30002\tlinkedin\turn:li:person:1XiBr9fBHQ\tAQXo7fcnpyWS5fx0aH1g5c8ctlI0OD\n60001\ttiktok\tNULL\tNULL\nid\tinstagramPostId\n150006\tehNr9OsQEAcz3Ayzvrh8Zj\n360001\t5gxzI5xJtS9rIhJJFBE1e7\n360012\tebURC9VoUcnHmbz4Qf5NWH\n",
+  "stderr": "",
+  "execution_time_ms": 292
+}

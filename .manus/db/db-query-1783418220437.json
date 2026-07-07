@@ -1,0 +1,145 @@
+{
+  "query": "SELECT type, name, LEFT(description, 80) as desc_preview FROM triac_content ORDER BY type, name;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3F5sJN7FajWtXbb.root --database 3LYkMyiPgdB2gzxf44Hk3M --execute SELECT type, name, LEFT(description, 80) as desc_preview FROM triac_content ORDER BY type, name;",
+  "rows": [
+    {
+      "type": "servico",
+      "name": "Data Science e Analytics",
+      "desc_preview": "Análise de dados, Business Intelligence e dashboards estratégicos. Relatórios au"
+    },
+    {
+      "type": "servico",
+      "name": "Desenvolvimento Sob Encomenda",
+      "desc_preview": "Desenvolvimento de sistemas web, aplicações mobile e sistemas de gestão personal"
+    },
+    {
+      "type": "servico",
+      "name": "Gestão Empresarial",
+      "desc_preview": "Consultoria em gestão empresarial para otimização de processos e estratégias. Pl"
+    },
+    {
+      "type": "servico",
+      "name": "Inteligência Artificial e Automação",
+      "desc_preview": "Soluções em IA generativa, automação de fluxos e agentes especialistas. Integraç"
+    },
+    {
+      "type": "servico",
+      "name": "Licenciamento de Software",
+      "desc_preview": "Desenvolvimento e licenciamento de softwares proprietários no modelo SaaS. Distr"
+    },
+    {
+      "type": "servico",
+      "name": "Suporte Técnico em TI",
+      "desc_preview": "Suporte técnico, manutenção preditiva e serviços especializados em tecnologia da"
+    },
+    {
+      "type": "projeto",
+      "name": "AI Biomimética",
+      "desc_preview": "Sistema de orquestração biomimética de múltiplos provedores de IA (OpenAI, Anthr"
+    },
+    {
+      "type": "projeto",
+      "name": "CHOKMAH - Console IA",
+      "desc_preview": "Frontend do sistema de IA biomimética com experiência visual tipo HUD estilo JAR"
+    },
+    {
+      "type": "projeto",
+      "name": "Conexão Pessoas",
+      "desc_preview": "Plataforma de networking para profissionais autônomos encontrarem parceiros e cl"
+    },
+    {
+      "type": "projeto",
+      "name": "ELO - Estação OFF Grid",
+      "desc_preview": "Sistema de comunicação e monitoramento off-grid via malha de rádio, BLE e satéli"
+    },
+    {
+      "type": "projeto",
+      "name": "ELO - Resposta a Emergências",
+      "desc_preview": "App de resposta a emergências e desastres para cidadãos e operadores, construído"
+    },
+    {
+      "type": "projeto",
+      "name": "Farol das Escrituras",
+      "desc_preview": "App de leitura e estudo bíblico com narração por voz em idiomas originais (hebra"
+    },
+    {
+      "type": "projeto",
+      "name": "Git Deadline",
+      "desc_preview": "Plataforma de gamificação para desenvolvedores inspirada em O Preço do Amanhã: a"
+    },
+    {
+      "type": "projeto",
+      "name": "Grupo Conecta",
+      "desc_preview": "Sistema completo de controle de ponto eletrônico com rastreamento por GPS e port"
+    },
+    {
+      "type": "projeto",
+      "name": "Mir Macaé",
+      "desc_preview": "Dashboard de acompanhamento de células (grupos) de organizações religiosas em Ma"
+    },
+    {
+      "type": "projeto",
+      "name": "Peetron",
+      "desc_preview": "Plataforma de gestão de saúde e segurança ocupacional e RH para empresas. Contro"
+    },
+    {
+      "type": "projeto",
+      "name": "RHEMA",
+      "desc_preview": "Plataforma para autores independentes criarem e publicarem livros com qualidade "
+    },
+    {
+      "type": "projeto",
+      "name": "Roda Frete",
+      "desc_preview": "Plataforma de rastreamento de fretes para transportadoras e seus clientes finais"
+    },
+    {
+      "type": "projeto",
+      "name": "SS Finanças",
+      "desc_preview": "Sistema de controle financeiro com painel unificado para gastos fixos, variáveis"
+    },
+    {
+      "type": "projeto",
+      "name": "Sintaxe",
+      "desc_preview": "Plataforma de aprendizado de programação com lições interativas, editor de códig"
+    },
+    {
+      "type": "projeto",
+      "name": "Sistema CB Integrativa",
+      "desc_preview": "Bot de WhatsApp para agendamento de consultas em clínicas de saúde integrativa. "
+    },
+    {
+      "type": "projeto",
+      "name": "Sistema RPM",
+      "desc_preview": "App mobile (iOS/Android) de check-in e presença em eventos com galeria de mídia "
+    },
+    {
+      "type": "projeto",
+      "name": "Sniper App",
+      "desc_preview": "Ferramenta para empresas monitorarem pregões e licitações públicas em tempo real"
+    },
+    {
+      "type": "projeto",
+      "name": "TSS - Pentest as a Service",
+      "desc_preview": "Plataforma de teste de segurança (pentest) como serviço, com fluxo de scans, ach"
+    },
+    {
+      "type": "projeto",
+      "name": "TopFlow.ai",
+      "desc_preview": "Plataforma para gestores de tráfego pago consolidarem campanhas de Google Ads, M"
+    },
+    {
+      "type": "projeto",
+      "name": "Transformind",
+      "desc_preview": "Plataforma completa de coaching e desenvolvimento pessoal com IA, comunidade e g"
+    },
+    {
+      "type": "projeto",
+      "name": "Triarc Social Manager",
+      "desc_preview": "Painel para gerenciar, criar e agendar posts multi-conta no Instagram, Facebook,"
+    }
+  ],
+  "messages": [],
+  "stdout": "type\tname\tdesc_preview\nservico\tData Science e Analytics\tAnálise de dados, Business Intelligence e dashboards estratégicos. Relatórios au\nservico\tDesenvolvimento Sob Encomenda\tDesenvolvimento de sistemas web, aplicações mobile e sistemas de gestão personal\nservico\tGestão Empresarial\tConsultoria em gestão empresarial para otimização de processos e estratégias. Pl\nservico\tInteligência Artificial e Automação\tSoluções em IA generativa, automação de fluxos e agentes especialistas. Integraç\nservico\tLicenciamento de Software\tDesenvolvimento e licenciamento de softwares proprietários no modelo SaaS. Distr\nservico\tSuporte Técnico em TI\tSuporte técnico, manutenção preditiva e serviços especializados em tecnologia da\nprojeto\tAI Biomimética\tSistema de orquestração biomimética de múltiplos provedores de IA (OpenAI, Anthr\nprojeto\tCHOKMAH - Console IA\tFrontend do sistema de IA biomimética com experiência visual tipo HUD estilo JAR\nprojeto\tConexão Pessoas\tPlataforma de networking para profissionais autônomos encontrarem parceiros e cl\nprojeto\tELO - Estação OFF Grid\tSistema de comunicação e monitoramento off-grid via malha de rádio, BLE e satéli\nprojeto\tELO - Resposta a Emergências\tApp de resposta a emergências e desastres para cidadãos e operadores, construído\nprojeto\tFarol das Escrituras\tApp de leitura e estudo bíblico com narração por voz em idiomas originais (hebra\nprojeto\tGit Deadline\tPlataforma de gamificação para desenvolvedores inspirada em O Preço do Amanhã: a\nprojeto\tGrupo Conecta\tSistema completo de controle de ponto eletrônico com rastreamento por GPS e port\nprojeto\tMir Macaé\tDashboard de acompanhamento de células (grupos) de organizações religiosas em Ma\nprojeto\tPeetron\tPlataforma de gestão de saúde e segurança ocupacional e RH para empresas. Contro\nprojeto\tRHEMA\tPlataforma para autores independentes criarem e publicarem livros com qualidade \nprojeto\tRoda Frete\tPlataforma de rastreamento de fretes para transportadoras e seus clientes finais\nprojeto\tSS Finanças\tSistema de controle financeiro com painel unificado para gastos fixos, variáveis\nprojeto\tSintaxe\tPlataforma de aprendizado de programação com lições interativas, editor de códig\nprojeto\tSistema CB Integrativa\tBot de WhatsApp para agendamento de consultas em clínicas de saúde integrativa. \nprojeto\tSistema RPM\tApp mobile (iOS/Android) de check-in e presença em eventos com galeria de mídia \nprojeto\tSniper App\tFerramenta para empresas monitorarem pregões e licitações públicas em tempo real\nprojeto\tTSS - Pentest as a Service\tPlataforma de teste de segurança (pentest) como serviço, com fluxo de scans, ach\nprojeto\tTopFlow.ai\tPlataforma para gestores de tráfego pago consolidarem campanhas de Google Ads, M\nprojeto\tTransformind\tPlataforma completa de coaching e desenvolvimento pessoal com IA, comunidade e g\nprojeto\tTriarc Social Manager\tPainel para gerenciar, criar e agendar posts multi-conta no Instagram, Facebook,\n",
+  "stderr": "",
+  "execution_time_ms": 277
+}

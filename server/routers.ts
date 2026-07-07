@@ -597,6 +597,12 @@ export const appRouter = router({
       }
       return items;
     }),
+    reseed: protectedProcedure.mutation(async () => {
+      await seedTriarcContent();
+      const db = await getDb();
+      const items = await db!.select().from(triacContent);
+      return { ok: true, count: items.length };
+    }),
   }),
 
   analytics: router({

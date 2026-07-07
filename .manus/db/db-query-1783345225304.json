@@ -1,0 +1,16 @@
+{
+  "query": "SELECT id, platform, linkedinUrn, accessToken FROM instagram_accounts WHERE platform = 'instagram' LIMIT 1;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3F5sJN7FajWtXbb.root --database 3LYkMyiPgdB2gzxf44Hk3M --execute SELECT id, platform, linkedinUrn, accessToken FROM instagram_accounts WHERE platform = 'instagram' LIMIT 1;",
+  "rows": [
+    {
+      "id": "2",
+      "platform": "instagram",
+      "linkedinUrn": "ig:17841477720751822",
+      "accessToken": "EAAZA7LABkgdEBR7JIKToPRRfTMz4GZBKgRglAeDQjYgkdQomaRlSASPG6LJvKYrdqtx3AsCFSsYc6UPrNwb30kjKHow1jZB93dctA1ZC0f7uB70k1ijc7MZC1e9gRZAwPP00LVYZA6r6dIfiQXknES1OmUWdmwr580OUjnazYeqI0wCQuRZCx1ZBlfYM9ZBaDV2W5eXaDxUpxcT3a0jpVigLhZB40bA"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tplatform\tlinkedinUrn\taccessToken\n2\tinstagram\tig:17841477720751822\tEAAZA7LABkgdEBR7JIKToPRRfTMz4GZBKgRglAeDQjYgkdQomaRlSASPG6LJvKYrdqtx3AsCFSsYc6UPrNwb30kjKHow1jZB93dctA1ZC0f7uB70k1ijc7MZC1e9gRZAwPP00LVYZA6r6dIfiQXknES1OmUWdmwr580OUjnazYeqI0wCQuRZCx1ZBlfYM9ZBaDV2W5eXaDxUpxcT3a0jpVigLhZB40bA\n",
+  "stderr": "",
+  "execution_time_ms": 299
+}

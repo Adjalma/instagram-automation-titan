@@ -1,0 +1,17 @@
+{
+  "query": "SELECT COUNT(*) as total, SUM(likes) as total_likes, SUM(comments) as total_comments, MAX(likes) as max_likes, MAX(updatedAt) as last_update FROM posts WHERE status = 'published';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3F5sJN7FajWtXbb.root --database 3LYkMyiPgdB2gzxf44Hk3M --execute SELECT COUNT(*) as total, SUM(likes) as total_likes, SUM(comments) as total_comments, MAX(likes) as max_likes, MAX(updatedAt) as last_update FROM posts WHERE status = 'published';",
+  "rows": [
+    {
+      "total": "118",
+      "total_likes": "0",
+      "total_comments": "0",
+      "max_likes": "0",
+      "last_update": "2026-07-06 12:34:03"
+    }
+  ],
+  "messages": [],
+  "stdout": "total\ttotal_likes\ttotal_comments\tmax_likes\tlast_update\n118\t0\t0\t0\t2026-07-06 12:34:03\n",
+  "stderr": "",
+  "execution_time_ms": 645
+}
