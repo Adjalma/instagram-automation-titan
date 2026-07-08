@@ -1,0 +1,34 @@
+{
+  "query": "SELECT id, name, active, publishHour, autoPublish, language FROM research_topics ORDER BY id;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3F5sJN7FajWtXbb.root --database 3LYkMyiPgdB2gzxf44Hk3M --execute SELECT id, name, active, publishHour, autoPublish, language FROM research_topics ORDER BY id;",
+  "rows": [
+    {
+      "id": "30001",
+      "name": "Inteligência Artificial",
+      "active": "1",
+      "publishHour": "8",
+      "autoPublish": "1",
+      "language": "en"
+    },
+    {
+      "id": "90001",
+      "name": "Meta Learning em IA",
+      "active": "1",
+      "publishHour": "20",
+      "autoPublish": "1",
+      "language": "pt"
+    },
+    {
+      "id": "120001",
+      "name": "Dia a Dia com IA",
+      "active": "1",
+      "publishHour": "21",
+      "autoPublish": "1",
+      "language": "pt"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\tactive\tpublishHour\tautoPublish\tlanguage\n30001\tInteligência Artificial\t1\t8\t1\ten\n90001\tMeta Learning em IA\t1\t20\t1\tpt\n120001\tDia a Dia com IA\t1\t21\t1\tpt\n",
+  "stderr": "",
+  "execution_time_ms": 261
+}

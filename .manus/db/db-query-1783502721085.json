@@ -1,0 +1,30 @@
+{
+  "query": "SELECT id, theme, status, LEFT(caption, 120) as caption_preview, createdAt FROM posts WHERE theme LIKE '%Pesquisa%' OR theme LIKE '%Research%' ORDER BY createdAt DESC LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3F5sJN7FajWtXbb.root --database 3LYkMyiPgdB2gzxf44Hk3M --execute SELECT id, theme, status, LEFT(caption, 120) as caption_preview, createdAt FROM posts WHERE theme LIKE '%Pesquisa%' OR theme LIKE '%Research%' ORDER BY createdAt DESC LIMIT 10;",
+  "rows": [],
+  "messages": [
+    "1620001\tPesquisa Diária: Inteligência Artificial\tpublished\t🚀 **Inteligência Artificial: O futuro que já transformamos em realidade!** 🚀",
+    "As notícias das últimas 24 horas deixam cl\t2026-07-07 11:04:14",
+    "1590001\tPesquisa Diária: Inteligência Artificial\tpublished\t🚀 **O Futuro é Agora: A Revolução da Inteligência Artificial em Ação!** 🚀",
+    "As últimas 24 horas foram recheadas de notíci\t2026-07-07 11:02:02",
+    "1320001\tPesquisa Diária: Inteligência Artificial\tpublished\t🚀 **Desvende o Poder da Inteligência Artificial com a Triarc Solutions!** 🚀",
+    "A IA não é mais ficção científica; é a forç\t2026-06-22 11:04:25",
+    "1170001\tPesquisa Diária: Inteligência Artificial\tpublished\t🚀 **A Revolução da Inteligência Artificial: O Futuro é Agora!** 🚀",
+    "As últimas 24 horas foram repletas de notícias que re\t2026-06-21 11:59:43",
+    "1140001\tPesquisa Diária: Inteligência Artificial\tpublished\t🚀 **A Revolução da IA Chegou, e a Triarc Solutions Está Nela!** 🚀",
+    "As últimas 24 horas foram repletas de notícias que co\t2026-06-21 11:44:49",
+    "1110001\tPesquisa Diária: Inteligência Artificial\tpublished\t🚀 **A Revolução da IA: De Robôs a Games, o Futuro é AGORA!** 🤖🎮",
+    "As últimas 24 horas foram um espetáculo de inovação no \t2026-06-21 11:15:35",
+    "1080003\tPesquisa Diária: Inteligência Artificial\tpublished\t🚀 **A Revolução da Inteligência Artificial está Acelerando!** 🚀",
+    "As últimas 24 horas nos trouxeram notícias que reforçam\t2026-06-21 11:11:25",
+    "1080002\tPesquisa Diária: Inteligência Artificial\tpublished\t🚀 **A Revolução da IA Está Acontecendo AGORA!** 🚀",
+    "As últimas 24 horas foram repletas de notícias que solidificam o impa\t2026-06-21 11:09:52",
+    "1080001\tPesquisa Diária: Inteligência Artificial\tpublished\t🚀 **O Futuro é AGORA: Inteligência Artificial Redefinindo Limites!** 🚀",
+    "As últimas 24 horas foram um testemunho vibrante\t2026-06-21 11:09:23",
+    "1050002\tPesquisa Diária: Inteligência Artificial\tpublished\t🚀 **O futuro é AGORA, e a Inteligência Artificial está redefinindo os limites do possível!** 💡",
+    "As notícias das últimas \t2026-06-21 11:08:20"
+  ],
+  "stdout": "id\ttheme\tstatus\tcaption_preview\tcreatedAt\n1620001\tPesquisa Diária: Inteligência Artificial\tpublished\t🚀 **Inteligência Artificial: O futuro que já transformamos em realidade!** 🚀\n\nAs notícias das últimas 24 horas deixam cl\t2026-07-07 11:04:14\n1590001\tPesquisa Diária: Inteligência Artificial\tpublished\t🚀 **O Futuro é Agora: A Revolução da Inteligência Artificial em Ação!** 🚀\n\nAs últimas 24 horas foram recheadas de notíci\t2026-07-07 11:02:02\n1320001\tPesquisa Diária: Inteligência Artificial\tpublished\t🚀 **Desvende o Poder da Inteligência Artificial com a Triarc Solutions!** 🚀\n\nA IA não é mais ficção científica; é a forç\t2026-06-22 11:04:25\n1170001\tPesquisa Diária: Inteligência Artificial\tpublished\t🚀 **A Revolução da Inteligência Artificial: O Futuro é Agora!** 🚀\n\nAs últimas 24 horas foram repletas de notícias que re\t2026-06-21 11:59:43\n1140001\tPesquisa Diária: Inteligência Artificial\tpublished\t🚀 **A Revolução da IA Chegou, e a Triarc Solutions Está Nela!** 🚀\n\nAs últimas 24 horas foram repletas de notícias que co\t2026-06-21 11:44:49\n1110001\tPesquisa Diária: Inteligência Artificial\tpublished\t🚀 **A Revolução da IA: De Robôs a Games, o Futuro é AGORA!** 🤖🎮\n\nAs últimas 24 horas foram um espetáculo de inovação no \t2026-06-21 11:15:35\n1080003\tPesquisa Diária: Inteligência Artificial\tpublished\t🚀 **A Revolução da Inteligência Artificial está Acelerando!** 🚀\n\nAs últimas 24 horas nos trouxeram notícias que reforçam\t2026-06-21 11:11:25\n1080002\tPesquisa Diária: Inteligência Artificial\tpublished\t🚀 **A Revolução da IA Está Acontecendo AGORA!** 🚀\n\nAs últimas 24 horas foram repletas de notícias que solidificam o impa\t2026-06-21 11:09:52\n1080001\tPesquisa Diária: Inteligência Artificial\tpublished\t🚀 **O Futuro é AGORA: Inteligência Artificial Redefinindo Limites!** 🚀\n\nAs últimas 24 horas foram um testemunho vibrante\t2026-06-21 11:09:23\n1050002\tPesquisa Diária: Inteligência Artificial\tpublished\t🚀 **O futuro é AGORA, e a Inteligência Artificial está redefinindo os limites do possível!** 💡\n\nAs notícias das últimas \t2026-06-21 11:08:20\n",
+  "stderr": "",
+  "execution_time_ms": 358
+}
