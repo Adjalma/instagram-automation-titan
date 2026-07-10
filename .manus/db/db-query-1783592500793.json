@@ -1,0 +1,48 @@
+{
+  "query": "SELECT id, status, likes, comments, instagramPostId FROM posts WHERE status = 'published' AND likes > 0 LIMIT 5;\nSELECT COUNT(*) as total_published, SUM(likes) as total_likes, SUM(comments) as total_comments FROM posts WHERE status = 'published';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3F5sJN7FajWtXbb.root --database 3LYkMyiPgdB2gzxf44Hk3M --execute SELECT id, status, likes, comments, instagramPostId FROM posts WHERE status = 'published' AND likes > 0 LIMIT 5;\nSELECT COUNT(*) as total_published, SUM(likes) as total_likes, SUM(comments) as total_comments FROM posts WHERE status = 'published';",
+  "rows": [
+    {
+      "id": "990001",
+      "status": "published",
+      "likes": "2",
+      "comments": "0",
+      "instagramPostId": "18443733739190349"
+    },
+    {
+      "id": "1020001",
+      "status": "published",
+      "likes": "2",
+      "comments": "0",
+      "instagramPostId": "18102837928851754"
+    },
+    {
+      "id": "1050001",
+      "status": "published",
+      "likes": "1",
+      "comments": "0",
+      "instagramPostId": "18125913967724944"
+    },
+    {
+      "id": "1050002",
+      "status": "published",
+      "likes": "1",
+      "comments": "0",
+      "instagramPostId": "18187111312390046"
+    },
+    {
+      "id": "1080001",
+      "status": "published",
+      "likes": "1",
+      "comments": "0",
+      "instagramPostId": "18351594130213213"
+    }
+  ],
+  "messages": [
+    "total_published\ttotal_likes\ttotal_comments",
+    "184\t24\t0"
+  ],
+  "stdout": "id\tstatus\tlikes\tcomments\tinstagramPostId\n990001\tpublished\t2\t0\t18443733739190349\n1020001\tpublished\t2\t0\t18102837928851754\n1050001\tpublished\t1\t0\t18125913967724944\n1050002\tpublished\t1\t0\t18187111312390046\n1080001\tpublished\t1\t0\t18351594130213213\ntotal_published\ttotal_likes\ttotal_comments\n184\t24\t0\n",
+  "stderr": "",
+  "execution_time_ms": 423
+}

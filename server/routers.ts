@@ -627,18 +627,19 @@ export const appRouter = router({
         publishedAt: p.publishedAt,
         instagramPostId: p.instagramPostId,
         instagramPermalink: p.instagramPermalink,
-        likes: p.likes ?? 0,
-        comments: p.comments ?? 0,
+        likes: Number(p.likes ?? 0),
+        comments: Number(p.comments ?? 0),
         theme: p.theme,
-        linkedinPublished: p.linkedinPublished ?? 0,
-        facebookPublished: p.facebookPublished ?? 0,
+        linkedinPublished: Number(p.linkedinPublished ?? 0),
+        facebookPublished: Number(p.facebookPublished ?? 0),
       }));
     }),
 
     syncAllInsights: protectedProcedure.mutation(async () => {
       const { fetchPostInsights } = await import('./instagram');
       const published = await getPostsByStatus('published');
-      const postsWithId = (published as any[]).filter((p: any) => p.instagramPostId);
+      // Apenas IDs numéricos são válidos na Graph API — IDs alfanuméricos são do MCP e não funcionam
+      const postsWithId = (published as any[]).filter((p: any) => p.instagramPostId && /^\d+$/.test(p.instagramPostId));
       // Buscar token e igUserId da conta Instagram
       const accounts = await getAllAccounts() as any[];
       const igAccount = accounts.find((a: any) => a.platform === 'instagram' || !a.platform);
@@ -672,8 +673,8 @@ export const appRouter = router({
         getPostsByStatus('scheduled'),
       ]);
       const publishedPosts = published as any[];
-      const totalLikes = publishedPosts.reduce((s: number, p: any) => s + (p.likes ?? 0), 0);
-      const totalComments = publishedPosts.reduce((s: number, p: any) => s + (p.comments ?? 0), 0);
+      const totalLikes = publishedPosts.reduce((s: number, p: any) => s + Number(p.likes ?? 0), 0);
+      const totalComments = publishedPosts.reduce((s: number, p: any) => s + Number(p.comments ?? 0), 0);
       return {
         total: (all as any[]).length,
         pending: (pending as any[]).length,
@@ -746,8 +747,8 @@ export const appRouter = router({
     })).mutation(async () => {
       const published = await getPostsByStatus('published');
       const publishedPosts = published as any[];
-      const totalLikes = publishedPosts.reduce((s: number, p: any) => s + (p.likes ?? 0), 0);
-      const totalComments = publishedPosts.reduce((s: number, p: any) => s + (p.comments ?? 0), 0);
+      const totalLikes = publishedPosts.reduce((s: number, p: any) => s + Number(p.likes ?? 0), 0);
+      const totalComments = publishedPosts.reduce((s: number, p: any) => s + Number(p.comments ?? 0), 0);
       const avgEngagement = publishedPosts.length > 0
         ? ((totalLikes + totalComments) / publishedPosts.length).toFixed(1)
         : '0';
