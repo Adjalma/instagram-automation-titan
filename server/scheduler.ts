@@ -4,13 +4,16 @@
  * Responsabilidades:
  * 1. Mover posts agendados vencidos para status "approved" (a cada 5 min)
  * 2. Executar pesquisa de notícias por tópico no horário configurado (publishHour, Brasília)
+ * 3. Sincronizar insights (likes/comments) do Instagram às 3h Brasília
+ * 4. Alertar sobre tokens expirados via notificação ao owner
  */
 
-import { getPostsByStatus, updatePost, getDb } from "./db";
+import { getPostsByStatus, updatePost, getAllAccounts, getDb } from "./db";
 import { researchTopics, researchRuns, posts, postMedia } from "../drizzle/schema";
 import { eq } from "drizzle-orm";
 import { invokeLLM } from "./_core/llm";
 import { generateImage } from "./_core/imageGeneration";
+import { notifyOwner } from "./_core/notification";
 import { ENV } from "./_core/env";
 
 const INTERVAL_MS = parseInt(process.env.SCHEDULER_INTERVAL_MS || "300000", 10);
@@ -19,6 +22,8 @@ const TZ_OFFSET = -3; // America/Sao_Paulo (UTC-3)
 let schedulerHandle: ReturnType<typeof setInterval> | null = null;
 // Controla quais tópicos já rodaram hoje: Set de "topicId:YYYY-MM-DD"
 const ranToday: Set<string> = new Set();
+// Controla tarefas diárias únicas: Set de "task:YYYY-MM-DD"
+const dailyTasks: Set<string> = new Set();
 
 // ─── Posts agendados ──────────────────────────────────────────────────────────
 async function promoteScheduledPosts() {
@@ -47,6 +52,80 @@ function getBrasiliaDateHour(): { date: string; hour: number } {
   const date = brasilia.toISOString().split("T")[0];
   const hour = brasilia.getUTCHours();
   return { date, hour };
+}
+
+// ─── Sync automático de insights ─────────────────────────────────────────────
+async function syncInsightsDaily(date: string) {
+  const key = `syncInsights:${date}`;
+  if (dailyTasks.has(key)) return;
+  dailyTasks.add(key);
+
+  console.log("[Insights] Iniciando sync automático de insights...");
+  try {
+    const { fetchPostInsights } = await import("./instagram");
+    const published = await getPostsByStatus("published");
+    // Apenas IDs numéricos são válidos na Graph API
+    const postsWithId = (published as any[]).filter(
+      (p: any) => p.instagramPostId && /^\d+$/.test(p.instagramPostId)
+    );
+
+    const accounts = await getAllAccounts() as any[];
+    const igAccount = accounts.find((a: any) => a.platform === "instagram");
+    if (!igAccount?.accessToken) {
+      console.warn("[Insights] Conta Instagram sem token — sync ignorado.");
+      return;
+    }
+
+    let updated = 0;
+    for (const post of postsWithId) {
+      try {
+        const insights = await fetchPostInsights(
+          igAccount.linkedinUrn?.replace("ig:", "") ?? igAccount.id.toString(),
+          igAccount.accessToken,
+          post.instagramPostId
+        );
+        if (insights.likes !== undefined || insights.comments !== undefined) {
+          await updatePost(post.id, {
+            likes: insights.likes ?? Number(post.likes ?? 0),
+            comments: insights.comments ?? Number(post.comments ?? 0),
+          });
+          updated++;
+        }
+      } catch {
+        // ignorar erros individuais — não interrompe o loop
+      }
+    }
+    console.log(`[Insights] Sync concluído: ${updated}/${postsWithId.length} posts atualizados.`);
+  } catch (err: any) {
+    console.error("[Insights] Erro no sync automático:", err?.message);
+  }
+}
+
+// ─── Verificar tokens expirados ───────────────────────────────────────────────
+async function checkExpiredTokens(date: string) {
+  const key = `checkTokens:${date}`;
+  if (dailyTasks.has(key)) return;
+  dailyTasks.add(key);
+
+  try {
+    const accounts = await getAllAccounts() as any[];
+    const now = new Date();
+    const expired: string[] = [];
+
+    for (const acc of accounts) {
+      if (acc.tokenExpiresAt && new Date(acc.tokenExpiresAt) < now) {
+        expired.push(`${acc.platform ?? "instagram"}: @${acc.handle}`);
+      }
+    }
+
+    if (expired.length > 0) {
+      const msg = `⚠️ Tokens expirados detectados:\n${expired.join("\n")}\n\nAcesse Contas no TSM para renovar.`;
+      console.warn("[Tokens]", msg);
+      await notifyOwner({ title: "⚠️ Token expirado no TSM", content: msg });
+    }
+  } catch (err: any) {
+    console.error("[Tokens] Erro ao verificar tokens:", err?.message);
+  }
 }
 
 // ─── Geração de conteúdo ──────────────────────────────────────────────────────
@@ -151,6 +230,17 @@ async function tick() {
   ranToday.forEach(key => {
     if (!key.endsWith(`:${date}`)) ranToday.delete(key);
   });
+  dailyTasks.forEach(key => {
+    const parts = key.split(":");
+    const taskDate = parts[parts.length - 1];
+    if (taskDate !== date) dailyTasks.delete(key);
+  });
+
+  // Às 3h Brasília: sync de insights + verificação de tokens expirados
+  if (hour === 3) {
+    syncInsightsDaily(date).catch((e: any) => console.error("[Insights] Erro:", e?.message));
+    checkExpiredTokens(date).catch((e: any) => console.error("[Tokens] Erro:", e?.message));
+  }
 
   await checkAndRunTopicsForHour(date, hour);
 }
