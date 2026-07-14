@@ -10,7 +10,8 @@ import {
   Percent, Activity,
 } from "lucide-react";
 import { toast } from "sonner";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { Clock3 } from "lucide-react";
 
 const NEON = {
   cyan: "oklch(0.82 0.18 195)",
@@ -53,8 +54,16 @@ export default function Analytics() {
   const posts = trpc.analytics.getPostsWithMetrics.useQuery();
   const utils = trpc.useUtils();
 
+  const [lastSyncAt, setLastSyncAt] = useState<Date | null>(() => {
+    const saved = localStorage.getItem("analytics_lastSync");
+    return saved ? new Date(saved) : null;
+  });
+
   const syncInsights = trpc.analytics.syncAllInsights.useMutation({
     onSuccess: (data) => {
+      const now = new Date();
+      setLastSyncAt(now);
+      localStorage.setItem("analytics_lastSync", now.toISOString());
       toast.success(`Insights sincronizados: ${data.updated}/${data.total} posts atualizados`);
       utils.analytics.getPostsWithMetrics.invalidate();
       utils.analytics.getSummary.invalidate();
@@ -106,7 +115,15 @@ export default function Analytics() {
             Desempenho dos conteúdos publicados
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col items-end gap-2">
+          {/* Indicador de última sincronização */}
+          <div className="flex items-center gap-1.5 text-[10px] font-mono" style={{ color: lastSyncAt ? NEON.green.replace(")", " / 70%)") : "oklch(0.40 0.02 240)" }}>
+            <Clock3 size={11} />
+            {lastSyncAt
+              ? `Última sync: ${lastSyncAt.toLocaleDateString("pt-BR")} às ${lastSyncAt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`
+              : "Sync automático: 3h Brasília"}
+          </div>
+          <div className="flex items-center gap-2">
           <button onClick={() => syncInsights.mutate()} disabled={syncInsights.isPending}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
             style={{ background: `${NEON.green.replace(")", " / 10%)")}`, color: NEON.green, border: `1px solid ${NEON.green.replace(")", " / 25%)")}` }}
@@ -121,6 +138,7 @@ export default function Analytics() {
             <RefreshCw size={13} className={isLoading ? "animate-spin" : ""} />
             Atualizar
           </button>
+          </div>
         </div>
       </div>
 
@@ -281,7 +299,7 @@ export default function Analytics() {
       </div>
 
       <p className="text-[10px] text-center font-mono pb-2" style={{ color: "oklch(0.35 0.02 240)" }}>
-        Clique em "Sincronizar" para atualizar curtidas e comentários via API do Instagram.
+        Sync automático diário às 3h Brasília — ou clique em "Sincronizar" para atualizar agora.
       </p>
     </div>
   );
