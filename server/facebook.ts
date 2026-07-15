@@ -27,6 +27,7 @@ const FB_GRAPH_URL = "https://graph.facebook.com/v19.0";
 const FB_SCOPES = [
   "pages_show_list",
   "pages_read_engagement",
+  "pages_manage_posts",   // necessário para publicar na Page
   "business_management",
 ].join(",");
 
