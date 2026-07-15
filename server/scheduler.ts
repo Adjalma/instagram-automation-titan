@@ -13,6 +13,7 @@ import { researchTopics, researchRuns, posts, postMedia } from "../drizzle/schem
 import { eq } from "drizzle-orm";
 import { invokeLLM } from "./_core/llm";
 import { generateImage } from "./_core/imageGeneration";
+import { refreshFacebookTokensIfNeeded } from "./facebook";
 import { notifyOwner } from "./_core/notification";
 import { ENV } from "./_core/env";
 
@@ -236,9 +237,20 @@ async function tick() {
     if (taskDate !== date) dailyTasks.delete(key);
   });
 
-  // Às 3h Brasília: sync de insights + verificação de tokens expirados
+  // Às 3h Brasília: sync de insights + renovação de tokens Facebook + verificação de expirados
   if (hour === 3) {
     syncInsightsDaily(date).catch((e: any) => console.error("[Insights] Erro:", e?.message));
+    // Renova tokens Facebook que expiram em menos de 10 dias (sem novo login)
+    const fbKey = `refreshFbTokens:${date}`;
+    if (!dailyTasks.has(fbKey)) {
+      dailyTasks.add(fbKey);
+      refreshFacebookTokensIfNeeded()
+        .then(({ renewed, failed }) => {
+          if (renewed > 0) console.log(`[Facebook] ${renewed} token(s) renovado(s) automaticamente`);
+          if (failed > 0) notifyOwner({ title: "⚠️ Token Facebook não renovável", content: `${failed} conta(s) precisam de reconexão manual em Contas no TSM.` }).catch(() => {});
+        })
+        .catch((e: any) => console.error("[Facebook] Erro ao renovar tokens:", e?.message));
+    }
     checkExpiredTokens(date).catch((e: any) => console.error("[Tokens] Erro:", e?.message));
   }
 

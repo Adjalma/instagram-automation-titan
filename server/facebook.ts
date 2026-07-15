@@ -3,11 +3,15 @@
  *
  * Fluxo:
  *   1. /api/facebook/auth → redireciona para Facebook Login
- *   2. /auth/facebook/callback → troca code por user token → busca Page token → salva no banco
+ *   2. /auth/facebook/callback → troca code por Short-Lived → Long-Lived Token → Page Token → salva no banco
  *   3. publishToFacebook() → publica post na Page via Graph API
+ *   4. refreshFacebookTokenIfNeeded() → chamado pelo scheduler às 3h para renovar tokens próximos de expirar
  *
- * Permissões necessárias no app Meta:
- *   pages_show_list, pages_read_engagement, instagram_basic, instagram_content_publish
+ * Long-Lived Tokens:
+ *   - Short-Lived User Token: ~1-2h (retornado pelo OAuth)
+ *   - Long-Lived User Token: ~60 dias (trocado via fb_exchange_token)
+ *   - Page Access Token (de Long-Lived User): NÃO expira enquanto o User Token for válido
+ *   - Renovação: trocar o Long-Lived User Token por um novo antes de expirar (sem novo login)
  */
 import { Express, Request, Response } from "express";
 import { ENV } from "./_core/env";
@@ -20,15 +24,6 @@ const FB_TOKEN_URL = "https://graph.facebook.com/v19.0/oauth/access_token";
 const FB_GRAPH_URL = "https://graph.facebook.com/v19.0";
 
 // Permissões mínimas para publicar em Pages
-// NOTA: pages_manage_posts requer App Review aprovado para aparecer no OAuth.
-// Em modo de desenvolvimento, o app Meta já tem acesso total às páginas do
-// próprio desenvolvedor — o Page Access Token obtido via /me/accounts já
-// inclui as permissões necessárias sem precisar solicitar pages_manage_posts
-// explicitamente no scope do Login Dialog.
-// Escopos válidos para Facebook Login sem App Review.
-// instagram_basic e instagram_content_publish também requerem App Review
-// quando usados no Facebook Login Dialog. Para conectar a página do Facebook
-// e obter o Page Access Token, apenas estes são necessários:
 const FB_SCOPES = [
   "pages_show_list",
   "pages_read_engagement",
@@ -46,8 +41,106 @@ function getRedirectUri(_origin: string): string {
 }
 
 /**
+ * Troca um Short-Lived Token por um Long-Lived Token (~60 dias).
+ * Chamado imediatamente após o OAuth callback para maximizar validade.
+ */
+export async function exchangeForLongLivedToken(
+  shortToken: string
+): Promise<{ token: string; expiresIn: number }> {
+  const url =
+    `${FB_GRAPH_URL}/oauth/access_token` +
+    `?grant_type=fb_exchange_token` +
+    `&client_id=${ENV.facebookAppId}` +
+    `&client_secret=${ENV.facebookAppSecret}` +
+    `&fb_exchange_token=${encodeURIComponent(shortToken)}`;
+  const res = await fetch(url);
+  const data = (await res.json()) as any;
+  if (!data.access_token) {
+    throw new Error(`Long-lived token exchange failed: ${JSON.stringify(data)}`);
+  }
+  return { token: data.access_token, expiresIn: data.expires_in ?? 5183944 }; // ~60 dias default
+}
+
+/**
+ * Renova um Long-Lived Token existente antes de expirar.
+ * Pode ser chamado repetidamente — cada chamada reinicia o contador de 60 dias.
+ * Retorna null se a renovação falhar (token já expirado ou inválido → precisa de novo login).
+ */
+export async function refreshLongLivedToken(
+  existingToken: string
+): Promise<{ token: string; expiresAt: Date } | null> {
+  try {
+    const url =
+      `${FB_GRAPH_URL}/oauth/access_token` +
+      `?grant_type=fb_exchange_token` +
+      `&client_id=${ENV.facebookAppId}` +
+      `&client_secret=${ENV.facebookAppSecret}` +
+      `&fb_exchange_token=${encodeURIComponent(existingToken)}`;
+    const res = await fetch(url);
+    const data = (await res.json()) as any;
+    if (!data.access_token) {
+      console.warn("[Facebook] Token refresh failed:", data);
+      return null;
+    }
+    const expiresIn = data.expires_in ?? 5183944;
+    const expiresAt = new Date(Date.now() + expiresIn * 1000);
+    return { token: data.access_token, expiresAt };
+  } catch (err) {
+    console.error("[Facebook] refreshLongLivedToken error:", err);
+    return null;
+  }
+}
+
+/**
+ * Verifica todas as contas Facebook no banco e renova tokens que expiram em menos de 10 dias.
+ * Chamado pelo scheduler às 3h Brasília.
+ * Retorna { renewed, failed, skipped }.
+ */
+export async function refreshFacebookTokensIfNeeded(): Promise<{
+  renewed: number;
+  failed: number;
+  skipped: number;
+}> {
+  const db = await getDb();
+  if (!db) return { renewed: 0, failed: 0, skipped: 0 };
+
+  const accounts = await db
+    .select()
+    .from(instagramAccounts)
+    .where(eq(instagramAccounts.platform, "facebook"));
+
+  let renewed = 0, failed = 0, skipped = 0;
+  const TEN_DAYS_MS = 10 * 24 * 3600 * 1000;
+
+  for (const acc of accounts) {
+    if (!acc.accessToken) { skipped++; continue; }
+
+    const expiresAt = acc.tokenExpiresAt ? new Date(acc.tokenExpiresAt) : null;
+    const expiresInMs = expiresAt ? expiresAt.getTime() - Date.now() : 0;
+
+    // Só renova se expira em menos de 10 dias (ou já expirou)
+    if (expiresAt && expiresInMs > TEN_DAYS_MS) { skipped++; continue; }
+
+    console.log(`[Facebook] Renovando token da conta ${acc.handle} (expira em ${Math.round(expiresInMs / 86400000)} dias)`);
+    const result = await refreshLongLivedToken(acc.accessToken);
+
+    if (result) {
+      await db.update(instagramAccounts)
+        .set({ accessToken: result.token, tokenExpiresAt: result.expiresAt })
+        .where(eq(instagramAccounts.id, acc.id));
+      console.log(`[Facebook] Token renovado para ${acc.handle} — novo prazo: ${result.expiresAt.toLocaleDateString("pt-BR")}`);
+      renewed++;
+    } else {
+      console.error(`[Facebook] Falha ao renovar token de ${acc.handle} — reconexão manual necessária`);
+      failed++;
+    }
+  }
+
+  return { renewed, failed, skipped };
+}
+
+/**
  * Busca o Page Access Token e Page ID da página da Triarc Solutions.
- * Retorna { pageId, pageToken } ou null se não encontrar.
  */
 async function resolvePageToken(
   userToken: string
@@ -60,7 +153,7 @@ async function resolvePageToken(
       console.warn("[Facebook] /me/accounts status:", res.status, await res.text());
       return null;
     }
-    const data = await res.json() as any;
+    const data = (await res.json()) as any;
     const pages: any[] = data?.data ?? [];
 
     if (pages.length === 0) {
@@ -68,11 +161,11 @@ async function resolvePageToken(
       return null;
     }
 
-    // Tenta encontrar a página da Triarc pelo nome (case-insensitive)
-    const triarc = pages.find((p: any) =>
-      p.name?.toLowerCase().includes("triarc") ||
-      p.id === FB_PAGE_VANITY
-    ) ?? pages[0]; // fallback: primeira página disponível
+    const triarc =
+      pages.find(
+        (p: any) =>
+          p.name?.toLowerCase().includes("triarc") || p.id === FB_PAGE_VANITY
+      ) ?? pages[0];
 
     console.log(`[Facebook] Página selecionada: ${triarc.name} (${triarc.id})`);
     return { pageId: triarc.id, pageToken: triarc.access_token, pageName: triarc.name };
@@ -101,7 +194,7 @@ export function registerFacebookRoutes(app: Express) {
     res.redirect(`${FB_AUTH_URL}?${params.toString()}`);
   });
 
-  // Step 2: Callback — troca code por token, busca Page token, salva no banco
+  // Step 2: Callback — troca code por Short-Lived → Long-Lived → Page Token → salva no banco
   app.get("/auth/facebook/callback", async (req: Request, res: Response) => {
     const { code, state, error } = req.query as Record<string, string>;
 
@@ -123,34 +216,43 @@ export function registerFacebookRoutes(app: Express) {
     const redirectUri = getRedirectUri(origin);
 
     try {
-      // Troca code por User Access Token
+      // 1. Troca code por Short-Lived User Token
       const tokenRes = await fetch(
         `${FB_TOKEN_URL}?client_id=${ENV.facebookAppId}&redirect_uri=${encodeURIComponent(redirectUri)}&client_secret=${ENV.facebookAppSecret}&code=${code}`
       );
-      const tokenData = await tokenRes.json() as any;
+      const tokenData = (await tokenRes.json()) as any;
 
       if (!tokenData.access_token) {
         console.error("[Facebook] Token exchange failed:", tokenData);
         return res.redirect("/?facebook_error=token_exchange_failed");
       }
 
-      const userToken = tokenData.access_token;
+      // 2. Troca Short-Lived por Long-Lived Token (~60 dias)
+      let userToken = tokenData.access_token;
+      let tokenExpiresAt = new Date(Date.now() + 60 * 24 * 3600 * 1000); // fallback 60 dias
+      try {
+        const llt = await exchangeForLongLivedToken(userToken);
+        userToken = llt.token;
+        tokenExpiresAt = new Date(Date.now() + llt.expiresIn * 1000);
+        console.log(`[Facebook] Long-lived token obtido (expira em ${Math.round(llt.expiresIn / 86400)} dias)`);
+      } catch (e) {
+        console.warn("[Facebook] Falha ao obter long-lived token, usando short token:", e);
+      }
 
-      // Busca o Page Access Token da página da Triarc
+      // 3. Busca Page Access Token (Page tokens de Long-Lived User não expiram)
       const page = await resolvePageToken(userToken);
 
-      // Fallback: se não há Page, usa o próprio userToken para publicar no perfil/feed pessoal
       let finalToken = userToken;
       let pageRef = "fb:personal";
       if (page) {
         finalToken = page.pageToken;
         pageRef = `fb:page:${page.pageId}`;
+        // Page tokens derivados de Long-Lived User tokens não expiram
+        // mas mantemos a data do User Token para forçar renovação preventiva
         console.log(`[Facebook] Usando Page token: ${page.pageName} (${page.pageId})`);
       } else {
         console.warn("[Facebook] Nenhuma Page encontrada — usando token pessoal como fallback");
       }
-
-      const expiresAt = new Date(Date.now() + 60 * 24 * 3600 * 1000); // 60 dias
 
       if (accountId) {
         const db = await getDb();
@@ -158,11 +260,11 @@ export function registerFacebookRoutes(app: Express) {
         await db.update(instagramAccounts)
           .set({
             accessToken: finalToken,
-            tokenExpiresAt: expiresAt,
+            tokenExpiresAt,
             linkedinUrn: pageRef,
           })
           .where(eq(instagramAccounts.id, parseInt(accountId)));
-        console.log(`[Facebook] Token salvo para conta ${accountId} (ref: ${pageRef})`);
+        console.log(`[Facebook] Token salvo para conta ${accountId} (ref: ${pageRef}, expira: ${tokenExpiresAt.toLocaleDateString("pt-BR")})`);
       }
 
       res.redirect(`${origin}/accounts?facebook_connected=1`);
@@ -184,15 +286,11 @@ export async function publishToFacebook(params: {
 }): Promise<{ postId: string; permalink: string }> {
   const { pageToken, pageId, caption, imageUrl } = params;
 
-  // Usa /feed para texto e imagem — funciona com pages_manage_posts sem App Review extra.
-  // O endpoint /photos requer permissão adicional (error_subcode 99) e não é necessário
-  // para publicar conteúdo visual na timeline da página.
   const feedParams: Record<string, string> = {
     message: caption,
     access_token: pageToken,
   };
   if (imageUrl) {
-    // Inclui a imagem como link no post do feed
     feedParams.link = imageUrl;
   }
 
@@ -208,7 +306,7 @@ export async function publishToFacebook(params: {
     throw new Error(`Facebook post failed: ${res.status} ${err}`);
   }
 
-  const data = await res.json() as any;
+  const data = (await res.json()) as any;
   const postId = data.id ?? "";
 
   const permalink = postId
