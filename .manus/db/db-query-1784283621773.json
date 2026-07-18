@@ -1,0 +1,46 @@
+{
+  "query": "\nSELECT \n  ia.platform,\n  ia.handle,\n  COUNT(p.id) as total_posts,\n  SUM(COALESCE(p.likes, 0)) as total_likes,\n  SUM(COALESCE(p.comments, 0)) as total_comments,\n  SUM(COALESCE(p.linkedinPublished, 0)) as linkedin_published,\n  SUM(COALESCE(p.facebookPublished, 0)) as facebook_published\nFROM posts p\nJOIN instagram_accounts ia ON p.accountId = ia.id\nWHERE p.status = 'published'\nGROUP BY ia.platform, ia.handle\nORDER BY ia.platform;\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3F5sJN7FajWtXbb.root --database 3LYkMyiPgdB2gzxf44Hk3M --execute \nSELECT \n  ia.platform,\n  ia.handle,\n  COUNT(p.id) as total_posts,\n  SUM(COALESCE(p.likes, 0)) as total_likes,\n  SUM(COALESCE(p.comments, 0)) as total_comments,\n  SUM(COALESCE(p.linkedinPublished, 0)) as linkedin_published,\n  SUM(COALESCE(p.facebookPublished, 0)) as facebook_published\nFROM posts p\nJOIN instagram_accounts ia ON p.accountId = ia.id\nWHERE p.status = 'published'\nGROUP BY ia.platform, ia.handle\nORDER BY ia.platform;\n",
+  "rows": [
+    {
+      "platform": "instagram",
+      "handle": "triarcsolutions",
+      "total_posts": "106",
+      "total_likes": "24",
+      "total_comments": "1",
+      "linkedin_published": "85",
+      "facebook_published": "60"
+    },
+    {
+      "platform": "linkedin",
+      "handle": "triarcsolutions",
+      "total_posts": "43",
+      "total_likes": "8",
+      "total_comments": "0",
+      "linkedin_published": "43",
+      "facebook_published": "13"
+    },
+    {
+      "platform": "facebook",
+      "handle": "Triarcsolutions",
+      "total_posts": "60",
+      "total_likes": "10",
+      "total_comments": "0",
+      "linkedin_published": "59",
+      "facebook_published": "21"
+    },
+    {
+      "platform": "tiktok",
+      "handle": "triacsolutions",
+      "total_posts": "42",
+      "total_likes": "4",
+      "total_comments": "0",
+      "linkedin_published": "42",
+      "facebook_published": "11"
+    }
+  ],
+  "messages": [],
+  "stdout": "platform\thandle\ttotal_posts\ttotal_likes\ttotal_comments\tlinkedin_published\tfacebook_published\ninstagram\ttriarcsolutions\t106\t24\t1\t85\t60\nlinkedin\ttriarcsolutions\t43\t8\t0\t43\t13\nfacebook\tTriarcsolutions\t60\t10\t0\t59\t21\ntiktok\ttriacsolutions\t42\t4\t0\t42\t11\n",
+  "stderr": "",
+  "execution_time_ms": 274
+}

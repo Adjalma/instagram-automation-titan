@@ -127,7 +127,9 @@ export async function createPost(data: { userId: number; accountId: number; capt
 const POST_COLS = `p.id, p.userId, p.accountId, p.caption, p.status, p.theme, p.scheduledAt, p.publishedAt,
   p.instagramPostId, p.instagramPermalink, p.likes, p.comments, p.createdAt, p.updatedAt,
   p.mcpPending, p.retryCount, p.nextRetryAt, p.linkedinPublished, p.facebookPublished,
-  (SELECT pm.mediaUrl FROM post_media pm WHERE pm.postId = p.id ORDER BY pm.sortOrder ASC LIMIT 1) AS mediaUrl`;
+  (SELECT pm.mediaUrl FROM post_media pm WHERE pm.postId = p.id ORDER BY pm.sortOrder ASC LIMIT 1) AS mediaUrl,
+  ia.platform AS platform, ia.handle AS handle`;
+const POST_FROM = `posts p LEFT JOIN instagram_accounts ia ON p.accountId = ia.id`;
 
 async function queryPosts(db: ReturnType<typeof drizzle>, rawSql: ReturnType<typeof sql>): Promise<any[]> {
   const result = await db.execute(rawSql);
@@ -139,7 +141,7 @@ async function queryPosts(db: ReturnType<typeof drizzle>, rawSql: ReturnType<typ
 export async function getPostById(id: number) {
   const db = await getDb();
   if (!db) return undefined;
-  const rows = await queryPosts(db, sql`SELECT ${sql.raw(POST_COLS)} FROM posts p WHERE p.id = ${id} LIMIT 1`);
+  const rows = await queryPosts(db, sql`SELECT ${sql.raw(POST_COLS)} FROM ${sql.raw(POST_FROM)} WHERE p.id = ${id} LIMIT 1`);
   return rows[0];
 }
 
@@ -147,21 +149,21 @@ export async function getPostsByAccount(accountId: number, status?: string) {
   const db = await getDb();
   if (!db) return [];
   if (status) {
-    return queryPosts(db, sql`SELECT ${sql.raw(POST_COLS)} FROM posts p WHERE p.accountId = ${accountId} AND p.status = ${status} ORDER BY p.createdAt DESC`);
+    return queryPosts(db, sql`SELECT ${sql.raw(POST_COLS)} FROM ${sql.raw(POST_FROM)} WHERE p.accountId = ${accountId} AND p.status = ${status} ORDER BY p.createdAt DESC`);
   }
-  return queryPosts(db, sql`SELECT ${sql.raw(POST_COLS)} FROM posts p WHERE p.accountId = ${accountId} ORDER BY p.createdAt DESC`);
+  return queryPosts(db, sql`SELECT ${sql.raw(POST_COLS)} FROM ${sql.raw(POST_FROM)} WHERE p.accountId = ${accountId} ORDER BY p.createdAt DESC`);
 }
 
 export async function getPostsByStatus(status: string) {
   const db = await getDb();
   if (!db) return [];
-  return queryPosts(db, sql`SELECT ${sql.raw(POST_COLS)} FROM posts p WHERE p.status = ${status} ORDER BY p.createdAt DESC`);
+  return queryPosts(db, sql`SELECT ${sql.raw(POST_COLS)} FROM ${sql.raw(POST_FROM)} WHERE p.status = ${status} ORDER BY p.createdAt DESC`);
 }
 
 export async function getAllPosts() {
   const db = await getDb();
   if (!db) return [];
-  return queryPosts(db, sql`SELECT ${sql.raw(POST_COLS)} FROM posts p ORDER BY p.createdAt DESC`);
+  return queryPosts(db, sql`SELECT ${sql.raw(POST_COLS)} FROM ${sql.raw(POST_FROM)} ORDER BY p.createdAt DESC`);
 }
 
 export async function updatePost(id: number, data: Partial<{ caption: string; status: string; theme: string; scheduledAt: Date | null; publishedAt: Date | null; instagramPostId: string; instagramPermalink: string; mcpPending: number; retryCount: number; nextRetryAt: Date | null; likes: number; comments: number; linkedinPublished: number; facebookPublished: number }>) {

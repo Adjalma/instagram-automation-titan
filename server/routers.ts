@@ -638,33 +638,44 @@ export const appRouter = router({
     syncAllInsights: protectedProcedure.mutation(async () => {
       const { fetchPostInsights } = await import('./instagram');
       const published = await getPostsByStatus('published');
-      // Apenas IDs numéricos são válidos na Graph API — IDs alfanuméricos são do MCP e não funcionam
-      const postsWithId = (published as any[]).filter((p: any) => p.instagramPostId && /^\d+$/.test(p.instagramPostId));
-      // Buscar token e igUserId da conta Instagram
       const accounts = await getAllAccounts() as any[];
-      const igAccount = accounts.find((a: any) => a.platform === 'instagram' || !a.platform);
-      if (!igAccount?.accessToken) return { updated: 0, total: postsWithId.length, errors: ['Conta Instagram sem token'] };
-      const igUserId = igAccount.linkedinUrn?.replace('ig:', '') ?? igAccount.id.toString();
+      const accountMap = new Map(accounts.map((a: any) => [a.id, a]));
       let updated = 0;
       const errors: string[] = [];
-      for (const post of postsWithId) {
+
+      for (const post of published as any[]) {
+        const account = accountMap.get(post.accountId);
+        if (!account?.accessToken) continue;
+        const platform: string = account.platform ?? 'instagram';
         try {
-          const insights = await fetchPostInsights(igUserId, igAccount.accessToken, post.instagramPostId);
-          if (insights.likes !== undefined || insights.comments !== undefined) {
-            await updatePost(post.id, {
-              likes: insights.likes ?? (post as any).likes ?? 0,
-              comments: insights.comments ?? (post as any).comments ?? 0,
-            });
-            updated++;
+          if (platform === 'instagram') {
+            if (!post.instagramPostId || !/^\d+$/.test(post.instagramPostId)) continue;
+            const igUserId = account.linkedinUrn?.replace('ig:', '') ?? account.id.toString();
+            const insights = await fetchPostInsights(igUserId, account.accessToken, post.instagramPostId);
+            if (insights.likes !== undefined || insights.comments !== undefined) {
+              await updatePost(post.id, { likes: insights.likes ?? post.likes ?? 0, comments: insights.comments ?? post.comments ?? 0 });
+              updated++;
+            }
+          } else if (platform === 'facebook') {
+            if (!post.instagramPostId) continue;
+            const fbRes = await fetch(`https://graph.facebook.com/v19.0/${post.instagramPostId}?fields=likes.summary(true),comments.summary(true)&access_token=${account.accessToken}`);
+            if (fbRes.ok) {
+              const fbData = await fbRes.json() as any;
+              await updatePost(post.id, {
+                likes: fbData.likes?.summary?.total_count ?? post.likes ?? 0,
+                comments: fbData.comments?.summary?.total_count ?? post.comments ?? 0,
+              });
+              updated++;
+            }
           }
+          // LinkedIn e TikTok: APIs de insights requerem permissões avançadas — mantém valores existentes
         } catch (e: any) {
-          errors.push(`Post ${post.id}: ${e.message}`);
+          errors.push(`Post ${post.id} (${platform}): ${e.message}`);
         }
       }
-      return { updated, total: postsWithId.length, errors };
+      return { updated, total: (published as any[]).length, errors };
     }),
     getSummary: protectedProcedure.query(async () => {
-      // Resumo geral: total posts, pendentes, aprovados, publicados
       const [all, pending, approved, published, scheduled] = await Promise.all([
         getAllPosts(),
         getPostsByStatus('pending'),
@@ -675,6 +686,15 @@ export const appRouter = router({
       const publishedPosts = published as any[];
       const totalLikes = publishedPosts.reduce((s: number, p: any) => s + Number(p.likes ?? 0), 0);
       const totalComments = publishedPosts.reduce((s: number, p: any) => s + Number(p.comments ?? 0), 0);
+      // Breakdown por plataforma
+      const byPlatform: Record<string, { posts: number; likes: number; comments: number }> = {};
+      for (const p of publishedPosts) {
+        const plat: string = (p as any).platform ?? 'instagram';
+        if (!byPlatform[plat]) byPlatform[plat] = { posts: 0, likes: 0, comments: 0 };
+        byPlatform[plat].posts++;
+        byPlatform[plat].likes += Number((p as any).likes ?? 0);
+        byPlatform[plat].comments += Number((p as any).comments ?? 0);
+      }
       return {
         total: (all as any[]).length,
         pending: (pending as any[]).length,
@@ -683,6 +703,7 @@ export const appRouter = router({
         scheduled: (scheduled as any[]).length,
         totalLikes,
         totalComments,
+        byPlatform,
       };
     }),
   }),

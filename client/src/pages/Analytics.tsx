@@ -80,13 +80,15 @@ export default function Analytics() {
   }
 
   const publishedPosts = posts.data ?? [];
-  const instagramCount = publishedPosts.filter((p) => p.instagramPostId).length;
-  const linkedinCount = publishedPosts.filter((p) => (p as any).linkedinPublished === 1).length;
-  const facebookCount = publishedPosts.filter((p) => (p as any).facebookPublished === 1).length;
+  const instagramCount = publishedPosts.filter((p) => (p as any).platform === 'instagram' || p.instagramPostId).length;
+  const linkedinCount = publishedPosts.filter((p) => (p as any).platform === 'linkedin').length;
+  const facebookCount = publishedPosts.filter((p) => (p as any).platform === 'facebook').length;
+  const tiktokCount = publishedPosts.filter((p) => (p as any).platform === 'tiktok').length;
   const totalLikes = summary.data?.totalLikes ?? 0;
   const totalComments = summary.data?.totalComments ?? 0;
   const publishedCount = summary.data?.published ?? 0;
   const engagementRate = publishedCount > 0 ? ((totalLikes + totalComments) / publishedCount).toFixed(1) : "0";
+  const byPlatform = summary.data?.byPlatform ?? {};
 
   const barData = useMemo(() => (
     (posts.data ?? []).slice(0, 9).reverse().map((p) => ({
@@ -143,20 +145,30 @@ export default function Analytics() {
       </div>
 
       {/* Plataformas */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
-          { icon: Instagram, neon: NEON.pink, label: "Instagram", count: instagramCount },
-          { icon: Linkedin, neon: "oklch(0.65 0.18 240)", label: "LinkedIn", count: linkedinCount },
-          { icon: Facebook, neon: "oklch(0.65 0.18 255)", label: "Facebook", count: facebookCount },
-        ].map(({ icon: Icon, neon, label, count }) => (
-          <div key={label} className="text-center py-4 rounded-xl transition-all"
-            style={{ background: "oklch(0.17 0.03 240 / 90%)", border: `1px solid ${neon.replace(")", " / 25%)")}` }}
-          >
-            <Icon className="w-5 h-5 mx-auto mb-1.5" style={{ color: neon }} />
-            <p className="text-xl font-bold tabular-nums" style={{ fontFamily: "'Orbitron', sans-serif", color: neon }}>{count}</p>
-            <p className="text-[10px] font-mono uppercase tracking-wide mt-0.5" style={{ color: "oklch(0.50 0.02 240)" }}>{label}</p>
-          </div>
-        ))}
+          { icon: Instagram, neon: NEON.pink, label: "Instagram", count: instagramCount, plat: 'instagram' },
+          { icon: Linkedin, neon: "oklch(0.65 0.18 240)", label: "LinkedIn", count: linkedinCount, plat: 'linkedin' },
+          { icon: Facebook, neon: "oklch(0.65 0.18 255)", label: "Facebook", count: facebookCount, plat: 'facebook' },
+          { icon: Activity, neon: NEON.gold, label: "TikTok", count: tiktokCount, plat: 'tiktok' },
+        ].map(({ icon: Icon, neon, label, count, plat }) => {
+          const platData = byPlatform[plat] ?? { posts: 0, likes: 0, comments: 0 };
+          return (
+            <div key={label} className="text-center py-4 rounded-xl transition-all"
+              style={{ background: "oklch(0.17 0.03 240 / 90%)", border: `1px solid ${neon.replace(")", " / 25%)")}`}}
+            >
+              <Icon className="w-5 h-5 mx-auto mb-1.5" style={{ color: neon }} />
+              <p className="text-xl font-bold tabular-nums" style={{ fontFamily: "'Orbitron', sans-serif", color: neon }}>{count}</p>
+              <p className="text-[10px] font-mono uppercase tracking-wide mt-0.5" style={{ color: "oklch(0.50 0.02 240)" }}>{label}</p>
+              {(platData.likes > 0 || platData.comments > 0) && (
+                <div className="flex justify-center gap-2 mt-1.5 text-[9px] font-mono" style={{ color: "oklch(0.50 0.02 240)" }}>
+                  <span style={{ color: NEON.pink }}>♥ {platData.likes}</span>
+                  <span style={{ color: NEON.purple }}>💬 {platData.comments}</span>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       {/* KPIs */}
