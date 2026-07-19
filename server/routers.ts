@@ -619,7 +619,6 @@ export const appRouter = router({
     }),
 
     getPostsWithMetrics: protectedProcedure.query(async () => {
-      // Retorna posts publicados com métricas do banco
       const published = await getPostsByStatus('published');
       return (published as any[]).map((p: any) => ({
         id: p.id,
@@ -632,6 +631,8 @@ export const appRouter = router({
         theme: p.theme,
         linkedinPublished: Number(p.linkedinPublished ?? 0),
         facebookPublished: Number(p.facebookPublished ?? 0),
+        platform: (p as any).platform ?? 'instagram',
+        handle: (p as any).handle ?? 'unknown',
       }));
     }),
 
