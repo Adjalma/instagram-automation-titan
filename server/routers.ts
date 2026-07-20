@@ -4,7 +4,7 @@ import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import { eq, sql } from "drizzle-orm";
-import { instagramAccounts, posts } from "../drizzle/schema";
+import { instagramAccounts, posts , researchTopics } from "../drizzle/schema";
 import {
   getAllAccounts, getAccountById, getAccountStats,
   createPost, getPostById, getPostsByAccount, getPostsByStatus, getAllPosts, updatePost, deletePost,
@@ -707,6 +707,60 @@ export const appRouter = router({
         byPlatform,
       };
     }),
+  researchTopics: router({
+    list: protectedProcedure.query(async () => {
+      const db = await getDb();
+      return await db.select().from(researchTopics).orderBy(researchTopics.sortOrder);
+    }),
+    
+    create: protectedProcedure.input(z.object({
+      name: z.string(),
+      query: z.string(),
+      publishHour: z.number().min(0).max(23),
+      autoPublish: z.boolean().optional(),
+    })).mutation(async ({ input }) => {
+      const db = await getDb();
+      const account = await getAccountById(1); // Usar primeira conta
+      if (!account) throw new Error("Nenhuma conta disponível");
+      const result = await db.insert(researchTopics).values({
+        accountId: account.id,
+        name: input.name,
+        query: input.query,
+        publishHour: input.publishHour,
+        autoPublish: input.autoPublish ? 1 : 0,
+        language: 'en',
+        active: 1,
+        sortOrder: 999,
+      });
+      return result;
+    }),
+    
+    update: protectedProcedure.input(z.object({
+      id: z.number(),
+      name: z.string().optional(),
+      query: z.string().optional(),
+      publishHour: z.number().min(0).max(23).optional(),
+      autoPublish: z.boolean().optional(),
+      active: z.boolean().optional(),
+    })).mutation(async ({ input }) => {
+      const db = await getDb();
+      const updates: any = {};
+      if (input.name) updates.name = input.name;
+      if (input.query) updates.query = input.query;
+      if (input.publishHour !== undefined) updates.publishHour = input.publishHour;
+      if (input.autoPublish !== undefined) updates.autoPublish = input.autoPublish ? 1 : 0;
+      if (input.active !== undefined) updates.active = input.active ? 1 : 0;
+      
+      const result = await db.update(researchTopics).set(updates).where(eq(researchTopics.id, input.id));
+      return result;
+    }),
+    
+    delete: protectedProcedure.input(z.object({ id: z.number() })).mutation(async ({ input }) => {
+      const db = await getDb();
+      return await db.delete(researchTopics).where(eq(researchTopics.id, input.id));
+    }),
+  }),
+
   }),
 
   ai: router({

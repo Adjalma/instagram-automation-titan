@@ -5,6 +5,7 @@ import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import DashboardLayout from "./components/DashboardLayout";
+import ResearchTopics from "./pages/ResearchTopics";
 import Home from "./pages/Home";
 import CreatePost from "./pages/CreatePost";
 import Approval from "./pages/Approval";
@@ -34,7 +35,8 @@ function DashboardRoutes() {
       <Route path="/automation" component={Automation} />
       <Route path="/assets" component={Assets} />
       <Route path="/logs" component={PublicationLogs} />
-      <Route path="/analytics" component={Analytics} />
+              <Route path="/pesquisa-diaria" element={<ResearchTopics />} />
+        <Route path="/analytics" component={Analytics} />
       <Route path="/research" component={Research} />
       <Route path="/accounts" component={Accounts} />
       <Route path="/market-intel" component={MarketIntel} />
