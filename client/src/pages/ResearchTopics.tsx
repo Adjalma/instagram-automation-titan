@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { Edit2, Trash2, Plus, Clock, Zap } from "lucide-react";
+import { trpc } from "@/lib/trpc";
 
 const NEON = {
   cyan: "oklch(0.82 0.18 195)",
@@ -53,6 +54,8 @@ export default function ResearchTopics() {
   const handleUpdate = (id: number) => {
     updateTopic.mutate({ id, ...editData });
   };
+
+  const handleError = (e: any) => toast.error(`Erro: ${e.message}`);
 
   return (
     <div className="space-y-6">

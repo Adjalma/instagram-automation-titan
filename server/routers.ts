@@ -4,7 +4,7 @@ import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import { eq, sql } from "drizzle-orm";
-import { instagramAccounts, posts , researchTopics } from "../drizzle/schema";
+import { instagramAccounts, posts , researchTopics , instagramAccounts } from "../drizzle/schema";
 import {
   getAllAccounts, getAccountById, getAccountStats,
   createPost, getPostById, getPostsByAccount, getPostsByStatus, getAllPosts, updatePost, deletePost,
@@ -243,7 +243,12 @@ export const appRouter = router({
         for (const fbAcc of fbAccs) {
           const pageId = fbAcc.linkedinUrn.startsWith("fb:page:") ? fbAcc.linkedinUrn.replace("fb:page:", "") : "me";
           try {
-            await publishToFacebook({ pageToken: fbAcc.accessToken, pageId, caption, imageUrl });
+            // Renovar token antes de publicar
+            const { refreshLongLivedToken } = await import("./facebook");
+            const refreshed = await refreshLongLivedToken(fbAcc.accessToken);
+            const db = await getDb();
+            await db.update(instagramAccounts).set({ accessToken: refreshed.token, tokenExpiresAt: refreshed.expiresAt }).where(eq(instagramAccounts.id, fbAcc.id));
+            await publishToFacebook({ pageToken: refreshed.token, pageId, caption, imageUrl });
             await updatePost(input.id, { facebookPublished: 1 });
             publishResults.facebook = "ok";
             notifyOwner({ title: "✅ Facebook", content: `Post #${input.id} publicado no Facebook!` }).catch(() => {});
