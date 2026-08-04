@@ -420,11 +420,12 @@ export const appRouter = router({
           let mediaUrl = "";
           try {
             const artResult = await generateImage({
-              prompt: `Infographic-style premium tech illustration for Instagram post. Topic: ${theme.name}. Dark blue-gray background (#0a0e1a to #1a2035 gradient). Photorealistic 3D elements arranged in a clean editorial layout: holographic human figures, glowing neural network diagrams, floating UI panels with data visualizations, robotic arms, digital globe with connection lines, microscopic tech components magnified. Soft volumetric lighting with blue and cyan glows, subtle purple accents, golden highlights on key elements. Multiple depth layers creating cinematic depth of field. Professional infographic composition with visual hierarchy — large central focal element surrounded by smaller supporting elements. Ultra-detailed 8K quality, studio lighting, ray tracing reflections. Style inspired by premium tech magazine covers and AI research papers. Square 1:1 format 1080x1080. NO text, letters or numbers.`,
+              prompt: `Infographic-style premium tech illustration for Instagram post. Topic: ${theme.name}. Dark blue-gray background (#0a0e1a to #1a2035 gradient). Photorealistic 3D elements arranged in a clean editorial layout: holographic human figures, glowing neural network diagrams, floating UI panels with data visualizations, robotic arms, digital globe with connection lines, microscopic tech components magnified. Soft volumetric lighting with blue and cyan glows, subtle purple accents, golden highlights on key elements. Multiple depth layers creating cinematic depth of field. Professional infographic composition with visual hierarchy — large central focal element surrounded by smaller supporting elements. Ultra-detailed 8K quality, studio lighting, ray tracing reflections. Style inspired by premium tech magazine covers and AI research papers. Square 1:1 format 1080x1080. CRITICAL: NO text, letters, numbers, or any Portuguese/accented characters. Pure visual design only.`,
               originalImages: [{ url: "https://tsm.triarcsolutions.com.br/manus-storage/triarc-logo_4d0b8405.jpeg", mimeType: "image/jpeg" }],
             });
             mediaUrl = artResult.url ?? "";
           } catch (e) {
+            console.error(`[GenerateDaily] Image generation failed for theme "${theme.name}":`, (e as Error).message);
             // Art generation failed, post without media
           }
 
