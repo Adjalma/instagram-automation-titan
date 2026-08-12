@@ -4,7 +4,7 @@ import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import { eq, sql } from "drizzle-orm";
-import { instagramAccounts, posts , researchTopics , instagramAccounts } from "../drizzle/schema";
+import { instagramAccounts, posts, researchTopics } from "../drizzle/schema";
 import {
   getAllAccounts, getAccountById, getAccountStats,
   createPost, getPostById, getPostsByAccount, getPostsByStatus, getAllPosts, updatePost, deletePost,
@@ -46,6 +46,79 @@ async function buildTriarcContext(): Promise<string> {
 const APP_CONTEXT = APP_CONTEXT_BASE;
 
 const TRIARC_TONE = `Use um tom corporativo profissional, moderno e acessível. Posicione a Triarc Solutions como referência em tecnologia e inovação. Destaque expertise técnica, resultados concretos e valor para o cliente. Sempre inclua CTA direcionando para triarcsolutions.com.br. Use hashtags do nicho tech/inovação/negócios.`;
+
+/**
+ * Aprova e publica um post inline em todas as plataformas (Instagram, LinkedIn, Facebook).
+ * Usado internamente por approveAll e publishNow para evitar circular dependency.
+ */
+async function approveAndPublishPost(postId: number): Promise<{ success: boolean; status: string; publishResults?: Record<string, string> }> {
+  const post = await getPostById(postId);
+  if (!post) return { success: false, status: "not_found" };
+
+  // Se não tem agendamento ou o agendamento já passou → publicar imediatamente (síncrono)
+  if (!post.scheduledAt || new Date(post.scheduledAt as any) <= new Date()) {
+    await updatePost(postId, { status: "approved", mcpPending: 0 });
+    const media = await getPostMedia(postId) as any[];
+    let imageUrl: string | undefined;
+    if (media?.[0]?.mediaUrl) {
+      const u = media[0].mediaUrl;
+      imageUrl = u.startsWith("/manus-storage/")
+        ? await storageGetSignedUrl(u.replace("/manus-storage/", ""))
+        : u;
+    }
+    const caption: string = (post as any).caption || "";
+    const allAccs = await getAllAccounts() as any[];
+    const publishResults: Record<string, string> = {};
+    // Instagram
+    const igAccs = allAccs.filter((a: any) => a.platform === "instagram" && a.accessToken && a.linkedinUrn?.startsWith("ig:"));
+    for (const igAcc of igAccs) {
+      const igUserId = extractIgUserId(igAcc.linkedinUrn);
+      if (!igUserId || !imageUrl) { publishResults.instagram = "sem_imagem"; continue; }
+      try {
+        const r = await publishToInstagram({ igUserId, accessToken: igAcc.accessToken, caption, imageUrl });
+        await updatePost(postId, { instagramPostId: r.postId, instagramPermalink: r.permalink, status: "published", publishedAt: new Date(), mcpPending: 0 });
+        publishResults.instagram = r.postId;
+        notifyOwner({ title: "✅ Instagram", content: `Post #${postId} publicado!\n${r.permalink}` }).catch(() => {});
+      } catch (e: any) { publishResults.instagram = `erro: ${e.message}`; console.error(`[Approve] Instagram post ${postId}:`, e.message); }
+    }
+    // LinkedIn
+    const liAccs = allAccs.filter((a: any) => a.platform === "linkedin" && a.accessToken && a.linkedinUrn);
+    for (const liAcc of liAccs) {
+      try {
+        await publishToLinkedIn({ accessToken: liAcc.accessToken, linkedinUrn: liAcc.linkedinUrn, caption, imageUrl });
+        await updatePost(postId, { linkedinPublished: 1 });
+        publishResults.linkedin = "ok";
+        notifyOwner({ title: "✅ LinkedIn", content: `Post #${postId} publicado no LinkedIn!` }).catch(() => {});
+      } catch (e: any) { publishResults.linkedin = `erro: ${e.message}`; console.error(`[Approve] LinkedIn post ${postId}:`, e.message); }
+    }
+    // Facebook
+    const fbAccs = allAccs.filter((a: any) => a.platform === "facebook" && a.accessToken && (a.linkedinUrn?.startsWith("fb:page:") || a.linkedinUrn === "fb:personal"));
+    for (const fbAcc of fbAccs) {
+      const pageId = fbAcc.linkedinUrn.startsWith("fb:page:") ? fbAcc.linkedinUrn.replace("fb:page:", "") : "me";
+      try {
+        const { refreshLongLivedToken } = await import("./facebook");
+        const refreshed = await refreshLongLivedToken(fbAcc.accessToken);
+        const pageToken = refreshed?.token ?? fbAcc.accessToken;
+        if (refreshed?.token) {
+          const db = await getDb();
+          if (db) {
+            await db.update(instagramAccounts).set({ accessToken: refreshed.token, tokenExpiresAt: refreshed.expiresAt }).where(eq(instagramAccounts.id, fbAcc.id));
+          }
+        }
+        await publishToFacebook({ pageToken, pageId, caption, imageUrl });
+        await updatePost(postId, { facebookPublished: 1 });
+        publishResults.facebook = "ok";
+        notifyOwner({ title: "✅ Facebook", content: `Post #${postId} publicado no Facebook!` }).catch(() => {});
+      } catch (e: any) { publishResults.facebook = `erro: ${e.message}`; console.error(`[Approve] Facebook post ${postId}:`, e.message); }
+    }
+    await updatePost(postId, { status: "published", publishedAt: new Date() });
+    console.log(`[Approve] Post ${postId} resultados:`, publishResults);
+    return { success: true, status: "published", publishResults };
+  }
+  // Post com agendamento futuro → scheduled
+  await updatePost(postId, { status: "scheduled" });
+  return { success: true, status: "scheduled" };
+}
 
 export const appRouter = router({
   system: systemRouter,
@@ -216,48 +289,8 @@ export const appRouter = router({
         const caption: string = (post as any).caption || "";
         const allAccs = await getAllAccounts() as any[];
         const publishResults: Record<string, string> = {};
-        // Instagram
-        const igAccs = allAccs.filter((a: any) => a.platform === "instagram" && a.accessToken && a.linkedinUrn?.startsWith("ig:"));
-        for (const igAcc of igAccs) {
-          const igUserId = extractIgUserId(igAcc.linkedinUrn);
-          if (!igUserId || !imageUrl) { publishResults.instagram = "sem_imagem"; continue; }
-          try {
-            const r = await publishToInstagram({ igUserId, accessToken: igAcc.accessToken, caption, imageUrl });
-            await updatePost(input.id, { instagramPostId: r.postId, instagramPermalink: r.permalink, status: "published", publishedAt: new Date(), mcpPending: 0 });
-            publishResults.instagram = r.postId;
-            notifyOwner({ title: "✅ Instagram", content: `Post #${input.id} publicado!\n${r.permalink}` }).catch(() => {});
-          } catch (e: any) { publishResults.instagram = `erro: ${e.message}`; console.error(`[Approve] Instagram post ${input.id}:`, e.message); }
-        }
-        // LinkedIn
-        const liAccs = allAccs.filter((a: any) => a.platform === "linkedin" && a.accessToken && a.linkedinUrn);
-        for (const liAcc of liAccs) {
-          try {
-            await publishToLinkedIn({ accessToken: liAcc.accessToken, linkedinUrn: liAcc.linkedinUrn, caption, imageUrl });
-            await updatePost(input.id, { linkedinPublished: 1 });
-            publishResults.linkedin = "ok";
-            notifyOwner({ title: "✅ LinkedIn", content: `Post #${input.id} publicado no LinkedIn!` }).catch(() => {});
-          } catch (e: any) { publishResults.linkedin = `erro: ${e.message}`; console.error(`[Approve] LinkedIn post ${input.id}:`, e.message); }
-        }
-        // Facebook
-        const fbAccs = allAccs.filter((a: any) => a.platform === "facebook" && a.accessToken && (a.linkedinUrn?.startsWith("fb:page:") || a.linkedinUrn === "fb:personal"));
-        for (const fbAcc of fbAccs) {
-          const pageId = fbAcc.linkedinUrn.startsWith("fb:page:") ? fbAcc.linkedinUrn.replace("fb:page:", "") : "me";
-          try {
-            // Renovar token antes de publicar
-            const { refreshLongLivedToken } = await import("./facebook");
-            const refreshed = await refreshLongLivedToken(fbAcc.accessToken);
-            const db = await getDb();
-            await db.update(instagramAccounts).set({ accessToken: refreshed.token, tokenExpiresAt: refreshed.expiresAt }).where(eq(instagramAccounts.id, fbAcc.id));
-            await publishToFacebook({ pageToken: refreshed.token, pageId, caption, imageUrl });
-            await updatePost(input.id, { facebookPublished: 1 });
-            publishResults.facebook = "ok";
-            notifyOwner({ title: "✅ Facebook", content: `Post #${input.id} publicado no Facebook!` }).catch(() => {});
-          } catch (e: any) { publishResults.facebook = `erro: ${e.message}`; console.error(`[Approve] Facebook post ${input.id}:`, e.message); }
-        }
-        // Garante que o post sai da fila de aprovação independente do resultado por plataforma
-        await updatePost(input.id, { status: "published", publishedAt: new Date() });
-        console.log(`[Approve] Post ${input.id} resultados:`, publishResults);
-        return { success: true, status: "published", publishResults };
+        const result = await approveAndPublishPost(input.id);
+        return { success: true, status: result.status, publishResults: result.publishResults };
       }
       // Post com agendamento futuro → scheduled
       await updatePost(input.id, { status: "scheduled" });
@@ -544,14 +577,15 @@ export const appRouter = router({
       for (const post of pendingPosts) {
         const p = post as any;
         if (!p.scheduledAt || new Date(p.scheduledAt) <= new Date()) {
-          await updatePost(p.id, { status: "approved", mcpPending: 0 });
+          // Aprovar e publicar inline (Instagram, LinkedIn, Facebook)
+          await approveAndPublishPost(p.id);
           approved++;
         } else {
           await updatePost(p.id, { status: "scheduled" });
           scheduled++;
         }
       }
-      return { approved, published: 0, scheduled, total: pendingPosts.length };
+      return { approved, published: approved, scheduled, total: pendingPosts.length };
     }),
 
     processScheduled: protectedProcedure.mutation(async () => {
@@ -559,11 +593,11 @@ export const appRouter = router({
     }),
 
     publishNow: protectedProcedure.input(z.object({ postId: z.number() })).mutation(async ({ input }) => {
-      // Marca o post como approved e mcpPending=0 para que o agente o publique na próxima execução
+      // Aprovar e publicar inline (Instagram, LinkedIn, Facebook)
       const post = await getPostById(input.postId);
       if (!post) throw new Error("Post not found");
-      await updatePost(input.postId, { status: "approved", mcpPending: 0, retryCount: 0 });
-      return { success: true, message: "Post adicionado à fila de publicação imediata. O agente publicará em breve." };
+      const result = await approveAndPublishPost(input.postId);
+      return { success: true, status: result.status, message: "Post publicado em todas as plataformas conectadas.", publishResults: result.publishResults };
     }),
 
     getLogs: protectedProcedure.query(async () => {
@@ -716,6 +750,7 @@ export const appRouter = router({
   researchTopics: router({
     list: protectedProcedure.query(async () => {
       const db = await getDb();
+      if (!db) return [];
       return await db.select().from(researchTopics).orderBy(researchTopics.sortOrder);
     }),
     
@@ -728,6 +763,7 @@ export const appRouter = router({
       const db = await getDb();
       const account = await getAccountById(1); // Usar primeira conta
       if (!account) throw new Error("Nenhuma conta disponível");
+      if (!db) throw new Error("Banco indisponível");
       const result = await db.insert(researchTopics).values({
         accountId: account.id,
         name: input.name,
@@ -749,7 +785,6 @@ export const appRouter = router({
       autoPublish: z.boolean().optional(),
       active: z.boolean().optional(),
     })).mutation(async ({ input }) => {
-      const db = await getDb();
       const updates: any = {};
       if (input.name) updates.name = input.name;
       if (input.query) updates.query = input.query;
@@ -757,12 +792,15 @@ export const appRouter = router({
       if (input.autoPublish !== undefined) updates.autoPublish = input.autoPublish ? 1 : 0;
       if (input.active !== undefined) updates.active = input.active ? 1 : 0;
       
+      const db = await getDb();
+      if (!db) throw new Error("Banco indisponível");
       const result = await db.update(researchTopics).set(updates).where(eq(researchTopics.id, input.id));
       return result;
     }),
     
     delete: protectedProcedure.input(z.object({ id: z.number() })).mutation(async ({ input }) => {
       const db = await getDb();
+      if (!db) throw new Error("Banco indisponível");
       return await db.delete(researchTopics).where(eq(researchTopics.id, input.id));
     }),
   }),

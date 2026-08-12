@@ -20,8 +20,11 @@ import { updatePost, getPostsByStatus, getPostById, getPostMedia, createPublicat
 import { storageGetSignedUrl } from "./storage";
 import { notifyOwner } from "./_core/notification";
 import { publishToLinkedIn } from "./linkedin";
-import { publishToFacebook } from "./facebook";
+import { publishToFacebook, refreshLongLivedToken } from "./facebook";
 import { publishToInstagram, extractIgUserId } from "./instagram";
+import { getDb } from "./db";
+import { instagramAccounts } from "../drizzle/schema";
+import { eq } from "drizzle-orm";
 
 /** Autentica requisição de heartbeat via header x-manus-cron-task-uid ou sessão normal */
 async function authenticateHeartbeat(req: Request): Promise<boolean> {
@@ -97,8 +100,22 @@ async function publishToSocialPlatforms(postId: number, caption: string, imageUr
         ? fbAccount.linkedinUrn.replace("fb:page:", "")
         : "me";
       try {
+        // Tentar renovar o token antes de publicar (com fallback para token existente)
+        const refreshed = await refreshLongLivedToken(fbAccount.accessToken);
+        const pageToken = refreshed?.token ?? fbAccount.accessToken;
+        if (refreshed?.token) {
+          const db = await getDb();
+          if (db) {
+            await db.update(instagramAccounts)
+              .set({ accessToken: refreshed.token, tokenExpiresAt: refreshed.expiresAt })
+              .where(eq(instagramAccounts.id, fbAccount.id));
+            console.log(`[LinkedIn/FB] Token Facebook renovado para conta ${fbAccount.handle}`);
+          }
+        } else {
+          console.warn(`[LinkedIn/FB] Refresh FB falhou para ${fbAccount.handle}, usando token existente`);
+        }
         const result = await publishToFacebook({
-          pageToken: fbAccount.accessToken,
+          pageToken,
           pageId,
           caption,
           imageUrl,
@@ -379,7 +396,21 @@ export function registerScheduledRoutes(app: Express) {
             const pageId = fbAcc.linkedinUrn.startsWith("fb:page:")
               ? fbAcc.linkedinUrn.replace("fb:page:", "") : "me";
             try {
-              const r = await publishToFacebook({ pageToken: fbAcc.accessToken, pageId, caption, imageUrl });
+              // Tentar renovar o token antes de publicar (com fallback para token existente)
+              const refreshed = await refreshLongLivedToken(fbAcc.accessToken);
+              const pageToken = refreshed?.token ?? fbAcc.accessToken;
+              if (refreshed?.token) {
+                const db = await getDb();
+                if (db) {
+                  await db.update(instagramAccounts)
+                    .set({ accessToken: refreshed.token, tokenExpiresAt: refreshed.expiresAt })
+                    .where(eq(instagramAccounts.id, fbAcc.id));
+                  console.log(`[Heartbeat] Token Facebook renovado para conta ${fbAcc.handle}`);
+                }
+              } else {
+                console.warn(`[Heartbeat] Refresh FB falhou para ${fbAcc.handle}, usando token existente`);
+              }
+              const r = await publishToFacebook({ pageToken, pageId, caption, imageUrl });
               await updatePost(post.id, { facebookPublished: 1 });
               fbPublished++;
               console.log(`[Heartbeat] Post ${post.id} → Facebook: ${r.postId}`);

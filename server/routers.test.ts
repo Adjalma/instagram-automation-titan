@@ -133,11 +133,12 @@ describe("posts.approve and posts.reject", () => {
     await caller.posts.update({ id: created.id, status: "pending" });
     const result = await caller.posts.approve({ id: created.id });
     expect(result.success).toBe(true);
-    expect(result.status).toBe("approved");
+    // Agora o approve publica inline (IG, LI, FB) — status pode ser published ou approved (se falhar)
+    expect(["published", "approved"]).toContain(result.status);
 
     // cleanup
     await caller.posts.delete({ id: created.id });
-  });
+  }, 30000);
 
   it("rejects a post", async () => {
     const { ctx } = createAuthContext();
