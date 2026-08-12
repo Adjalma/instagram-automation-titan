@@ -19,7 +19,7 @@ import { notifyOwner } from "./_core/notification";
 import { storagePut } from "./storage";
 import { processScheduledPosts, fetchPostInsights, publishToInstagram, extractIgUserId } from "./instagram";
 import { publishToLinkedIn } from "./linkedin";
-import { publishToFacebook } from "./facebook";
+import { publishToFacebook, resolveFacebookToken } from "./facebook";
 import { storageGetSignedUrl } from "./storage";
 import { researchRouter } from "./routers/research";
 import { seedTriarcContent, TRIARC_SERVICES, TRIARC_PROJECTS } from "./seed-triarc";
@@ -96,20 +96,27 @@ async function approveAndPublishPost(postId: number): Promise<{ success: boolean
     for (const fbAcc of fbAccs) {
       const pageId = fbAcc.linkedinUrn.startsWith("fb:page:") ? fbAcc.linkedinUrn.replace("fb:page:", "") : "me";
       try {
-        const { refreshLongLivedToken } = await import("./facebook");
-        const refreshed = await refreshLongLivedToken(fbAcc.accessToken);
-        const pageToken = refreshed?.token ?? fbAcc.accessToken;
-        if (refreshed?.token) {
+        console.log(`[Approve] Publicando post ${postId} → Facebook (conta: ${fbAcc.handle}, pageId: ${pageId})`);
+        // Resolver token com refresh + fallback
+        const { token: pageToken, source: tokenSource } = await resolveFacebookToken(fbAcc.accessToken);
+        console.log(`[Approve] Token FB (source: ${tokenSource}) para post ${postId}`);
+        // Salvar token renovado no banco se houve refresh
+        if (tokenSource === "refresh") {
           const db = await getDb();
           if (db) {
-            await db.update(instagramAccounts).set({ accessToken: refreshed.token, tokenExpiresAt: refreshed.expiresAt }).where(eq(instagramAccounts.id, fbAcc.id));
+            const { refreshLongLivedToken } = await import("./facebook");
+            const refreshed = await refreshLongLivedToken(fbAcc.accessToken);
+            if (refreshed?.token) {
+              await db.update(instagramAccounts).set({ accessToken: refreshed.token, tokenExpiresAt: refreshed.expiresAt }).where(eq(instagramAccounts.id, fbAcc.id));
+            }
           }
         }
         await publishToFacebook({ pageToken, pageId, caption, imageUrl });
         await updatePost(postId, { facebookPublished: 1 });
         publishResults.facebook = "ok";
+        console.log(`[Approve] ✅ Post ${postId} → Facebook publicado`);
         notifyOwner({ title: "✅ Facebook", content: `Post #${postId} publicado no Facebook!` }).catch(() => {});
-      } catch (e: any) { publishResults.facebook = `erro: ${e.message}`; console.error(`[Approve] Facebook post ${postId}:`, e.message); }
+      } catch (e: any) { publishResults.facebook = `erro: ${e.message}`; console.error(`[Approve] ❌ Facebook post ${postId} falhou:`, e.message); }
     }
     await updatePost(postId, { status: "published", publishedAt: new Date() });
     console.log(`[Approve] Post ${postId} resultados:`, publishResults);
@@ -593,11 +600,71 @@ export const appRouter = router({
     }),
 
     publishNow: protectedProcedure.input(z.object({ postId: z.number() })).mutation(async ({ input }) => {
-      // Aprovar e publicar inline (Instagram, LinkedIn, Facebook)
+      // Publicar IMEDIATAMENTE (ignora scheduledAt — forçar publicação agora)
       const post = await getPostById(input.postId);
       if (!post) throw new Error("Post not found");
-      const result = await approveAndPublishPost(input.postId);
-      return { success: true, status: result.status, message: "Post publicado em todas as plataformas conectadas.", publishResults: result.publishResults };
+      
+      // Buscar mídia e informações necessárias
+      await updatePost(input.postId, { status: "approved", mcpPending: 0 });
+      const media = await getPostMedia(input.postId) as any[];
+      let imageUrl: string | undefined;
+      if (media?.[0]?.mediaUrl) {
+        const u = media[0].mediaUrl;
+        imageUrl = u.startsWith("/manus-storage/")
+          ? await storageGetSignedUrl(u.replace("/manus-storage/", ""))
+          : u;
+      }
+      const caption: string = (post as any).caption || "";
+      const allAccs = await getAllAccounts() as any[];
+      const publishResults: Record<string, string> = {};
+      
+      // Instagram
+      const igAccs = allAccs.filter((a: any) => a.platform === "instagram" && a.accessToken && a.linkedinUrn?.startsWith("ig:"));
+      for (const igAcc of igAccs) {
+        const igUserId = extractIgUserId(igAcc.linkedinUrn);
+        if (!igUserId || !imageUrl) { publishResults.instagram = "sem_imagem"; continue; }
+        try {
+          const r = await publishToInstagram({ igUserId, accessToken: igAcc.accessToken, caption, imageUrl });
+          await updatePost(input.postId, { instagramPostId: r.postId, instagramPermalink: r.permalink, status: "published", publishedAt: new Date(), mcpPending: 0 });
+          publishResults.instagram = r.postId;
+          notifyOwner({ title: "✅ Instagram", content: `Post #${input.postId} publicado!\n${r.permalink}` }).catch(() => {});
+        } catch (e: any) { publishResults.instagram = `erro: ${e.message}`; console.error(`[PublishNow] Instagram post ${input.postId}:`, e.message); }
+      }
+      // LinkedIn
+      const liAccs = allAccs.filter((a: any) => a.platform === "linkedin" && a.accessToken && a.linkedinUrn);
+      for (const liAcc of liAccs) {
+        try {
+          await publishToLinkedIn({ accessToken: liAcc.accessToken, linkedinUrn: liAcc.linkedinUrn, caption, imageUrl });
+          await updatePost(input.postId, { linkedinPublished: 1 });
+          publishResults.linkedin = "ok";
+          notifyOwner({ title: "✅ LinkedIn", content: `Post #${input.postId} publicado no LinkedIn!` }).catch(() => {});
+        } catch (e: any) { publishResults.linkedin = `erro: ${e.message}`; console.error(`[PublishNow] LinkedIn post ${input.postId}:`, e.message); }
+      }
+      // Facebook
+      const fbAccs = allAccs.filter((a: any) => a.platform === "facebook" && a.accessToken && (a.linkedinUrn?.startsWith("fb:page:") || a.linkedinUrn === "fb:personal"));
+      for (const fbAcc of fbAccs) {
+        const pageId = fbAcc.linkedinUrn.startsWith("fb:page:") ? fbAcc.linkedinUrn.replace("fb:page:", "") : "me";
+        try {
+          const { token: pageToken, source: tokenSource } = await resolveFacebookToken(fbAcc.accessToken);
+          if (tokenSource === "refresh") {
+            const db = await getDb();
+            if (db) {
+              const { refreshLongLivedToken } = await import("./facebook");
+              const refreshed = await refreshLongLivedToken(fbAcc.accessToken);
+              if (refreshed?.token) {
+                await db.update(instagramAccounts).set({ accessToken: refreshed.token, tokenExpiresAt: refreshed.expiresAt }).where(eq(instagramAccounts.id, fbAcc.id));
+              }
+            }
+          }
+          await publishToFacebook({ pageToken, pageId, caption, imageUrl });
+          await updatePost(input.postId, { facebookPublished: 1 });
+          publishResults.facebook = "ok";
+          notifyOwner({ title: "✅ Facebook", content: `Post #${input.postId} publicado no Facebook!` }).catch(() => {});
+        } catch (e: any) { publishResults.facebook = `erro: ${e.message}`; console.error(`[PublishNow] Facebook post ${input.postId}:`, e.message); }
+      }
+      
+      await updatePost(input.postId, { status: "published", publishedAt: new Date() });
+      return { success: true, status: "published", message: "Post publicado imediatamente em todas as plataformas conectadas.", publishResults };
     }),
 
     getLogs: protectedProcedure.query(async () => {

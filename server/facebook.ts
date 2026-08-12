@@ -85,11 +85,29 @@ export async function refreshLongLivedToken(
     }
     const expiresIn = data.expires_in ?? 5183944;
     const expiresAt = new Date(Date.now() + expiresIn * 1000);
+    console.log(`[Facebook] Token renovado com sucesso — expira em ${Math.round(expiresIn / 86400)} dias`);
     return { token: data.access_token, expiresAt };
   } catch (err) {
     console.error("[Facebook] refreshLongLivedToken error:", err);
     return null;
   }
+}
+
+/**
+ * Retorna o token mais válido para publicar no Facebook.
+ * Prioridade: 1) refresh do token da conta, 2) FACEBOOK_USER_TOKEN do env como último recurso.
+ */
+export async function resolveFacebookToken(
+  accountToken: string
+): Promise<{ token: string; source: string }> {
+  // Tenta renovar o token da conta
+  const refreshed = await refreshLongLivedToken(accountToken);
+  if (refreshed?.token) {
+    return { token: refreshed.token, source: "refresh" };
+  }
+  // Fallback para token da conta (pode estar expirado, mas tenta assim mesmo)
+  console.warn("[Facebook] Refresh falhou, tentando token da conta diretamente...");
+  return { token: accountToken, source: "account" };
 }
 
 /**
